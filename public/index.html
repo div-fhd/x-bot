@@ -684,8 +684,22 @@ select option { background: var(--s2); }
       <div class="card-h"><span class="card-title">رد على تغريدة — حسابات متعددة</span></div>
       <div class="card-b">
         <div class="form-grid">
-          <div class="field fg-full"><label>ID التغريدة</label><input id="ry-tweet" type="text" placeholder="123456789" style="direction:ltr"></div>
-          <div class="field fg-full"><label>نص الرد</label><textarea id="ry-text" placeholder="اكتب ردك هنا…" maxlength="280"></textarea></div>
+          <div class="field fg-full"><label>رابط التغريدة أو ID</label><input id="ry-tweet" type="text" placeholder="https://x.com/user/status/123 أو 123456789" style="direction:ltr"></div>
+          <div class="field fg-full">
+            <label>وضع الرد</label>
+            <select id="ry-mode" onchange="onReplyModeChange(this.value)">
+              <option value="manual">يدوي — نفس الرد للكل</option>
+              <option value="ai">🤖 AI — رد مختلف لكل حساب حسب محتوى التغريدة</option>
+            </select>
+          </div>
+          <div id="ry-text-wrap" class="field fg-full">
+            <label>نص الرد <small style="color:var(--t2);font-weight:400">— سطر لكل حساب (اختياري)</small></label>
+            <textarea id="ry-text" placeholder="رد الحساب الأول&#10;رد الحساب الثاني&#10;..." style="min-height:80px;resize:vertical"></textarea>
+          </div>
+          <div id="ry-ai-opts" style="display:none" class="field fg-full">
+            <label>تعليمات للـ AI <small style="color:var(--t2);font-weight:400">(اختياري)</small></label>
+            <input id="ry-ai-hint" type="text" placeholder="مثال: رد إيجابي ومشجع، لا تزيد عن جملتين">
+          </div>
         </div>
         <div class="field" style="margin-bottom:10px">
           <label>الحسابات المُنفِّذة <small style="color:var(--t2)">(Ctrl+Click لاختيار متعدد)</small></label>
@@ -1622,23 +1636,55 @@ async function doRepostMulti() {
   toast(`✅ إعادة تغريد: نجح ${done}${failed?' | فشل '+failed:''}`, done>0?'ok':'err');
 }
 
+function onReplyModeChange(val) {
+  document.getElementById('ry-text-wrap').style.display = val === 'ai' ? 'none' : 'block';
+  document.getElementById('ry-ai-opts').style.display   = val === 'ai' ? 'block' : 'none';
+}
+
 async function doReplyMulti() {
-  const tweetId = document.getElementById('ry-tweet').value.trim();
-  const text    = document.getElementById('ry-text').value.trim();
-  if (!tweetId || !text) return toast('أكمل جميع الحقول', 'warn');
-  const ids = getSelectedAccounts('ry-acc');
+  let tweetInput = document.getElementById('ry-tweet').value.trim();
+  if (!tweetInput) return toast('أدخل رابط أو ID التغريدة', 'warn');
+
+  // استخرج الـ ID من الرابط إذا كان رابط كامل
+  const match = tweetInput.match(/status\/(\d+)/);
+  const tweetId = match ? match[1] : tweetInput.replace(/\D/g,'');
+  if (!tweetId) return toast('رابط أو ID غير صحيح', 'warn');
+
+  const mode  = document.getElementById('ry-mode').value;
+  const text  = document.getElementById('ry-text').value.trim();
+  const hint  = document.getElementById('ry-ai-hint').value.trim();
+  const ids   = getSelectedAccounts('ry-acc');
   if (!ids.length) return toast('اختر حساباً على الأقل', 'warn');
-  document.getElementById('ry-status').textContent = `جارٍ التنفيذ على ${ids.length} حساب…`;
+  if (mode === 'manual' && !text) return toast('أدخل نص الرد', 'warn');
+
+  // قائمة ردود يدوية (سطر لكل حساب)
+  const textLines = text ? text.split('\n').map(l => l.trim()).filter(Boolean) : [];
+
+  const stat = document.getElementById('ry-status');
+  stat.textContent = `جارٍ التنفيذ على ${ids.length} حساب…`;
   let done = 0, failed = 0;
+
   for (let i = 0; i < ids.length; i++) {
     try {
-      await api('/api/v1/actions/reply', { method:'POST', body: JSON.stringify({ accountId: ids[i], tweetId, text }) });
+      await api('/api/v1/actions/reply', {
+        method: 'POST',
+        body: JSON.stringify({
+          accountId: ids[i],
+          tweetId,
+          text: mode === 'manual' ? (textLines[i % textLines.length] || textLines[0]) : null,
+          useAI: mode === 'ai',
+          aiHint: hint || null,
+        }),
+      });
       done++;
-    } catch(e) { failed++; }
-    if (i < ids.length - 1) await new Promise(r => setTimeout(r, 8000 + Math.random() * 15000));
+    } catch(e) {
+      failed++;
+      logger?.warn?.(`reply @${ids[i]}: ${e.message}`);
+    }
+    if (i < ids.length - 1) await new Promise(r => setTimeout(r, 8000 + Math.random() * 12000));
   }
-  document.getElementById('ry-status').textContent = '';
-  toast(`✅ رد: نجح ${done}${failed?' | فشل '+failed:''}`, done>0?'ok':'err');
+  stat.textContent = '';
+  toast(`✅ رد: نجح ${done}${failed ? ' | فشل '+failed : ''}`, done > 0 ? 'ok' : 'err');
 }
 
 async function doTweetMulti() {

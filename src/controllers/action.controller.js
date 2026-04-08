@@ -114,12 +114,37 @@ const ActionCtrl = {
 
   // ── Reply ─────────────────────────────────────────────────────
   async reply(req, res) {
-    const { accountId, tweetId, text } = req.body;
-    if (!accountId || !tweetId || !text) return res.status(400).json({ error: 'accountId, tweetId, text required' });
+    const { accountId, tweetId, text, useAI = false, aiHint } = req.body;
+    if (!accountId || !tweetId) return res.status(400).json({ error: 'accountId, tweetId required' });
+    if (!useAI && !text) return res.status(400).json({ error: 'text required when not using AI' });
+
     const account = await Account.findById(accountId);
     if (!account?.isOperational) return res.status(400).json({ error: 'Account not active' });
-    const result = await ActionSvc.reply(account, tweetId, text);
-    res.json(result);
+
+    let replyText = text;
+
+    // توليد رد بالـ AI
+    if (useAI) {
+      try {
+        // جلب محتوى التغريدة أولاً
+        const tweetContent = await ActionSvc.getTweetText(account, tweetId).catch(() => '');
+        const prompt = `${aiHint ? aiHint + '. ' : ''}اكتب رداً طبيعياً ومناسباً على هذه التغريدة باللغة العربية (أقل من 200 حرف): "${tweetContent}"`;
+        const sugs = await AISvc.suggestTweets({
+          niche:  account.niche || 'general',
+          topic:  prompt,
+          count:  1,
+          style:  'تفاعلي',
+        });
+        replyText = sugs[0]?.text || aiHint || 'شكراً على المشاركة!';
+        if (replyText.length > 280) replyText = replyText.slice(0, 277) + '…';
+      } catch (e) {
+        logger.warn(`[Reply] AI failed: ${e.message}`);
+        replyText = aiHint || 'شكراً على المشاركة!';
+      }
+    }
+
+    const result = await ActionSvc.reply(account, tweetId, replyText);
+    res.json({ ...result, replyText });
   },
 
   // ── Search ────────────────────────────────────────────────────

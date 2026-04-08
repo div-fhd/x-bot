@@ -226,23 +226,44 @@ const ActionSvc = {
     if (!account.canDo('reply')) throw new Error(`@${account.username}: daily reply cap reached`);
     const page = await this._readyPage(account);
     try {
-      await page.goto(`https://x.com/i/status/${tweetId}`, { waitUntil: 'domcontentloaded' });
+      await page.goto(`https://x.com/i/status/${tweetId}`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+
+      // انتظر ظهور زر الرد
+      await page.waitForSelector('[data-testid="reply"]', { timeout: 60_000 });
+      await sleep(1000, 1500);
+
+      // اضغط زر الرد عبر JS
+      await page.evaluate(() => {
+        const btn = document.querySelector('[data-testid="reply"]');
+        if (btn) btn.click();
+      });
+      await sleep(1500, 2500);
+
+      // انتظر صندوق الكتابة
+      await Promise.race([
+        page.waitForSelector('[data-testid="tweetTextarea_0"]', { timeout: 30_000 }),
+        page.waitForSelector('[role="textbox"]', { timeout: 30_000 }),
+      ]);
+      await sleep(500, 800);
+
+      const replyBox = page.locator(SEL.tweetBox).last();
+      await replyBox.evaluate(el => el.focus());
+      await sleep(500, 800);
+      // اكتب مباشرة على الـ locator بدل page
+      await replyBox.type(text, { delay: 40 });
+      await sleep(800, 1200);
+
+      // انتظر زر الإرسال ثم اضغطه
+      const replySubmit = page.locator('[data-testid="tweetButtonInline"]').first();
+      await replySubmit.waitFor({ state: 'visible', timeout: 15_000 });
+      await replySubmit.evaluate(el => el.click());
       await sleep(2000, 3000);
-      await page.click(SEL.replyBtn);
-      await sleep(800, 1400);
-      const replyBox = page.locator(SEL.tweetBox);
-      await replyBox.waitFor({ state:'visible', timeout:10_000 });
-      await replyBox.click();
-      await sleep(300, 500);
-      await this._humanType(page, text);
-      await sleep(800, 1400);
-      const btn = await page.$(SEL.tweetBtnInline) || await page.$(SEL.tweetBtn);
-      if (btn && await btn.isEnabled().catch(()=>false)) { await btn.click(); await sleep(2000,3000); }
+
       await account.bump('reply');
       await log(account._id, 'engage', 'reply', 'success', { tweetId });
-      return { success:true };
+      return { success: true };
     } catch (e) {
-      await log(account._id, 'engage', 'reply_failed', 'failure', { tweetId, error:e.message });
+      await log(account._id, 'engage', 'reply_failed', 'failure', { tweetId, error: e.message });
       throw e;
     } finally { await page.close().catch(() => {}); }
   },
@@ -553,9 +574,20 @@ const ActionSvc = {
     return page;
   },
 
+  // ── جلب نص التغريدة ──────────────────────────────────────────
+  async getTweetText(account, tweetId) {
+    const page = await this._readyPage(account);
+    try {
+      await page.goto(`https://x.com/i/status/${tweetId}`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+      await page.waitForSelector('[data-testid="tweetText"]', { timeout: 30_000 });
+      const text = await page.$eval('[data-testid="tweetText"]', el => el.textContent).catch(() => '');
+      return text.trim();
+    } finally { await page.close().catch(() => {}); }
+  },
+
   async _humanType(page, text) {
     for (const ch of String(text)) {
-      await page.keyboard.type(ch, { delay: randInt(55, 130) });
+      await page.keyboard.type(ch, { delay: randInt(30, 70) });
     }
   },
 };
