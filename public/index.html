@@ -1,0 +1,2106 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>XOps — لوحة التحكم</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════════════════════════
+   متغيرات اللون والقياس
+═══════════════════════════════════════════════════════════════ */
+:root {
+  --bg:  #0c0e14; --s1: #111419; --s2: #181c24; --s3: #1e2230; --s4: #252a3a;
+  --bd:  rgba(255,255,255,.07); --bd2: rgba(255,255,255,.13);
+  --t0:  #eef0f7; --t1: #b0b6cc; --t2: #636b87; --t3: #3a4057;
+  --blu: #4b7cff; --blu2: #7ba2ff;
+  --grn: #27c98a; --grn2: #4ddca0;
+  --amb: #f4a51e; --red: #ef4a57; --pur: #9575ff; --cyn: #22c5d6;
+  --r: 'IBM Plex Sans Arabic', sans-serif;
+  --m: 'JetBrains Mono', monospace;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--t0); font-family: var(--r); font-size: 13.5px; min-height: 100vh; display: flex; direction: rtl; }
+::-webkit-scrollbar { width: 5px; } ::-webkit-scrollbar-thumb { background: var(--s4); border-radius: 3px; }
+
+/* ═══════════════════════════════════════════════════════════════
+   شريط جانبي
+═══════════════════════════════════════════════════════════════ */
+.side {
+  width: 230px; flex-shrink: 0; background: var(--s1); border-left: 1px solid var(--bd);
+  display: flex; flex-direction: column; height: 100vh; position: sticky; top: 0; overflow-y: auto;
+}
+.brand { padding: 18px 16px 14px; border-bottom: 1px solid var(--bd); display: flex; align-items: center; gap: 10px; }
+.brand-mark { width: 34px; height: 34px; background: var(--blu); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; color: #fff; font-family: var(--m); flex-shrink: 0; }
+.brand-title { font-size: 15px; font-weight: 600; }
+.brand-sub { font-size: 10px; color: var(--t2); font-family: var(--m); letter-spacing: .06em; }
+.nav-sec { padding: 12px 15px 4px; font-size: 10px; font-weight: 600; color: var(--t3); letter-spacing: .1em; text-transform: uppercase; }
+.nav-btn {
+  display: flex; align-items: center; gap: 9px; padding: 9px 15px;
+  cursor: pointer; color: var(--t2); border: none; background: none;
+  width: 100%; text-align: right; font-family: var(--r); font-size: 13px; font-weight: 500;
+  transition: all .14s; position: relative;
+}
+.nav-btn:hover { background: var(--s2); color: var(--t1); }
+.nav-btn.on { background: rgba(75,124,255,.1); color: var(--blu2); }
+.nav-btn.on::before { content: ''; position: absolute; right: 0; top: 5px; bottom: 5px; width: 3px; background: var(--blu); border-radius: 2px 0 0 2px; }
+.nav-ico { width: 16px; height: 16px; flex-shrink: 0; opacity: .75; }
+.nav-btn.on .nav-ico { opacity: 1; }
+.nbadge { margin-right: auto; font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 8px; font-family: var(--m); }
+.nb-r { background: rgba(239,74,87,.18); color: var(--red); }
+.nb-g { background: rgba(39,201,138,.14); color: var(--grn); }
+.nb-b { background: rgba(75,124,255,.15); color: var(--blu2); }
+.nb-a { background: rgba(244,165,30,.13); color: var(--amb); }
+.side-foot { margin-top: auto; padding: 13px 15px; border-top: 1px solid var(--bd); display: flex; align-items: center; gap: 9px; }
+.av { width: 30px; height: 30px; border-radius: 50%; background: linear-gradient(135deg,var(--blu),var(--pur)); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; color: #fff; flex-shrink: 0; }
+
+/* ═══════════════════════════════════════════════════════════════
+   المنطقة الرئيسية
+═══════════════════════════════════════════════════════════════ */
+.main { flex: 1; display: flex; flex-direction: column; min-width: 0; overflow-x: hidden; }
+.topbar {
+  height: 50px; background: var(--s1); border-bottom: 1px solid var(--bd);
+  padding: 0 22px; display: flex; align-items: center; gap: 12px; position: sticky; top: 0; z-index: 20;
+}
+.page-title { font-size: 14px; font-weight: 600; color: var(--t0); }
+.tb-sep { flex: 1; }
+.live-pill { display: flex; align-items: center; gap: 5px; background: rgba(39,201,138,.1); border: 1px solid rgba(39,201,138,.2); border-radius: 12px; padding: 3px 10px; font-size: 10.5px; font-weight: 600; color: var(--grn); font-family: var(--m); }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.25} }
+.live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--grn); animation: blink 2s infinite; }
+.tb-clock { font-size: 11px; color: var(--t2); font-family: var(--m); }
+.btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 7px; font-size: 12.5px; font-weight: 500; cursor: pointer; border: 1px solid var(--bd2); background: transparent; color: var(--t1); font-family: var(--r); transition: all .14s; }
+.btn:hover { background: var(--s3); color: var(--t0); }
+.btn-p { background: var(--blu); border-color: transparent; color: #fff; }
+.btn-p:hover { opacity: .88; }
+.btn-g { background: rgba(39,201,138,.14); border-color: rgba(39,201,138,.28); color: var(--grn); }
+.btn-r { background: rgba(239,74,87,.12); border-color: rgba(239,74,87,.25); color: var(--red); }
+.btn-sm { padding: 4px 10px; font-size: 11.5px; }
+.content { padding: 22px; flex: 1; }
+
+/* ═══════════════════════════════════════════════════════════════
+   ألواح (views)
+═══════════════════════════════════════════════════════════════ */
+.panel { display: none; }
+.panel.on { display: block; }
+
+/* ═══════════════════════════════════════════════════════════════
+   KPIs
+═══════════════════════════════════════════════════════════════ */
+.krow { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 12px; margin-bottom: 18px; }
+.kcard { background: var(--s2); border: 1px solid var(--bd); border-radius: 10px; padding: 15px 16px; position: relative; overflow: hidden; }
+.kcard::after { content: ''; position: absolute; top: 0; right: 0; left: 0; height: 2px; background: var(--kc, var(--blu)); border-radius: 10px 10px 0 0; }
+.k-lbl { font-size: 10.5px; color: var(--t2); font-weight: 600; letter-spacing: .07em; margin-bottom: 7px; font-family: var(--m); }
+.k-val { font-size: 28px; font-weight: 700; color: var(--t0); line-height: 1; margin-bottom: 5px; font-family: var(--m); }
+.k-sub { font-size: 11px; color: var(--t2); }
+.k-sub .up { color: var(--grn); } .k-sub .dn { color: var(--red); }
+
+/* ═══════════════════════════════════════════════════════════════
+   بطاقات وشبكات
+═══════════════════════════════════════════════════════════════ */
+.g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+.g3 { display: grid; grid-template-columns: 1.5fr 1fr; gap: 14px; margin-bottom: 14px; }
+.card { background: var(--s2); border: 1px solid var(--bd); border-radius: 10px; overflow: hidden; }
+.card-h { padding: 12px 16px; border-bottom: 1px solid var(--bd); display: flex; align-items: center; gap: 8px; }
+.card-title { font-size: 13px; font-weight: 600; flex: 1; }
+.card-link { font-size: 11.5px; color: var(--blu); cursor: pointer; }
+.card-b { padding: 14px 16px; }
+
+/* ═══════════════════════════════════════════════════════════════
+   جدول
+═══════════════════════════════════════════════════════════════ */
+.tbl { width: 100%; border-collapse: collapse; }
+.tbl th { text-align: right; padding: 8px 11px; font-size: 10.5px; font-weight: 600; color: var(--t2); text-transform: uppercase; letter-spacing: .07em; border-bottom: 1px solid var(--bd); font-family: var(--m); }
+.tbl td { padding: 9px 11px; font-size: 12.5px; border-bottom: 1px solid var(--bd); color: var(--t1); vertical-align: middle; }
+.tbl tr:last-child td { border-bottom: none; }
+.tbl tr:hover td { background: rgba(255,255,255,.02); }
+.uname { font-family: var(--m); font-size: 12px; font-weight: 500; color: var(--t0); }
+.pill { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 4px; font-size: 10.5px; font-weight: 600; font-family: var(--m); }
+.p-g { background: rgba(39,201,138,.12); color: var(--grn); }
+.p-a { background: rgba(244,165,30,.12); color: var(--amb); }
+.p-r { background: rgba(239,74,87,.12); color: var(--red); }
+.p-b { background: rgba(75,124,255,.12); color: var(--blu2); }
+.p-p { background: rgba(149,117,255,.12); color: var(--pur); }
+.p-n { background: rgba(99,107,135,.15); color: var(--t2); }
+.dot { width: 5px; height: 5px; border-radius: 50%; display: inline-block; }
+.dg { background: var(--grn); } .da { background: var(--amb); } .dr { background: var(--red); }
+
+/* ═══════════════════════════════════════════════════════════════
+   فيد النشاط
+═══════════════════════════════════════════════════════════════ */
+.feed-row { display: flex; gap: 10px; padding: 9px 15px; border-bottom: 1px solid var(--bd); align-items: flex-start; }
+.feed-row:last-child { border-bottom: none; }
+.feed-ico { width: 28px; height: 28px; border-radius: 7px; background: var(--s3); border: 1px solid var(--bd); display: flex; align-items: center; justify-content: center; font-size: 12px; flex-shrink: 0; margin-top: 1px; }
+.feed-body { flex: 1; min-width: 0; }
+.feed-t { font-size: 12.5px; font-weight: 500; color: var(--t0); margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.feed-m { font-size: 10.5px; color: var(--t2); font-family: var(--m); }
+
+/* ═══════════════════════════════════════════════════════════════
+   أشرطة الطوابير
+═══════════════════════════════════════════════════════════════ */
+.qr { margin-bottom: 11px; }
+.qr:last-child { margin-bottom: 0; }
+.ql { display: flex; justify-content: space-between; font-size: 11px; font-family: var(--m); color: var(--t2); margin-bottom: 5px; }
+.qt { height: 4px; background: var(--s4); border-radius: 2px; overflow: hidden; }
+.qf { height: 100%; border-radius: 2px; transition: width .5s; }
+
+/* ═══════════════════════════════════════════════════════════════
+   نموذج الإضافة
+═══════════════════════════════════════════════════════════════ */
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+.fg-full { grid-column: 1/-1; }
+.field { display: flex; flex-direction: column; gap: 5px; }
+label { font-size: 10.5px; font-weight: 600; color: var(--t2); letter-spacing: .07em; text-transform: uppercase; }
+input, select, textarea {
+  background: var(--s3); border: 1px solid var(--bd2); border-radius: 7px;
+  padding: 8px 11px; color: var(--t0); font-size: 12.5px; font-family: var(--r);
+  outline: none; transition: border-color .14s; width: 100%;
+}
+input:focus, select:focus, textarea:focus { border-color: var(--blu); }
+input::placeholder, textarea::placeholder { color: var(--t3); }
+textarea { resize: vertical; min-height: 90px; line-height: 1.6; }
+select option { background: var(--s2); }
+
+/* ═══════════════════════════════════════════════════════════════
+   شريط تبديل (toggle)
+═══════════════════════════════════════════════════════════════ */
+.toggle-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--bd); }
+.toggle-row:last-child { border-bottom: none; }
+.tg-label { font-size: 12.5px; color: var(--t1); }
+.tg-sub { font-size: 11px; color: var(--t2); margin-top: 1px; }
+.toggle { width: 34px; height: 19px; background: var(--s4); border-radius: 10px; cursor: pointer; position: relative; flex-shrink: 0; transition: background .2s; }
+.toggle.on { background: var(--grn); }
+.toggle::after { content: ''; position: absolute; top: 3px; right: 3px; width: 13px; height: 13px; background: #fff; border-radius: 50%; transition: transform .2s; }
+.toggle.on::after { transform: translateX(-15px); }
+
+/* ═══════════════════════════════════════════════════════════════
+   الاستيراد الجماعي
+═══════════════════════════════════════════════════════════════ */
+.format-box { background: var(--s1); border: 1px solid var(--bd2); border-radius: 8px; padding: 13px 15px; font-family: var(--m); font-size: 11.5px; color: var(--t1); line-height: 1.85; margin-bottom: 14px; }
+.format-box span { color: var(--blu2); } .format-box em { color: var(--grn); font-style: normal; }
+.notice { display: flex; gap: 10px; padding: 11px 14px; border-radius: 7px; font-size: 12.5px; color: var(--t1); line-height: 1.5; margin-bottom: 14px; }
+.notice-info { background: rgba(75,124,255,.08); border: 1px solid rgba(75,124,255,.2); }
+.notice-warn { background: rgba(244,165,30,.07); border: 1px solid rgba(244,165,30,.2); }
+.notice-ico { flex-shrink: 0; color: var(--blu); margin-top: 1px; font-size: 14px; }
+.notice-warn .notice-ico { color: var(--amb); }
+
+/* معاينة الاستيراد */
+.import-stats { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 10px; margin-bottom: 14px; }
+.istat { background: var(--s2); border: 1px solid var(--bd); border-radius: 8px; padding: 10px 14px; text-align: center; }
+.istat-num { font-size: 22px; font-weight: 700; font-family: var(--m); margin-bottom: 2px; }
+.istat-lbl { font-size: 10px; color: var(--t2); text-transform: uppercase; letter-spacing: .06em; font-family: var(--m); }
+
+/* ═══════════════════════════════════════════════════════════════
+   منطقة الإجراء اليدوي
+═══════════════════════════════════════════════════════════════ */
+.action-tabs { display: flex; gap: 0; border-bottom: 1px solid var(--bd); margin-bottom: 18px; }
+.atab { padding: 8px 16px; font-size: 12.5px; font-weight: 500; color: var(--t2); cursor: pointer; border: none; background: none; font-family: var(--r); border-bottom: 2px solid transparent; margin-bottom: -1px; transition: color .14s; }
+.atab:hover { color: var(--t1); }
+.atab.on { color: var(--blu); border-bottom-color: var(--blu); }
+
+/* ═══════════════════════════════════════════════════════════════
+   بطاقة اقتراح AI
+═══════════════════════════════════════════════════════════════ */
+.ai-card { background: var(--s3); border: 1px solid var(--bd); border-right: 3px solid var(--pur); border-radius: 8px; padding: 13px 15px; margin-bottom: 11px; }
+.ai-card-meta { font-size: 10.5px; font-family: var(--m); color: var(--pur); margin-bottom: 6px; }
+.ai-card-text { font-size: 13px; color: var(--t0); line-height: 1.55; margin-bottom: 8px; }
+.ai-scores { display: flex; gap: 14px; margin-bottom: 10px; font-size: 11px; font-family: var(--m); }
+.ai-sc-l { color: var(--t2); } .ai-sc-v { font-weight: 600; }
+.ai-actions { display: flex; gap: 8px; }
+
+/* ═══════════════════════════════════════════════════════════════
+   أحداث المخاطر
+═══════════════════════════════════════════════════════════════ */
+.risk-row { display: flex; gap: 10px; padding: 10px 15px; border-bottom: 1px solid var(--bd); align-items: center; cursor: pointer; transition: background .1s; }
+.risk-row:hover { background: rgba(255,255,255,.02); }
+.risk-row:last-child { border-bottom: none; }
+.risk-bar { width: 4px; height: 30px; border-radius: 2px; flex-shrink: 0; }
+.rb-h { background: var(--red); } .rb-m { background: var(--amb); } .rb-l { background: var(--grn); }
+.risk-info { flex: 1; min-width: 0; }
+.risk-title { font-size: 12.5px; font-weight: 500; color: var(--t0); margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.risk-meta { font-size: 10.5px; color: var(--t2); font-family: var(--m); }
+
+/* ═══════════════════════════════════════════════════════════════
+   منطقة الجدولة
+═══════════════════════════════════════════════════════════════ */
+.sched-card { background: var(--s3); border: 1px solid var(--bd); border-radius: 8px; padding: 12px 15px; margin-bottom: 10px; display: flex; align-items: center; gap: 12px; }
+.sched-time { font-family: var(--m); font-size: 12px; color: var(--blu2); min-width: 80px; flex-shrink: 0; text-align: center; }
+.sched-info { flex: 1; min-width: 0; }
+.sched-text { font-size: 12.5px; color: var(--t0); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 3px; }
+.sched-meta { font-size: 10.5px; color: var(--t2); font-family: var(--m); }
+
+/* ═══════════════════════════════════════════════════════════════
+   بار التقدم (import)
+═══════════════════════════════════════════════════════════════ */
+.prog-wrap { background: var(--s2); border: 1px solid var(--bd); border-radius: 10px; padding: 15px; }
+.prog-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--bd); }
+.prog-row:last-child { border-bottom: none; }
+.prog-handle { font-family: var(--m); font-size: 11.5px; color: var(--t0); width: 130px; flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; direction: ltr; }
+.prog-bar-w { flex: 1; height: 5px; background: var(--s4); border-radius: 3px; overflow: hidden; }
+.prog-bar-f { height: 100%; border-radius: 3px; transition: width .4s; }
+
+/* ═══════════════════════════════════════════════════════════════
+   إشعار (toast)
+═══════════════════════════════════════════════════════════════ */
+.toast-wrap { position: fixed; bottom: 24px; left: 24px; z-index: 999; display: flex; flex-direction: column; gap: 8px; }
+.toast { background: var(--s2); border: 1px solid var(--bd2); border-radius: 9px; padding: 11px 16px; font-size: 13px; color: var(--t0); min-width: 220px; max-width: 360px; transform: translateX(-20px); opacity: 0; transition: all .25s; border-right: 3px solid var(--blu); }
+.toast.show { transform: translateX(0); opacity: 1; }
+.toast.ok { border-right-color: var(--grn); }
+.toast.err { border-right-color: var(--red); }
+.toast.warn { border-right-color: var(--amb); }
+
+/* ═══════════════════════════════════════════════════════════════
+   صفحة تسجيل الدخول
+═══════════════════════════════════════════════════════════════ */
+.login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 24px; }
+.login-card { background: var(--s2); border: 1px solid var(--bd2); border-radius: 14px; padding: 30px 28px; width: 340px; display: flex; flex-direction: column; gap: 14px; }
+.login-title { font-size: 18px; font-weight: 600; text-align: center; }
+.login-sub { font-size: 12.5px; color: var(--t2); text-align: center; margin-top: -8px; }
+
+/* ═══════════════════════════════════════════════════════════════
+   Donut chart placeholder
+═══════════════════════════════════════════════════════════════ */
+.donut-wrap { display: flex; align-items: center; gap: 18px; }
+.donut-leg { display: flex; flex-direction: column; gap: 7px; }
+.leg-row { display: flex; align-items: center; gap: 7px; font-size: 12px; }
+.leg-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.leg-lbl { color: var(--t1); flex: 1; }
+.leg-val { font-family: var(--m); font-weight: 600; color: var(--t0); }
+
+/* ═══════════════════════════════════════════════════════════════
+   بطاقة تفاصيل حساب
+═══════════════════════════════════════════════════════════════ */
+.acc-detail-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 10px; margin-bottom: 14px; }
+.mini-stat { background: var(--s3); border: 1px solid var(--bd); border-radius: 8px; padding: 10px 13px; }
+.ms-val { font-size: 20px; font-weight: 700; font-family: var(--m); color: var(--t0); }
+.ms-lbl { font-size: 10.5px; color: var(--t2); margin-top: 2px; }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════ صفحة تسجيل الدخول ═══════════════════════ -->
+<div id="login-page" class="login-wrap" style="display:none">
+  <div style="font-size:22px;font-weight:700;text-align:center">منصة XOps<br><span style="font-size:13px;color:var(--t2);font-weight:400">إدارة حسابات X — لوحة التحكم العربية</span></div>
+  <div class="login-card">
+    <div class="login-title">تسجيل الدخول</div>
+    <div class="field"><label>البريد الإلكتروني</label><input type="email" id="l-email" placeholder="admin@example.com"></div>
+    <div class="field"><label>كلمة المرور</label><input type="password" id="l-pass" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()"></div>
+    <button class="btn btn-p" style="width:100%;justify-content:center;padding:10px" onclick="doLogin()">دخول</button>
+    <div id="l-err" style="font-size:12px;color:var(--red);text-align:center;display:none"></div>
+  </div>
+</div>
+
+<!-- ═══════════════ لوحة التحكم ═══════════════════════════════ -->
+<div id="app" style="display:none;width:100%;min-height:100vh">
+
+<!-- شريط جانبي -->
+<aside class="side">
+  <div class="brand">
+    <div class="brand-mark">XO</div>
+    <div><div class="brand-title">XOps</div><div class="brand-sub">v2.0 · AR</div></div>
+  </div>
+  <nav>
+    <div class="nav-sec">الرئيسية</div>
+    <button class="nav-btn on" onclick="nav('overview',this)">
+      <svg class="nav-ico" viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="6" height="6" rx="1" fill="currentColor" opacity=".9"/><rect x="9" y="1" width="6" height="6" rx="1" fill="currentColor" opacity=".5"/><rect x="1" y="9" width="6" height="6" rx="1" fill="currentColor" opacity=".5"/><rect x="9" y="9" width="6" height="6" rx="1" fill="currentColor" opacity=".5"/></svg>
+      نظرة عامة
+    </button>
+    <button class="nav-btn" onclick="nav('accounts',this)">
+      <svg class="nav-ico" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="5.5" r="2.8" stroke="currentColor" stroke-width="1.4"/><path d="M2 14c0-3.3 2.7-5 6-5s6 1.7 6 5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+      الحسابات
+      <span class="nbadge nb-g" id="nb-active">—</span>
+    </button>
+    <button class="nav-btn" onclick="nav('import',this)">
+      <svg class="nav-ico" viewBox="0 0 16 16" fill="none"><path d="M8 2v8M5 7l3 3 3-3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 12h12" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+      استيراد جماعي
+    </button>
+
+    <div class="nav-sec">التحكم</div>
+    <button class="nav-btn" onclick="nav('actions',this)">
+      <svg class="nav-ico" viewBox="0 0 16 16" fill="none"><path d="M5 3l8 5-8 5V3z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+      إجراءات يدوية
+    </button>
+    <button class="nav-btn" onclick="nav('content',this)">
+      <svg class="nav-ico" viewBox="0 0 16 16" fill="none"><rect x="1.5" y="1.5" width="13" height="13" rx="2" stroke="currentColor" stroke-width="1.4"/><path d="M4.5 5.5h7M4.5 8.5h5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+      المحتوى
+      <span class="nbadge nb-b" id="nb-content">—</span>
+    </button>
+    <button class="nav-btn" onclick="nav('schedule',this)">
+      <svg class="nav-ico" viewBox="0 0 16 16" fill="none"><rect x="1.5" y="2.5" width="13" height="12" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M5 1v3M11 1v3M1.5 6.5h13" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+      الجدولة
+    </button>
+
+    <div class="nav-sec">الذكاء الاصطناعي</div>
+    <button class="nav-btn" onclick="nav('ai',this)">
+      <svg class="nav-ico" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.4"/><path d="M8 5v3l2 2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+      اقتراحات AI
+    </button>
+
+    <div class="nav-sec">المراقبة</div>
+    <button class="nav-btn" onclick="nav('risks',this)">
+      <svg class="nav-ico" viewBox="0 0 16 16" fill="none"><path d="M8 1.5L14.5 13H1.5L8 1.5z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M8 6.5v3M8 11v.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+      المخاطر
+      <span class="nbadge nb-r" id="nb-risks">—</span>
+    </button>
+    <button class="nav-btn" onclick="nav('profiles',this)">
+      <span class="nav-ico">👤</span>
+      البروفايلات
+    </button>
+    <button class="nav-btn" onclick="nav('audit',this)">
+      <svg class="nav-ico" viewBox="0 0 16 16" fill="none"><path d="M2 4h12M2 8h8M2 12h10" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+      سجل النشاط
+    </button>
+  </nav>
+  <div class="side-foot">
+    <div class="av" id="user-av">AD</div>
+    <div><div style="font-size:12.5px;font-weight:600" id="user-name">مدير</div><div style="font-size:10.5px;color:var(--t2)" id="user-role">مدير النظام</div></div>
+    <button class="btn btn-sm" style="margin-right:auto;padding:3px 8px;font-size:11px;color:var(--red);border-color:rgba(239,74,87,.25)" onclick="logout()">خروج</button>
+  </div>
+</aside>
+
+<!-- المنطقة الرئيسية -->
+<main class="main" style="display:flex;flex-direction:column">
+  <header class="topbar">
+    <span class="page-title" id="ptitle">نظرة عامة</span>
+    <div class="tb-sep"></div>
+    <div class="live-pill"><div class="live-dot"></div>مباشر</div>
+    <span class="tb-clock" id="clk">—</span>
+    <button class="btn btn-sm" onclick="refreshCurrent()">↻ تحديث</button>
+  </header>
+
+  <div class="content" id="main-content">
+
+  <!-- ════════════ نظرة عامة ════════════ -->
+  <div class="panel on" id="p-overview">
+    <div class="krow">
+      <div class="kcard" style="--kc:var(--blu)"><div class="k-lbl">إجمالي الحسابات</div><div class="k-val" id="k-total">—</div><div class="k-sub" id="k-total-s">&nbsp;</div></div>
+      <div class="kcard" style="--kc:var(--grn)"><div class="k-lbl">حسابات نشطة</div><div class="k-val" id="k-active">—</div><div class="k-sub" id="k-active-s">&nbsp;</div></div>
+      <div class="kcard" style="--kc:var(--amb)"><div class="k-lbl">إجراءات اليوم</div><div class="k-val" id="k-actions">—</div><div class="k-sub" id="k-actions-s">&nbsp;</div></div>
+      <div class="kcard" style="--kc:var(--pur)"><div class="k-lbl">معدل النجاح</div><div class="k-val" id="k-rate">—</div><div class="k-sub" id="k-rate-s">&nbsp;</div></div>
+    </div>
+
+    <div class="g2">
+      <div class="card">
+        <div class="card-h"><span class="card-title">توزيع صحة الحسابات</span></div>
+        <div class="card-b">
+          <div class="donut-wrap">
+            <div style="position:relative;width:130px;height:130px;flex-shrink:0"><canvas id="donut-chart" width="130" height="130"></canvas></div>
+            <div class="donut-leg" id="donut-legend">
+              <div class="leg-row"><div class="leg-dot" style="background:var(--grn)"></div><span class="leg-lbl">نشط</span><span class="leg-val" id="dl-active">—</span></div>
+              <div class="leg-row"><div class="leg-dot" style="background:var(--amb)"></div><span class="leg-lbl">يحتاج مصادقة</span><span class="leg-val" id="dl-auth">—</span></div>
+              <div class="leg-row"><div class="leg-dot" style="background:var(--pur)"></div><span class="leg-lbl">نقطة تحقق</span><span class="leg-val" id="dl-chk">—</span></div>
+              <div class="leg-row"><div class="leg-dot" style="background:var(--red)"></div><span class="leg-lbl">محظور</span><span class="leg-val" id="dl-res">—</span></div>
+              <div class="leg-row"><div class="leg-dot" style="background:var(--t3)"></div><span class="leg-lbl">غير نشط</span><span class="leg-val" id="dl-off">—</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-h"><span class="card-title">البراوزر والذاكرة</span></div>
+        <div class="card-b">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+            <div class="mini-stat"><div class="ms-val" id="br-ctx">—</div><div class="ms-lbl">سياقات نشطة</div></div>
+            <div class="mini-stat"><div class="ms-val" id="br-max">—</div><div class="ms-lbl">الحد الأقصى</div></div>
+          </div>
+          <div class="qr"><div class="ql"><span>استخدام البراوزر</span><span id="br-pct" style="color:var(--grn)">0%</span></div><div class="qt"><div class="qf" id="br-bar" style="width:0%;background:var(--grn)"></div></div></div>
+          <div style="font-size:11px;color:var(--t2);margin-top:10px">الاتصال: <span id="br-conn" style="color:var(--grn)">—</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="g3">
+      <div class="card">
+        <div class="card-h"><span class="card-title">آخر النشاطات</span><span class="card-link" onclick="nav('audit')">عرض الكل →</span></div>
+        <div id="overview-feed">
+          <div class="feed-row"><div class="feed-ico">⋯</div><div class="feed-body"><div class="feed-t">جارٍ التحميل…</div><div class="feed-m">—</div></div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-h"><span class="card-title">تنبيهات سريعة</span></div>
+        <div class="card-b" id="quick-alerts">
+          <div style="text-align:center;padding:20px;color:var(--t2);font-size:12px">جارٍ التحميل…</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════ الحسابات ════════════ -->
+  <div class="panel" id="p-accounts">
+    <div style="display:flex;gap:10px;margin-bottom:16px;align-items:center;flex-wrap:wrap">
+      <input id="acc-q" type="text" placeholder="ابحث باسم المستخدم…" style="width:200px" oninput="loadAccounts()">
+      <select id="acc-status" onchange="loadAccounts()" style="width:150px">
+        <option value="">كل الحالات</option>
+        <option value="نشط">نشط</option>
+        <option value="يحتاج_مصادقة">يحتاج مصادقة</option>
+        <option value="نقطة_تحقق">نقطة تحقق</option>
+        <option value="محظور">محظور</option>
+        <option value="غير_نشط">غير نشط</option>
+      </select>
+      <select id="acc-role" onchange="loadAccounts()" style="width:130px">
+        <option value="">كل الأدوار</option>
+        <option value="post">نشر</option>
+        <option value="engage">تفاعل</option>
+        <option value="support">دعم</option>
+        <option value="mixed">مختلط</option>
+      </select>
+      <div class="tb-sep"></div>
+      <button class="btn btn-p btn-sm" onclick="nav('import')">+ استيراد</button>
+      <button class="btn btn-sm" onclick="showAddModal()">+ إضافة حساب</button>
+      <button class="btn btn-sm" id="bulk-check-btn" onclick="doBulkCheck()" style="border-color:rgba(99,102,241,.4);color:#818cf8">🔍 فحص الكل</button>
+    </div>
+    <div id="bulk-check-progress" style="display:none;padding:8px 12px;background:var(--s2);border-radius:8px;margin-bottom:12px;font-size:12px;color:var(--t2);font-family:var(--m)">
+      جارٍ الفحص… <span id="bulk-check-counter">0/0</span>
+    </div>
+    <div class="card">
+      <table class="tbl">
+        <thead><tr><th>المستخدم</th><th>الدور</th><th>المجال</th><th>الحالة</th><th>آخر نشاط</th><th>اليوم</th><th>إجراءات</th></tr></thead>
+        <tbody id="acc-tbody">
+          <tr><td colspan="7" style="text-align:center;padding:30px;color:var(--t2)">جارٍ التحميل…</td></tr>
+        </tbody>
+      </table>
+      <div style="padding:10px 14px;border-top:1px solid var(--bd);display:flex;gap:10px;align-items:center">
+        <button class="btn btn-sm" onclick="accPage=Math.max(1,accPage-1);loadAccounts()">→ السابق</button>
+        <span id="acc-pager" style="flex:1;text-align:center;font-size:11.5px;color:var(--t2);font-family:var(--m)">—</span>
+        <button class="btn btn-sm" onclick="accPage++;loadAccounts()">التالي ←</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════ استيراد جماعي ════════════ -->
+  <div class="panel" id="p-import">
+    <div class="notice notice-info">
+      <span class="notice-ico">ℹ</span>
+      <span>الصيغة المدعومة: <code style="font-family:var(--m);background:var(--s3);padding:1px 5px;border-radius:4px">username:password:email:session_token:auth_token</code> — حساب لكل سطر. الحسابات تُضاف إلى قاعدة البيانات فقط ولا تُفتح جلسات تلقائياً.</span>
+    </div>
+    <div class="format-box">
+      <span>username</span>:<em>password</em>:<span>email</span>:<em>session_token</em>:<span>auth_token</span><br>
+      brandaccount:<em>Pass123!</em>:<span>back@gmail.com</span>:<em>ct0_token_here</em>:<span>auth_token_here</span><br>
+      techpulse_io:<em>Tech456!</em>:<span></span>:<em></em>:<span></span><br>
+      cryptonews_:<em>Crypto789!</em>:<span>rec@email.com</span>:<em></em>:<span></span>
+    </div>
+
+    <div class="card" style="margin-bottom:14px">
+      <div class="card-h"><span class="card-title">الصق الحسابات</span></div>
+      <div class="card-b">
+        <textarea id="bulk-txt" rows="8" placeholder="brandaccount:password:email:session_token:auth_token&#10;handle2:pass2:::&#10;handle3:pass3:email3::" oninput="parseBulk()" style="font-family:var(--m);font-size:12px;direction:ltr"></textarea>
+      </div>
+    </div>
+
+    <div id="bulk-preview" style="display:none">
+      <div class="import-stats">
+        <div class="istat"><div class="istat-num" id="is-total">0</div><div class="istat-lbl">الإجمالي</div></div>
+        <div class="istat"><div class="istat-num" style="color:var(--grn)" id="is-valid">0</div><div class="istat-lbl">صالح</div></div>
+        <div class="istat"><div class="istat-num" style="color:var(--red)" id="is-err">0</div><div class="istat-lbl">أخطاء</div></div>
+        <div class="istat"><div class="istat-num" style="color:var(--pur)" id="is-token">0</div><div class="istat-lbl">مع token</div></div>
+      </div>
+      <div class="card" style="margin-bottom:14px;overflow:auto">
+        <table class="tbl" id="bulk-tbl">
+          <thead><tr><th>#</th><th style="direction:ltr">Username</th><th>إيميل</th><th>Session Token</th><th>Auth Token</th><th>الحالة</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="notice notice-warn">
+      <span class="notice-ico">⚠</span>
+      <span>الجلسات لن تُفتح فوراً — كل حساب يُفحص بتأخير متدرج (30 ثانية بين كل حساب) لمنع فتح عشرات المتصفحات دفعة واحدة.</span>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:14px">
+      <div class="field"><label>نوع الحسابات</label>
+        <select id="bulk-role" onchange="onRoleChange(this)">
+          <option value="mixed" selected>عام (افتراضي)</option>
+          <option value="post">نشر</option>
+          <option value="engage">تفاعل</option>
+          <option value="support">دعم</option>
+          <option value="__custom__">+ نوع جديد…</option>
+        </select>
+        <input id="bulk-role-custom" type="text" placeholder="اسم النوع الجديد" style="display:none;margin-top:6px;direction:rtl">
+      </div>
+      <div class="field"><label>المجال الافتراضي</label>
+        <select id="bulk-niche"><option>عام</option><option>تقنية</option><option>SaaS</option><option>كريبتو</option><option>تسويق</option><option>أعمال</option></select>
+      </div>
+      <div class="field"><label>وتيرة الفحص</label>
+        <select id="bulk-stagger">
+          <option value="staggered">متدرج — 30 ثانية (موصى به)</option>
+          <option value="safe">آمن — 2 دقيقة</option>
+          <option value="manual">يدوي — بلا فحص</option>
+        </select>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:10px;align-items:center">
+      <button class="btn btn-p" id="bulk-btn" onclick="doImport()" disabled style="opacity:.5">استيراد الحسابات الصالحة</button>
+      <button class="btn" onclick="document.getElementById('bulk-txt').value='';parseBulk()">مسح</button>
+      <span id="bulk-status" style="font-size:12px;color:var(--t2);font-family:var(--m)"></span>
+    </div>
+
+    <div id="import-progress" style="display:none;margin-top:16px">
+      <div class="prog-wrap">
+        <div style="font-size:13px;font-weight:600;margin-bottom:12px;display:flex;justify-content:space-between">
+          <span>جارٍ الاستيراد…</span>
+          <span id="imp-count" style="font-family:var(--m);color:var(--t2)">0 / 0</span>
+        </div>
+        <div id="imp-rows"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════ إجراءات يدوية ════════════ -->
+  <div class="panel" id="p-actions">
+    <div class="action-tabs">
+      <button class="atab on" onclick="showAtab('tweet',this)">تغريدة</button>
+      <button class="atab" onclick="showAtab('tweet-multi',this)">🤖 نشر جماعي</button>
+      <button class="atab" onclick="showAtab('follow',this)">متابعة</button>
+      <button class="atab" onclick="showAtab('like',this)">إعجاب</button>
+      <button class="atab" onclick="showAtab('repost',this)">إعادة تغريد</button>
+      <button class="atab" onclick="showAtab('reply',this)">رد</button>
+      <button class="atab" onclick="showAtab('search',this)">بحث</button>
+      <button class="atab" onclick="showAtab('profile',this)">👤 البروفايل</button>
+    </div>
+
+    <!-- تغريدة فردية -->
+    <div id="at-tweet" class="card">
+      <div class="card-h"><span class="card-title">نشر تغريدة — حساب واحد</span></div>
+      <div class="card-b">
+        <div class="form-grid">
+          <div class="field fg-full"><label>اختر الحساب</label><select id="tw-acc"></select></div>
+          <div class="field fg-full">
+            <label>نص التغريدة <span id="tw-counter" style="font-weight:400;color:var(--t2)">0/280</span></label>
+            <textarea id="tw-text" placeholder="اكتب تغريدتك هنا…" maxlength="280" oninput="document.getElementById('tw-counter').textContent=this.value.length+'/280'"></textarea>
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center">
+          <button class="btn btn-p" onclick="doTweet()">نشر الآن</button>
+          <button class="btn" onclick="saveAsDraft()">حفظ كمسودة</button>
+          <span id="tw-status" style="font-size:12px;color:var(--t2)"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- نشر جماعي بالـ AI -->
+    <div id="at-tweet-multi" class="card" style="display:none">
+      <div class="card-h"><span class="card-title">🤖 نشر جماعي بالذكاء الاصطناعي</span></div>
+      <div class="card-b">
+        <div class="form-grid">
+          <div class="field"><label>الموضوع</label><input id="tm-topic" type="text" placeholder="مثال: أهمية الاستثمار المبكر"></div>
+          <div class="field"><label>الهاشتاق</label><input id="tm-hashtag" type="text" placeholder="#استثمار #مال" style="direction:ltr"></div>
+          <div class="field"><label>الترتيب</label>
+            <select id="tm-order">
+              <option value="sequential">تسلسلي (الأول فالأول)</option>
+              <option value="random">عشوائي</option>
+            </select>
+          </div>
+          <div class="field"><label>التأخير بين الحسابات</label>
+            <select id="tm-delay">
+              <option value="15000,30000">15-30 ثانية (عادي)</option>
+              <option value="30000,60000">30-60 ثانية (آمن)</option>
+              <option value="60000,120000">1-2 دقيقة (محافظ)</option>
+            </select>
+          </div>
+        </div>
+        <div class="field" style="margin-bottom:10px">
+          <label>اختر الحسابات <small style="color:var(--t2)">(Ctrl+Click لاختيار متعدد)</small></label>
+          <select id="tm-accounts" multiple style="height:120px;font-family:var(--m)"></select>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center">
+          <button class="btn" onclick="selectAllAccounts('tm-accounts')">تحديد الكل</button>
+          <button class="btn btn-p" onclick="doTweetMulti()">🚀 نشر الآن</button>
+          <span id="tm-status" style="font-size:12px;color:var(--t2)"></span>
+        </div>
+        <div id="tm-progress" style="display:none;margin-top:12px;padding:10px;background:var(--s3);border-radius:8px;font-size:12px;font-family:var(--m)"></div>
+      </div>
+    </div>
+
+    <!-- متابعة -->
+    <div id="at-follow" class="card" style="display:none">
+      <div class="card-h"><span class="card-title">متابعة حساب — حسابات متعددة</span></div>
+      <div class="card-b">
+        <div class="form-grid">
+          <div class="field fg-full"><label>الحساب المستهدف</label><input id="fl-target" type="text" placeholder="@username" style="direction:ltr"></div>
+        </div>
+        <div class="field" style="margin-bottom:10px">
+          <label>الحسابات المُنفِّذة <small style="color:var(--t2)">(Ctrl+Click لاختيار متعدد)</small></label>
+          <select id="fl-acc" multiple style="height:120px;font-family:var(--m)"></select>
+        </div>
+        <div class="field" style="margin-bottom:10px">
+          <label>التأخير بين الحسابات</label>
+          <select id="fl-delay">
+            <option value="10000,20000">10-20 ثانية</option>
+            <option value="20000,40000">20-40 ثانية (موصى)</option>
+            <option value="60000,120000">1-2 دقيقة (محافظ)</option>
+          </select>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center">
+          <button class="btn" onclick="selectAllAccounts('fl-acc')">تحديد الكل</button>
+          <button class="btn btn-p" onclick="doFollowMulti()">متابعة</button>
+          <span id="fl-status" style="font-size:12px;color:var(--t2)"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- إعجاب -->
+    <div id="at-like" class="card" style="display:none">
+      <div class="card-h"><span class="card-title">إعجاب — حسابات متعددة</span></div>
+      <div class="card-b">
+        <div class="form-grid">
+          <div class="field fg-full"><label>رابط أو ID التغريدة</label><input id="lk-tweet" type="text" placeholder="https://x.com/user/status/123456 أو 123456" style="direction:ltr"></div>
+        </div>
+        <div class="field" style="margin-bottom:10px">
+          <label>الحسابات المُنفِّذة <small style="color:var(--t2)">(Ctrl+Click لاختيار متعدد)</small></label>
+          <select id="lk-acc" multiple style="height:120px;font-family:var(--m)"></select>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center">
+          <button class="btn" onclick="selectAllAccounts('lk-acc')">تحديد الكل</button>
+          <button class="btn btn-p" onclick="doLikeMulti()">إعجاب</button>
+          <span id="lk-status" style="font-size:12px;color:var(--t2)"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- إعادة تغريد -->
+    <div id="at-repost" class="card" style="display:none">
+      <div class="card-h"><span class="card-title">إعادة تغريد — حسابات متعددة</span></div>
+      <div class="card-b">
+        <div class="form-grid">
+          <div class="field fg-full"><label>رابط أو ID التغريدة</label><input id="rp-tweet" type="text" placeholder="https://x.com/user/status/123456" style="direction:ltr"></div>
+        </div>
+        <div class="field" style="margin-bottom:10px">
+          <label>الحسابات المُنفِّذة <small style="color:var(--t2)">(Ctrl+Click لاختيار متعدد)</small></label>
+          <select id="rp-acc" multiple style="height:120px;font-family:var(--m)"></select>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center">
+          <button class="btn" onclick="selectAllAccounts('rp-acc')">تحديد الكل</button>
+          <button class="btn btn-p" onclick="doRepostMulti()">إعادة تغريد</button>
+          <span id="rp-status" style="font-size:12px;color:var(--t2)"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- رد -->
+    <div id="at-reply" class="card" style="display:none">
+      <div class="card-h"><span class="card-title">رد على تغريدة — حسابات متعددة</span></div>
+      <div class="card-b">
+        <div class="form-grid">
+          <div class="field fg-full"><label>ID التغريدة</label><input id="ry-tweet" type="text" placeholder="123456789" style="direction:ltr"></div>
+          <div class="field fg-full"><label>نص الرد</label><textarea id="ry-text" placeholder="اكتب ردك هنا…" maxlength="280"></textarea></div>
+        </div>
+        <div class="field" style="margin-bottom:10px">
+          <label>الحسابات المُنفِّذة <small style="color:var(--t2)">(Ctrl+Click لاختيار متعدد)</small></label>
+          <select id="ry-acc" multiple style="height:120px;font-family:var(--m)"></select>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center">
+          <button class="btn" onclick="selectAllAccounts('ry-acc')">تحديد الكل</button>
+          <button class="btn btn-p" onclick="doReplyMulti()">إرسال الرد</button>
+          <span id="ry-status" style="font-size:12px;color:var(--t2)"></span>
+        </div>
+      </div>
+    </div>
+
+    <div id="at-search" class="card" style="display:none">
+      <div class="card-h"><span class="card-title">بحث عن تغريدات</span></div>
+      <div class="card-b">
+        <div class="form-grid">
+          <div class="field"><label>الحساب المُنفِّذ</label><select id="sr-acc"></select></div>
+          <div class="field"><label>كلمة البحث</label><input id="sr-keyword" type="text" placeholder="الكلمة المفتاحية أو الهاشتاق"></div>
+          <div class="field"><label>عدد النتائج</label><input id="sr-max" type="number" value="20" min="5" max="50"></div>
+        </div>
+        <button class="btn btn-p" onclick="doSearch()">بحث</button>
+      </div>
+      <div id="search-results" style="display:none;border-top:1px solid var(--bd)">
+        <table class="tbl" id="search-tbl">
+          <thead><tr><th>التغريدة</th><th>الحساب</th><th>إجراء</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════ المحتوى ════════════ -->
+  <div class="panel" id="p-content">
+    <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center">
+      <button class="btn btn-sm btn-p" onclick="filterContent('')">الكل</button>
+      <button class="btn btn-sm" onclick="filterContent('مسودة')">مسودات</button>
+      <button class="btn btn-sm" onclick="filterContent('معتمد')">معتمد</button>
+      <button class="btn btn-sm" onclick="filterContent('مجدول')">مجدول</button>
+      <button class="btn btn-sm" onclick="filterContent('منشور')">منشور</button>
+      <button class="btn btn-sm" onclick="filterContent('فشل')">فشل</button>
+      <div class="tb-sep"></div>
+      <button class="btn btn-sm" onclick="nav('actions')">+ كتابة تغريدة</button>
+    </div>
+    <div class="card">
+      <table class="tbl">
+        <thead><tr><th>الحساب</th><th>المحتوى</th><th>الحالة</th><th>الجودة</th><th>الخطورة</th><th>الموعد</th><th>إجراءات</th></tr></thead>
+        <tbody id="content-tbody">
+          <tr><td colspan="7" style="text-align:center;padding:30px;color:var(--t2)">جارٍ التحميل…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ════════════ الجدولة ════════════ -->
+  <div class="panel" id="p-schedule">
+    <div class="g2">
+      <div class="card">
+        <div class="card-h"><span class="card-title">جدولة نشر جديد</span></div>
+        <div class="card-b">
+          <div class="form-grid">
+            <div class="field"><label>الحساب</label><select id="sc-acc"></select></div>
+            <div class="field"><label>موعد النشر</label><input type="datetime-local" id="sc-time"></div>
+            <div class="field fg-full"><label>نص التغريدة</label><textarea id="sc-text" placeholder="اكتب التغريدة المراد جدولتها…" maxlength="280"></textarea></div>
+          </div>
+          <button class="btn btn-p" onclick="doSchedule()">جدولة النشر</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-h"><span class="card-title">المنشورات المجدولة</span><button class="btn btn-sm" onclick="loadSchedules()" style="margin-right:auto">↻</button></div>
+        <div id="sched-list">
+          <div style="text-align:center;padding:30px;color:var(--t2);font-size:12px">لا توجد جدولات</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════ اقتراحات AI ════════════ -->
+  <div class="panel" id="p-ai">
+    <div class="g2">
+      <div class="card">
+        <div class="card-h"><span class="card-title">اقتراح تغريدات</span></div>
+        <div class="card-b">
+          <div class="form-grid">
+            <div class="field"><label>الحساب</label><select id="ai-acc"></select></div>
+            <div class="field"><label>عدد الاقتراحات</label><input type="number" id="ai-count" value="3" min="1" max="5"></div>
+            <div class="field"><label>الأسلوب</label>
+              <select id="ai-style"><option>تعليمي</option><option>إخباري</option><option>رأي</option><option>ترفيهي</option><option>تسويقي</option></select>
+            </div>
+            <div class="field"><label>الموضوع (اختياري)</label><input id="ai-topic" type="text" placeholder="موضوع محدد…"></div>
+          </div>
+          <button class="btn btn-p" onclick="doAISuggest()">اقتراح بالذكاء الاصطناعي</button>
+          <span id="ai-loading" style="display:none;margin-right:10px;font-size:12px;color:var(--t2)">⋯ يفكر الذكاء الاصطناعي…</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-h"><span class="card-title">تقييم محتوى</span></div>
+        <div class="card-b">
+          <div class="field" style="margin-bottom:12px"><label>نص للتقييم</label><textarea id="score-txt" placeholder="ضع التغريدة هنا لتقييمها…" rows="3"></textarea></div>
+          <button class="btn btn-p" onclick="doScore()">تقييم المحتوى</button>
+          <div id="score-result" style="display:none;margin-top:12px;background:var(--s3);border:1px solid var(--bd);border-radius:8px;padding:12px"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" id="ai-suggestions-card" style="display:none">
+      <div class="card-h"><span class="card-title">الاقتراحات</span><span id="ai-sug-count" style="font-size:12px;color:var(--t2)"></span></div>
+      <div class="card-b" id="ai-suggestions-list"></div>
+    </div>
+  </div>
+
+  <!-- ════════════ المخاطر ════════════ -->
+  <div class="panel" id="p-risks">
+    <div style="display:flex;gap:10px;margin-bottom:16px">
+      <div id="risk-summary" style="display:flex;gap:8px"></div>
+      <div class="tb-sep"></div>
+      <button class="btn btn-sm" onclick="loadRisks()">↻ تحديث</button>
+    </div>
+    <div class="card" id="risk-list">
+      <div style="text-align:center;padding:30px;color:var(--t2)">جارٍ التحميل…</div>
+    </div>
+  </div>
+
+  <!-- ════════════ البروفايلات ════════════ -->
+  <div class="panel" id="p-profiles">
+    <div style="display:flex;gap:10px;margin-bottom:16px;align-items:center;flex-wrap:wrap">
+      <h2 style="margin:0;font-size:16px;font-weight:500">إدارة البروفايلات</h2>
+    </div>
+
+    <!-- مزامنة -->
+    <div class="card" style="margin-bottom:14px">
+      <div class="card-h"><span class="card-title">🔄 مزامنة البيانات</span></div>
+      <div class="card-b">
+        <div class="notice notice-info" style="margin-bottom:12px">
+          <span class="notice-ico">ℹ</span>
+          <span>يجلب من X: الاسم، البيو، عدد المتابعين والمتابَعين — يُحدّث قاعدة البيانات</span>
+        </div>
+        <div class="field" style="margin-bottom:10px">
+          <label>الحسابات <small style="color:var(--t2)">(Ctrl+Click متعدد — فارغ = كل النشطين)</small></label>
+          <select id="prof-sync-acc" multiple style="height:110px;font-family:var(--m)"></select>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center">
+          <button class="btn" onclick="selectAllAccounts('prof-sync-acc')">تحديد الكل</button>
+          <button class="btn btn-p" onclick="doSyncProfiles()">🔄 مزامنة الآن</button>
+          <span id="prof-sync-status" style="font-size:12px;color:var(--t2)"></span>
+        </div>
+        <div id="prof-sync-progress" style="display:none;margin-top:10px;font-size:12px;font-family:var(--m);max-height:140px;overflow:auto;background:var(--s2);border-radius:8px;padding:8px"></div>
+      </div>
+    </div>
+
+    <!-- تحديث -->
+    <div class="card">
+      <div class="card-h"><span class="card-title">✏️ تحديث البروفايل</span></div>
+      <div class="card-b">
+        <div class="form-grid">
+          <div class="field">
+            <label>الاسم الظاهر
+              <small style="color:var(--t2);font-weight:400"> — سطر لكل حساب بالترتيب</small>
+            </label>
+            <textarea id="prof-name" placeholder="اسم الحساب الأول&#10;اسم الحساب الثاني&#10;اسم الحساب الثالث&#10;..." style="min-height:80px;resize:vertical;font-family:var(--m)"></textarea>
+          </div>
+          <div class="field">
+            <label>الموقع
+              <small style="color:var(--t2);font-weight:400"> — سطر لكل حساب</small>
+            </label>
+            <textarea id="prof-location" placeholder="Riyadh, KSA&#10;Dubai, UAE&#10;Cairo, Egypt&#10;..." style="min-height:80px;resize:vertical;font-family:var(--m)"></textarea>
+          </div>
+          <div class="field"><label>الموقع الإلكتروني</label><input id="prof-website" type="text" placeholder="https://" style="direction:ltr"></div>
+          <div class="field">
+            <label>وضع البيو</label>
+            <select id="prof-bio-mode" onchange="onBioModeChange(this.value)">
+              <option value="none">بلا تغيير في البيو</option>
+              <option value="manual">يدوي — نفس البيو للكل</option>
+              <option value="ai">🤖 AI — بيو مختلف لكل حساب</option>
+            </select>
+          </div>
+        </div>
+        <div id="prof-bio-wrap" class="field" style="display:none;margin-bottom:10px">
+          <label>البيو</label>
+          <textarea id="prof-bio" placeholder="اكتب البيو هنا…" style="min-height:70px;resize:vertical"></textarea>
+        </div>
+        <div id="prof-ai-opts" style="display:none;margin-bottom:10px">
+          <div class="field"><label>المجال للـ AI</label><input id="prof-ai-niche" type="text" placeholder="تقنية، أعمال، كريبتو…"></div>
+        </div>
+
+        <!-- الصور -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+          <div class="field">
+            <label>صور الأفاتار
+              <small style="color:var(--t2);font-weight:400"> — يمكن رفع أكثر من صورة</small>
+            </label>
+            <input id="prof-avatars" type="file" accept="image/*" multiple onchange="previewImages(this,'prof-avatars-preview')">
+            <div id="prof-avatars-preview" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px"></div>
+          </div>
+          <div class="field">
+            <label>صور البانر
+              <small style="color:var(--t2);font-weight:400"> — يمكن رفع أكثر من صورة</small>
+            </label>
+            <input id="prof-banners" type="file" accept="image/*" multiple onchange="previewImages(this,'prof-banners-preview')">
+            <div id="prof-banners-preview" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px"></div>
+          </div>
+        </div>
+        <div class="field" style="margin-bottom:12px">
+          <label>ترتيب توزيع الصور على الحسابات</label>
+          <select id="prof-img-order">
+            <option value="sequential">بالترتيب — الحساب الأول يأخذ الصورة الأولى</option>
+            <option value="random">عشوائي — كل حساب يأخذ صورة عشوائية</option>
+          </select>
+          <div style="font-size:11.5px;color:var(--t2);margin-top:4px">إذا رفعت صورة واحدة فقط تُطبَّق على كل الحسابات</div>
+        </div>
+        <div class="field" style="margin-bottom:10px">
+          <label>الحسابات المستهدفة <small style="color:var(--t2)">(Ctrl+Click لاختيار متعدد)</small></label>
+          <select id="prof-upd-acc" multiple style="height:110px;font-family:var(--m)"></select>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center">
+          <button class="btn" onclick="selectAllAccounts('prof-upd-acc')">تحديد الكل</button>
+          <button class="btn btn-p" onclick="doUpdateProfiles()">💾 تحديث الآن</button>
+          <span id="prof-upd-status" style="font-size:12px;color:var(--t2)"></span>
+        </div>
+        <div id="prof-upd-progress" style="display:none;margin-top:10px;font-size:12px;font-family:var(--m);max-height:140px;overflow:auto;background:var(--s2);border-radius:8px;padding:8px"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════ سجل النشاط ════════════ -->
+  <div class="panel" id="p-audit">
+    <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center">
+      <select id="log-cat" onchange="loadAudit()" style="width:150px">
+        <option value="">كل الفئات</option>
+        <option value="مصادقة">مصادقة</option>
+        <option value="نشر">نشر</option>
+        <option value="تفاعل">تفاعل</option>
+        <option value="ذكاء_اصطناعي">ذكاء اصطناعي</option>
+        <option value="جلسة">جلسة</option>
+      </select>
+      <select id="log-res" onchange="loadAudit()" style="width:120px">
+        <option value="">كل النتائج</option>
+        <option value="نجح">نجح</option>
+        <option value="فشل">فشل</option>
+      </select>
+      <div class="tb-sep"></div>
+      <span id="audit-total" style="font-size:11.5px;color:var(--t2);font-family:var(--m)"></span>
+    </div>
+    <div class="card">
+      <table class="tbl">
+        <thead><tr><th>الوقت</th><th>الحساب</th><th>الفئة</th><th>الإجراء</th><th>النتيجة</th><th>المدة</th></tr></thead>
+        <tbody id="audit-tbody">
+          <tr><td colspan="6" style="text-align:center;padding:30px;color:var(--t2)">جارٍ التحميل…</td></tr>
+        </tbody>
+      </table>
+      <div style="padding:10px 14px;border-top:1px solid var(--bd);display:flex;gap:10px;align-items:center">
+        <button class="btn btn-sm" onclick="auditPage=Math.max(1,auditPage-1);loadAudit()">→ السابق</button>
+        <span id="audit-pager" style="flex:1;text-align:center;font-size:11.5px;color:var(--t2);font-family:var(--m)">—</span>
+        <button class="btn btn-sm" onclick="auditPage++;loadAudit()">التالي ←</button>
+      </div>
+    </div>
+  </div>
+
+  </div><!-- /main-content -->
+</main>
+</div><!-- /app -->
+
+<!-- modal تعديل الحساب -->
+<div id="edit-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:999;display:none;align-items:center;justify-content:center">
+  <div style="background:var(--s2);border:1px solid var(--bd);border-radius:14px;padding:24px;width:440px;max-width:95vw">
+    <div style="font-size:15px;font-weight:500;margin-bottom:16px">تعديل الحساب — <span id="edit-username" style="color:var(--t2)"></span></div>
+    <div class="field" style="margin-bottom:12px">
+      <label>الدور</label>
+      <select id="edit-role">
+        <option value="mixed">مختلط</option>
+        <option value="post">نشر</option>
+        <option value="engage">تفاعل</option>
+        <option value="support">دعم</option>
+      </select>
+    </div>
+    <div class="field" style="margin-bottom:12px">
+      <label>المجال</label>
+      <input id="edit-niche" type="text" placeholder="تقنية، أعمال، كريبتو…">
+    </div>
+    <div class="field" style="margin-bottom:16px">
+      <label>البروكسي <small style="color:var(--t2);font-weight:400">socks5://user:pass@host:port</small></label>
+      <input id="edit-proxy" type="text" placeholder="socks5://..." style="direction:ltr;font-family:var(--m)">
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button class="btn" onclick="closeEditModal()">إلغاء</button>
+      <button class="btn btn-p" onclick="saveEditAccount()">حفظ</button>
+    </div>
+  </div>
+</div>
+
+<!-- إشعارات -->
+<div class="toast-wrap" id="toasts"></div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+/* ═══════════════════════════════════════════════════════════════
+   متغيرات عامة
+═══════════════════════════════════════════════════════════════ */
+let TOKEN = localStorage.getItem('xops_token') || '';
+let currentPanel = 'overview';
+let accPage   = 1;
+let auditPage = 1;
+let donutChart = null;
+let allActiveAccounts = [];
+
+/* ═══════════════════════════════════════════════════════════════
+   تهيئة
+═══════════════════════════════════════════════════════════════ */
+document.addEventListener('DOMContentLoaded', () => {
+  if (!TOKEN) {
+    document.getElementById('login-page').style.display = 'flex';
+  } else {
+    document.getElementById('app').style.display = 'flex';
+    init();
+  }
+});
+
+function init() {
+  tick();
+  setInterval(tick, 1000);
+  loadOverview();
+  loadActiveAccounts();
+  setInterval(() => {
+    if (currentPanel === 'overview') loadOverview();
+  }, 30000);
+
+  // Socket.IO realtime
+  try {
+    const socket = io();
+    socket.on('action:done', d => toast(`✅ ${d.type} — @${d.account}`, 'ok'));
+    socket.on('connect', () => console.log('[WS] متصل'));
+    socket.on('health:progress', d => {
+      const el = document.getElementById('bulk-check-counter');
+      if (el) el.textContent = `${d.done}/${d.total}`;
+      if (d.done === d.total) {
+        setTimeout(() => {
+          document.getElementById('bulk-check-progress').style.display = 'none';
+          document.getElementById('bulk-check-btn').disabled = false;
+          loadAccounts();
+          toast(`✅ اكتمل الفحص — ${d.total} حساب`, 'ok');
+        }, 1000);
+      }
+    });
+    socket.on('tweet:multi:progress', d => {
+      const prog = document.getElementById('tm-progress');
+      if (prog) prog.innerHTML += `<div>${d.success ? '✅' : '❌'} @${d.username} (${d.done}/${d.total})</div>`;
+    });
+    socket.on('profile:sync:progress', d => {
+      const prog = document.getElementById('prof-sync-progress');
+      if (prog) prog.innerHTML += `<div>${d.error ? '❌' : '✅'} @${d.username} ${d.error || (d.profile?.followersCount !== undefined ? `— ${d.profile.followersCount} متابع` : '')}</div>`;
+      if (d.done === d.total) {
+        document.getElementById('prof-sync-status').textContent = `✅ اكتملت المزامنة (${d.total})`;
+        loadAccounts();
+      }
+    });
+    socket.on('profile:update:progress', d => {
+      const prog = document.getElementById('prof-upd-progress');
+      if (prog) prog.innerHTML += `<div>${d.error ? '❌' : '✅'} @${d.username} ${d.error || ''}</div>`;
+      if (d.done === d.total) {
+        document.getElementById('prof-upd-status').textContent = `✅ اكتمل التحديث (${d.total})`;
+      }
+    });
+    socket.on('tweet:multi:done', d => {
+      document.getElementById('tm-status').textContent = '';
+      toast(`✅ اكتمل النشر الجماعي — ${d.total} حساب`, 'ok');
+      loadActiveAccounts();
+    });
+  } catch {}
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   API helper
+═══════════════════════════════════════════════════════════════ */
+async function api(path, opts = {}) {
+  const res = await fetch(path, {
+    ...opts,
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${TOKEN}`, ...(opts.headers||{}) },
+  });
+  if (res.status === 401) { logout(); return null; }
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'خطأ في الخادم');
+  return data;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   تسجيل الدخول / الخروج
+═══════════════════════════════════════════════════════════════ */
+async function doLogin() {
+  const email = document.getElementById('l-email').value.trim();
+  const pass  = document.getElementById('l-pass').value;
+  const errEl = document.getElementById('l-err');
+  errEl.style.display = 'none';
+  try {
+    const res = await fetch('/api/v1/auth/login', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password: pass }),
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'خطأ'; errEl.style.display = 'block'; return; }
+    TOKEN = data.token;
+    localStorage.setItem('xops_token', TOKEN);
+    document.getElementById('user-name').textContent  = data.user.email;
+    document.getElementById('user-role').textContent  = data.user.role;
+    document.getElementById('user-av').textContent    = data.user.email[0].toUpperCase();
+    document.getElementById('login-page').style.display = 'none';
+    document.getElementById('app').style.display = 'flex';
+    init();
+  } catch(e) { errEl.textContent = e.message; errEl.style.display = 'block'; }
+}
+
+function logout() {
+  localStorage.removeItem('xops_token');
+  TOKEN = '';
+  location.reload();
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   التنقل
+═══════════════════════════════════════════════════════════════ */
+const titles = { overview:'نظرة عامة', accounts:'الحسابات', import:'استيراد جماعي', actions:'إجراءات يدوية', content:'المحتوى', schedule:'الجدولة', ai:'اقتراحات الذكاء الاصطناعي', risks:'المخاطر', profiles:'البروفايلات', audit:'سجل النشاط' };
+
+function nav(id, btn) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('on'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('on'));
+  const el = document.getElementById('p-' + id);
+  if (el) el.classList.add('on');
+  if (btn) btn.classList.add('on');
+  else document.querySelectorAll('.nav-btn').forEach(b => { if(b.textContent.trim().includes(titles[id]?.slice(0,4))) b.classList.add('on'); });
+  document.getElementById('ptitle').textContent = titles[id] || id;
+  currentPanel = id;
+
+  if (id === 'accounts') { accPage = 1; loadAccounts(); }
+  if (id === 'risks')    loadRisks();
+  if (id === 'audit')    { auditPage = 1; loadAudit(); }
+  if (id === 'content')  loadContent();
+  if (id === 'schedule') { loadSchedules(); fillAccountSelects('sc-acc'); }
+  if (id === 'ai')       fillAccountSelects('ai-acc');
+  if (id === 'actions')  { fillAllActionSelects(); }
+  if (id === 'profiles') {
+    if (allActiveAccounts.length) {
+      fillAccountMultiSelects('prof-sync-acc','prof-upd-acc');
+    } else {
+      loadActiveAccounts().then(() => fillAccountMultiSelects('prof-sync-acc','prof-upd-acc'));
+    }
+  }
+}
+
+function refreshCurrent() { nav(currentPanel); loadOverview(); }
+
+/* ═══════════════════════════════════════════════════════════════
+   ساعة
+═══════════════════════════════════════════════════════════════ */
+function tick() {
+  const t = new Date().toLocaleTimeString('ar-SA', { hour12: false });
+  document.getElementById('clk').textContent = t;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   نظرة عامة
+═══════════════════════════════════════════════════════════════ */
+async function loadOverview() {
+  try {
+    const d = await api('/api/v1/dashboard/overview');
+    if (!d) return;
+
+    // KPIs
+    const a = d.accounts;
+    document.getElementById('k-total').textContent    = a.total;
+    document.getElementById('k-total-s').textContent  = `${a.active} نشط، ${a.needAuth} يحتاج مصادقة`;
+    document.getElementById('k-active').textContent   = a.active;
+    document.getElementById('k-active-s').innerHTML   = `<span class="up">${Math.round(a.active/Math.max(1,a.total)*100)}%</span> من الإجمالي`;
+    document.getElementById('k-actions').textContent  = d.today.actions.toLocaleString('ar');
+    document.getElementById('k-actions-s').textContent= `${d.today.published} منشور اليوم`;
+    document.getElementById('k-rate').innerHTML       = (d.today.successRate||'—') + (d.today.successRate?'<span style="font-size:16px;color:var(--t2)">%</span>':'');
+    document.getElementById('k-rate-s').textContent  = `${d.today.published} نجح / ${d.today.failed} فشل`;
+
+    // badges
+    document.getElementById('nb-active').textContent = a.active;
+    document.getElementById('nb-risks').textContent  = d.alerts.openRisks;
+
+    // Donut
+    const vals = [a.active, a.needAuth, a.checkpoint||0, a.restricted, a.inactive+a.suspended];
+    document.getElementById('dl-active').textContent = a.active;
+    document.getElementById('dl-auth').textContent   = a.needAuth;
+    document.getElementById('dl-chk').textContent    = a.checkpoint||0;
+    document.getElementById('dl-res').textContent    = a.restricted;
+    document.getElementById('dl-off').textContent    = a.inactive+a.suspended;
+
+    if (donutChart) donutChart.destroy();
+    donutChart = new Chart(document.getElementById('donut-chart').getContext('2d'), {
+      type: 'doughnut',
+      data: { datasets: [{ data: vals, backgroundColor:['#27c98a','#f4a51e','#9575ff','#ef4a57','#3a4057'], borderWidth:0 }] },
+      options: { responsive:true, maintainAspectRatio:false, cutout:'70%', plugins:{legend:{display:false}}, animation:{duration:600} }
+    });
+
+    // Browser stats
+    const br = d.browser;
+    document.getElementById('br-ctx').textContent  = br.activeContexts;
+    document.getElementById('br-max').textContent  = br.maxLimit;
+    document.getElementById('br-conn').textContent = br.connected ? 'متصل ✓' : 'غير متصل';
+    document.getElementById('br-conn').style.color = br.connected ? 'var(--grn)' : 'var(--red)';
+    const pct = Math.round((br.activeContexts / Math.max(1, br.maxLimit)) * 100);
+    document.getElementById('br-pct').textContent  = pct + '%';
+    document.getElementById('br-bar').style.width  = pct + '%';
+    document.getElementById('br-bar').style.background = pct > 80 ? 'var(--red)' : pct > 50 ? 'var(--amb)' : 'var(--grn)';
+
+    // Feed
+    const icons = { مصادقة:'⚡', نشر:'✓', تفاعل:'↑', ذكاء_اصطناعي:'★', نظام:'⚙', جلسة:'🔑' };
+    document.getElementById('overview-feed').innerHTML = d.recentActivity.length
+      ? d.recentActivity.map(l => `
+        <div class="feed-row">
+          <div class="feed-ico">${icons[l.category]||'•'}</div>
+          <div class="feed-body">
+            <div class="feed-t">${l.action.replace(/_/g,' ')} — @${l.account||'النظام'}</div>
+            <div class="feed-m">${l.category} · ${new Date(l.createdAt).toLocaleTimeString('ar-SA')}</div>
+          </div>
+          <span class="pill ${l.result==='نجح'?'p-g':l.result==='فشل'?'p-r':'p-n'}">${l.result}</span>
+        </div>`).join('')
+      : '<div style="text-align:center;padding:20px;color:var(--t2);font-size:12px">لا توجد نشاطات حديثة</div>';
+
+    // Alerts
+    const alerts = [];
+    if (a.needAuth   > 0) alerts.push({ txt:`${a.needAuth} حساب يحتاج إعادة مصادقة`, cls:'p-a', action:'accounts' });
+    if (a.checkpoint > 0) alerts.push({ txt:`${a.checkpoint} حساب في نقطة تحقق`, cls:'p-p', action:'accounts' });
+    if (d.alerts.openRisks > 0) alerts.push({ txt:`${d.alerts.openRisks} حدث مخاطر مفتوح`, cls:'p-r', action:'risks' });
+
+    document.getElementById('quick-alerts').innerHTML = alerts.length
+      ? alerts.map(al => `<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--bd)"><span class="pill ${al.cls}">${al.txt}</span><button class="btn btn-sm" style="margin-right:auto" onclick="nav('${al.action}')">عرض</button></div>`).join('')
+      : '<div style="text-align:center;padding:20px;color:var(--grn);font-size:12px">✓ لا توجد تنبيهات</div>';
+
+  } catch(e) { console.error(e); }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   الحسابات
+═══════════════════════════════════════════════════════════════ */
+async function loadAccounts() {
+  const q      = document.getElementById('acc-q').value;
+  const status = document.getElementById('acc-status').value;
+  const params = new URLSearchParams({ page: accPage, limit: 30 });
+  const role = document.getElementById('acc-role').value;
+  if (q)      params.set('q', q);
+  if (status) params.set('status', status);
+  if (role)   params.set('role', role);
+
+  try {
+    const d = await api(`/api/v1/accounts?${params}`);
+    if (!d) return;
+
+    const statusBadge = s => {
+      const m = { 'نشط':'p-g', 'يحتاج_مصادقة':'p-a', 'نقطة_تحقق':'p-p', 'محظور':'p-r', 'غير_نشط':'p-n', 'موقوف':'p-r' };
+      const dot = s === 'نشط' ? '<span class="dot dg"></span>' : s === 'يحتاج_مصادقة' ? '<span class="dot da"></span>' : s === 'محظور' ? '<span class="dot dr"></span>' : '';
+      return `<span class="pill ${m[s]||'p-n'}">${dot}${s.replace(/_/g,' ')}</span>`;
+    };
+
+    document.getElementById('acc-tbody').innerHTML = d.accounts.length
+      ? d.accounts.map(a => `
+        <tr>
+          <td><span class="uname">@${a.username}</span></td>
+          <td><span class="pill ${a.role==='post'?'p-b':a.role==='engage'?'p-g':a.role==='support'?'p-a':'p-n'}">${a.role==='post'?'نشر':a.role==='engage'?'تفاعل':a.role==='support'?'دعم':'مختلط'}</span></td>
+          <td style="color:var(--t2)">${a.niche||'—'}</td>
+          <td>${statusBadge(a.status)}</td>
+          <td style="font-family:var(--m);font-size:11px;color:var(--t2)">${a.lastActiveAt?new Date(a.lastActiveAt).toLocaleTimeString('ar-SA'):'—'}</td>
+          <td style="font-family:var(--m)">${(a.todayCounters?.posts||0)}/${a.dailyCaps?.post||10}</td>
+          <td>
+            <div style="display:flex;gap:5px">
+              <button class="btn btn-sm" onclick="checkAccount('${a._id}')">فحص</button>
+              <button class="btn btn-sm ${a.status!=='نشط'?'btn-p':''}" onclick="loginAccount('${a._id}')">دخول</button>
+              <button class="btn btn-sm" onclick="editAccount('${a._id}','${a.username}','${a.network?.proxyUrl||''}','${a.role||'mixed'}','${a.niche||''}')">تعديل</button>
+              <button class="btn btn-sm" style="color:var(--red);border-color:rgba(239,74,87,.25)" onclick="deleteAccount('${a._id}','${a.username}')">حذف</button>
+            </div>
+          </td>
+        </tr>`).join('')
+      : '<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--t2)">لا توجد حسابات</td></tr>';
+
+    document.getElementById('acc-pager').textContent = `الصفحة ${d.page} من ${d.pages} · ${d.total} حساب`;
+  } catch(e) { toast(e.message, 'err'); }
+}
+
+async function loadActiveAccounts() {
+  try {
+    const d = await api('/api/v1/accounts?status=نشط&limit=200');
+    if (d) allActiveAccounts = d.accounts;
+    document.getElementById('nb-content').textContent = allActiveAccounts.length;
+    fillAllActionSelects();
+    // تملأ selects البروفايل إذا الصفحة مفتوحة
+    fillAccountMultiSelects('prof-sync-acc','prof-upd-acc');
+  } catch {}
+}
+
+function fillAccountSelects(...ids) {
+  const opts = allActiveAccounts.length
+    ? allActiveAccounts.map(a => `<option value="${a._id}">@${a.username}</option>`).join('')
+    : '<option>لا توجد حسابات نشطة</option>';
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = opts;
+  });
+}
+
+function fillAllActionSelects() {
+  // single selects
+  fillAccountSelects('tw-acc','sr-acc');
+  // multi selects
+  fillAccountMultiSelects('tm-accounts','fl-acc','lk-acc','rp-acc','ry-acc','prof-sync-acc','prof-upd-acc');
+}
+
+function fillAccountMultiSelects(...ids) {
+  const opts = allActiveAccounts.length
+    ? allActiveAccounts.map(a => `<option value="${a._id}">@${a.username} (${a.role==='post'?'نشر':a.role==='engage'?'تفاعل':a.role==='support'?'دعم':'مختلط'})</option>`).join('')
+    : '<option>لا توجد حسابات نشطة</option>';
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = opts;
+  });
+}
+
+function selectAllAccounts(selectId) {
+  const el = document.getElementById(selectId);
+  if (!el) return;
+  [...el.options].forEach(o => o.selected = true);
+}
+
+function getSelectedAccounts(selectId) {
+  const el = document.getElementById(selectId);
+  if (!el) return [];
+  return [...el.selectedOptions].map(o => o.value);
+}
+
+let _editAccountId = null;
+
+function editAccount(id, username, proxy, role, niche) {
+  _editAccountId = id;
+  document.getElementById('edit-username').textContent = '@' + username;
+  document.getElementById('edit-proxy').value  = proxy  || '';
+  document.getElementById('edit-role').value   = role   || 'mixed';
+  document.getElementById('edit-niche').value  = niche  || '';
+  const m = document.getElementById('edit-modal');
+  m.style.display = 'flex';
+}
+
+function closeEditModal() {
+  document.getElementById('edit-modal').style.display = 'none';
+}
+
+async function saveEditAccount() {
+  const proxy = document.getElementById('edit-proxy').value.trim();
+  const role  = document.getElementById('edit-role').value;
+  const niche = document.getElementById('edit-niche').value.trim();
+  try {
+    await api(`/api/v1/accounts/${_editAccountId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        role,
+        niche,
+        network: { proxyUrl: proxy || null },
+      }),
+    });
+    toast('✅ تم الحفظ', 'ok');
+    closeEditModal();
+    loadAccounts();
+  } catch(e) { toast(e.message, 'err'); }
+}
+
+async function checkAccount(id) {
+  toast('جارٍ فحص الجلسة…');
+  try {
+    const d = await api(`/api/v1/accounts/${id}/check`, { method:'POST' });
+    toast(`الحالة: ${d.status}`, d.status==='نشط'?'ok':'warn');
+    loadAccounts();
+  } catch(e) { toast(e.message, 'err'); }
+}
+
+async function loginAccount(id) {
+  toast('جارٍ تسجيل الدخول…');
+  try {
+    await api(`/api/v1/accounts/${id}/login`, { method:'POST' });
+    toast('تم تسجيل الدخول بنجاح', 'ok');
+    loadAccounts(); loadActiveAccounts();
+  } catch(e) { toast(e.message, 'err'); }
+}
+
+async function deleteAccount(id, username) {
+  const hard = confirm(`حذف @${username} نهائياً من قاعدة البيانات؟\n\nاضغط موافق للحذف الكامل، أو إلغاء للإخفاء فقط.`);
+  const cancel = !hard && !confirm(`إخفاء @${username} من الداشبورد فقط؟`);
+  if (cancel) return;
+  try {
+    await api(`/api/v1/accounts/${id}?hard=${hard}`, { method:'DELETE' });
+    toast(`${hard?'🗑 حُذف نهائياً':'🙈 أُخفي'}: @${username}`, 'ok');
+    loadAccounts(); loadActiveAccounts();
+  } catch(e) { toast(e.message, 'err'); }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   الاستيراد الجماعي
+═══════════════════════════════════════════════════════════════ */
+function parseBulk() {
+  const raw   = document.getElementById('bulk-txt').value.trim();
+  const lines = raw.split('\n').filter(l => l.trim() && !l.startsWith('#'));
+  const prev  = document.getElementById('bulk-preview');
+
+  if (!lines.length) {
+    prev.style.display = 'none';
+    document.getElementById('bulk-btn').disabled = true;
+    document.getElementById('bulk-btn').style.opacity = '.5';
+    document.getElementById('bulk-status').textContent = '';
+    return;
+  }
+
+  let valid=0, errors=0, tokens=0;
+  const rows = lines.map((line, i) => {
+    const parts = line.split(':');
+    const username     = (parts[0]||'').replace('@','').trim();
+    const password     = (parts[1]||'').trim();
+    const email        = (parts[2]||'').trim();
+    const sessionToken = (parts[3]||'').trim();
+    const authToken    = (parts[4]||'').trim();
+    const ok = username.length>1 && password.length>3;
+    if (ok) valid++; else errors++;
+    if (sessionToken || authToken) tokens++;
+    return `<tr>
+      <td style="font-family:var(--m);color:var(--t2)">${i+1}</td>
+      <td><span style="font-family:var(--m);direction:ltr;display:block">@${username||'?'}</span></td>
+      <td style="color:var(--t2)">${email||'—'}</td>
+      <td>${sessionToken ? '<span class="pill p-g">✓</span>' : '<span class="pill p-n">—</span>'}</td>
+      <td>${authToken   ? '<span class="pill p-g">✓</span>' : '<span class="pill p-n">—</span>'}</td>
+      <td>${ok ? '<span class="pill p-g">صالح</span>' : '<span class="pill p-r">خطأ</span>'}</td>
+    </tr>`;
+  });
+
+  prev.style.display = 'block';
+  document.getElementById('is-total').textContent = lines.length;
+  document.getElementById('is-valid').textContent = valid;
+  document.getElementById('is-err').textContent   = errors;
+  document.getElementById('is-token').textContent = tokens;
+  document.getElementById('bulk-tbl').querySelector('tbody').innerHTML = rows.join('');
+  document.getElementById('bulk-status').textContent = `${valid} حساب صالح`;
+
+  const btn = document.getElementById('bulk-btn');
+  btn.disabled = valid === 0;
+  btn.style.opacity = valid > 0 ? '1' : '.5';
+}
+
+function onRoleChange(sel) {
+  const custom = document.getElementById('bulk-role-custom');
+  if (sel.value === '__custom__') {
+    custom.style.display = 'block';
+    custom.focus();
+  } else {
+    custom.style.display = 'none';
+  }
+}
+
+async function doImport() {
+  const text    = document.getElementById('bulk-txt').value.trim();
+  const niche   = document.getElementById('bulk-niche').value;
+  const stagger = document.getElementById('bulk-stagger').value;
+  const roleEl  = document.getElementById('bulk-role');
+  const role    = roleEl.value === '__custom__'
+    ? (document.getElementById('bulk-role-custom').value.trim() || 'mixed')
+    : (roleEl.value || 'mixed');
+
+  document.getElementById('import-progress').style.display = 'block';
+  document.getElementById('bulk-btn').disabled = true;
+
+  const lines = text.split('\n').filter(l => l.trim() && !l.startsWith('#'));
+  const handles = lines.map(l => (l.split(':')[0]||'').replace('@','').trim()).filter(Boolean);
+
+  document.getElementById('imp-count').textContent = `0 / ${handles.length}`;
+  document.getElementById('imp-rows').innerHTML = handles.map(h =>
+    `<div class="prog-row" id="pr-${h}">
+      <span class="prog-handle">@${h}</span>
+      <div class="prog-bar-w"><div class="prog-bar-f" id="pb-${h}" style="width:0%;background:var(--blu)"></div></div>
+      <span style="width:80px;text-align:left;flex-shrink:0"><span class="pill p-n" id="ps-${h}">انتظار</span></span>
+    </div>`
+  ).join('');
+
+  try {
+    const d = await api('/api/v1/accounts/bulk-import', {
+      method: 'POST',
+      body: JSON.stringify({ text, defaultNiche: niche, defaultRole: role, stagger }),
+    });
+    if (!d) return;
+
+    // تحديث شريط التقدم
+    handles.forEach((h, i) => {
+      setTimeout(() => {
+        const bar  = document.getElementById(`pb-${h}`);
+        const stat = document.getElementById(`ps-${h}`);
+        const created = d.results.created.includes(h);
+        const skipped = d.results.skipped.includes(h);
+        const errored = d.results.errors.find(e => e.username === h);
+
+        if (bar) { bar.style.width='100%'; bar.style.background = created?'var(--grn)':skipped?'var(--amb)':'var(--red)'; }
+        if (stat) {
+          stat.textContent  = created?'تمّ':skipped?'موجود':'خطأ';
+          stat.className    = 'pill '+(created?'p-g':skipped?'p-a':'p-r');
+        }
+        document.getElementById('imp-count').textContent = `${i+1} / ${handles.length}`;
+      }, i * 100);
+    });
+
+    setTimeout(() => {
+      toast(`✅ أنشئ: ${d.summary.created} | تخطي: ${d.summary.skipped} | أخطاء: ${d.summary.errors}`, 'ok');
+      loadActiveAccounts();
+    }, handles.length * 100 + 200);
+
+  } catch(e) { toast(e.message, 'err'); }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   الإجراءات اليدوية
+═══════════════════════════════════════════════════════════════ */
+function showAtab(id, btn) {
+  document.querySelectorAll('[id^="at-"]').forEach(el => el.style.display='none');
+  document.querySelectorAll('.atab').forEach(b => b.classList.remove('on'));
+  const el = document.getElementById('at-'+id);
+  if (el) el.style.display = 'block';
+  if (btn) btn.classList.add('on');
+}
+
+function extractTweetId(val) {
+  const m = val.match(/status\/(\d+)/);
+  return m ? m[1] : val.trim();
+}
+
+async function doTweet() {
+  const accountId = document.getElementById('tw-acc').value;
+  const text      = document.getElementById('tw-text').value.trim();
+  if (!text) return toast('اكتب نص التغريدة', 'warn');
+  const s = document.getElementById('tw-status');
+  s.textContent = 'جارٍ النشر…';
+  try {
+    const d = await api('/api/v1/actions/tweet', { method:'POST', body: JSON.stringify({ accountId, text }) });
+    s.textContent = '';
+    toast(`✅ نُشرت التغريدة${d.tweetId?' — ID: '+d.tweetId:''}`, 'ok');
+    document.getElementById('tw-text').value = '';
+    document.getElementById('tw-counter').textContent = '0/280';
+  } catch(e) { s.textContent=''; toast(e.message,'err'); }
+}
+
+async function saveAsDraft() {
+  const accountId = document.getElementById('tw-acc').value;
+  const text      = document.getElementById('tw-text').value.trim();
+  if (!text) return toast('اكتب نص التغريدة', 'warn');
+  try {
+    await api('/api/v1/content', { method:'POST', body: JSON.stringify({ accountId, text }) });
+    toast('تم الحفظ كمسودة', 'ok');
+  } catch(e) { toast(e.message,'err'); }
+}
+
+// ── دوال الإجراءات المتعددة ──────────────────────────────────
+
+async function runOnMultiple(selectId, statusId, actionFn, label) {
+  const ids = getSelectedAccounts(selectId);
+  if (!ids.length) return toast('اختر حساباً على الأقل', 'warn');
+  const s = document.getElementById(statusId);
+  if (s) s.textContent = `جارٍ التنفيذ على ${ids.length} حساب…`;
+  let done = 0, failed = 0;
+  for (const id of ids) {
+    try {
+      await actionFn(id);
+      done++;
+    } catch(e) {
+      failed++;
+      logger_warn(`[Multi] ${label} فشل: ${e.message}`);
+    }
+    if (ids.indexOf(id) < ids.length - 1) {
+      await new Promise(r => setTimeout(r, 3000 + Math.random() * 5000));
+    }
+  }
+  if (s) s.textContent = '';
+  toast(`✅ ${label}: نجح ${done}${failed?' | فشل '+failed:''}`, done>0?'ok':'err');
+}
+
+function logger_warn(msg) { console.warn(msg); }
+
+async function doFollowMulti() {
+  const target = document.getElementById('fl-target').value.trim();
+  if (!target) return toast('أدخل اسم الحساب المستهدف', 'warn');
+  const delayParts = document.getElementById('fl-delay').value.split(',');
+  const [minD, maxD] = [+delayParts[0], +delayParts[1]];
+  const ids = getSelectedAccounts('fl-acc');
+  if (!ids.length) return toast('اختر حساباً على الأقل', 'warn');
+  document.getElementById('fl-status').textContent = `جارٍ التنفيذ على ${ids.length} حساب…`;
+  let done = 0, failed = 0;
+  for (let i = 0; i < ids.length; i++) {
+    try {
+      await api('/api/v1/actions/follow', { method:'POST', body: JSON.stringify({ accountId: ids[i], targetHandle: target }) });
+      done++;
+    } catch(e) { failed++; }
+    if (i < ids.length - 1) await new Promise(r => setTimeout(r, minD + Math.random() * (maxD - minD)));
+  }
+  document.getElementById('fl-status').textContent = '';
+  toast(`✅ متابعة: نجح ${done}${failed?' | فشل '+failed:''}`, done>0?'ok':'err');
+}
+
+async function doLikeMulti() {
+  const tweetId = extractTweetId(document.getElementById('lk-tweet').value);
+  if (!tweetId) return toast('أدخل رابط أو ID التغريدة', 'warn');
+  const ids = getSelectedAccounts('lk-acc');
+  if (!ids.length) return toast('اختر حساباً على الأقل', 'warn');
+  document.getElementById('lk-status').textContent = `جارٍ التنفيذ على ${ids.length} حساب…`;
+  let done = 0, failed = 0;
+  for (let i = 0; i < ids.length; i++) {
+    try {
+      await api('/api/v1/actions/like', { method:'POST', body: JSON.stringify({ accountId: ids[i], tweetId }) });
+      done++;
+    } catch(e) { failed++; }
+    if (i < ids.length - 1) await new Promise(r => setTimeout(r, 5000 + Math.random() * 10000));
+  }
+  document.getElementById('lk-status').textContent = '';
+  toast(`✅ إعجاب: نجح ${done}${failed?' | فشل '+failed:''}`, done>0?'ok':'err');
+}
+
+async function doRepostMulti() {
+  const tweetId = extractTweetId(document.getElementById('rp-tweet').value);
+  if (!tweetId) return toast('أدخل رابط أو ID التغريدة', 'warn');
+  const ids = getSelectedAccounts('rp-acc');
+  if (!ids.length) return toast('اختر حساباً على الأقل — اضغط Ctrl+A أو زر تحديد الكل', 'warn');
+  document.getElementById('rp-status').textContent = `جارٍ التنفيذ على ${ids.length} حساب…`;
+  let done = 0, failed = 0;
+  for (let i = 0; i < ids.length; i++) {
+    try {
+      await api('/api/v1/actions/retweet', { method:'POST', body: JSON.stringify({ accountId: ids[i], tweetId }) });
+      done++;
+    } catch(e) { failed++; }
+    if (i < ids.length - 1) await new Promise(r => setTimeout(r, 5000 + Math.random() * 10000));
+  }
+  document.getElementById('rp-status').textContent = '';
+  toast(`✅ إعادة تغريد: نجح ${done}${failed?' | فشل '+failed:''}`, done>0?'ok':'err');
+}
+
+async function doReplyMulti() {
+  const tweetId = document.getElementById('ry-tweet').value.trim();
+  const text    = document.getElementById('ry-text').value.trim();
+  if (!tweetId || !text) return toast('أكمل جميع الحقول', 'warn');
+  const ids = getSelectedAccounts('ry-acc');
+  if (!ids.length) return toast('اختر حساباً على الأقل', 'warn');
+  document.getElementById('ry-status').textContent = `جارٍ التنفيذ على ${ids.length} حساب…`;
+  let done = 0, failed = 0;
+  for (let i = 0; i < ids.length; i++) {
+    try {
+      await api('/api/v1/actions/reply', { method:'POST', body: JSON.stringify({ accountId: ids[i], tweetId, text }) });
+      done++;
+    } catch(e) { failed++; }
+    if (i < ids.length - 1) await new Promise(r => setTimeout(r, 8000 + Math.random() * 15000));
+  }
+  document.getElementById('ry-status').textContent = '';
+  toast(`✅ رد: نجح ${done}${failed?' | فشل '+failed:''}`, done>0?'ok':'err');
+}
+
+async function doTweetMulti() {
+  const topic   = document.getElementById('tm-topic').value.trim();
+  const hashtag = document.getElementById('tm-hashtag').value.trim();
+  const order   = document.getElementById('tm-order').value;
+  const delayParts = document.getElementById('tm-delay').value.split(',');
+  const [minD, maxD] = [+delayParts[0], +delayParts[1]];
+  let   ids = getSelectedAccounts('tm-accounts');
+  if (!ids.length) return toast('اختر حساباً على الأقل', 'warn');
+  if (!topic) return toast('أدخل الموضوع', 'warn');
+  if (order === 'random') ids = ids.sort(() => Math.random() - 0.5);
+
+  const s = document.getElementById('tm-status');
+  const prog = document.getElementById('tm-progress');
+  s.textContent = `جارٍ توليد المحتوى لـ ${ids.length} حساب…`;
+  prog.style.display = 'block';
+  prog.innerHTML = '';
+
+  try {
+    const d = await api('/api/v1/actions/tweet-multi', {
+      method: 'POST',
+      body: JSON.stringify({
+        accountIds: ids,
+        text:       topic,
+        topic:      topic,
+        hashtags:   hashtag,
+        varyText:   true,
+        delayMinMs: minD,
+        delayMaxMs: maxD,
+      }),
+    });
+    s.textContent = `✅ بدأ النشر على ${d.accounts?.length||ids.length} حساب`;
+    prog.innerHTML = `<div style="color:var(--grn)">جارٍ النشر في الخلفية… ستظهر النتائج في سجل النشاط</div>`;
+  } catch(e) {
+    s.textContent = '';
+    toast(e.message, 'err');
+  }
+}
+
+function onBioModeChange(val) {
+  document.getElementById('prof-ai-opts').style.display  = val === 'ai'     ? 'block' : 'none';
+  document.getElementById('prof-bio-wrap').style.display = val === 'none'   ? 'none'  : 'block';
+}
+
+function previewImages(input, previewId) {
+  const preview = document.getElementById(previewId);
+  preview.innerHTML = '';
+  [...input.files].forEach(file => {
+    const url = URL.createObjectURL(file);
+    preview.innerHTML += `<img src="${url}" style="width:52px;height:52px;object-fit:cover;border-radius:6px;border:1px solid var(--bd)">`;
+  });
+}
+
+async function doSyncProfiles() {
+  const ids  = getSelectedAccounts('prof-sync-acc');
+  const stat = document.getElementById('prof-sync-status');
+  const prog = document.getElementById('prof-sync-progress');
+  stat.textContent = 'جارٍ المزامنة…';
+  prog.style.display = 'block';
+  prog.innerHTML = '';
+  try {
+    const d = await api('/api/v1/accounts/bulk-sync-profiles', {
+      method: 'POST',
+      body: JSON.stringify({ accountIds: ids }),
+    });
+    stat.textContent = `جارٍ المزامنة لـ ${d.total} حساب في الخلفية…`;
+  } catch(e) { stat.textContent = ''; toast(e.message, 'err'); }
+}
+
+async function doUpdateProfiles() {
+  const ids     = getSelectedAccounts('prof-upd-acc');
+  if (!ids.length) return toast('اختر حساباً على الأقل', 'warn');
+  const mode       = document.getElementById('prof-bio-mode').value;
+  // أسماء متعددة — سطر لكل حساب
+  const namesRaw   = document.getElementById('prof-name').value.trim();
+  const namesList  = namesRaw ? namesRaw.split('\n').map(n => n.trim()).filter(Boolean) : [];
+  const name       = namesList[0] || ''; // للـ updates العادي نأخذ الأول فقط
+  const bio        = document.getElementById('prof-bio').value.trim();
+  const locRaw     = document.getElementById('prof-location').value.trim();
+  const locsList   = locRaw ? locRaw.split('\n').map(l => l.trim()).filter(Boolean) : [];
+  const loc        = locsList[0] || '';
+  const web        = document.getElementById('prof-website').value.trim();
+  const niche      = document.getElementById('prof-ai-niche').value.trim();
+  const imageOrder = document.getElementById('prof-img-order').value;
+
+  const updates = {};
+  if (name) updates.displayName = name;
+  if (loc)  updates.location    = loc;
+  if (web)  updates.website     = web;
+  if (bio && mode === 'manual') updates.bio = bio;
+
+  // مسارات الصور — الفرونت يرسل الأسماء فقط، الباكند يبحث في مجلد الصور
+  const avatarFiles = [...(document.getElementById('prof-avatars').files || [])].map(f => f.name);
+  const bannerFiles = [...(document.getElementById('prof-banners').files || [])].map(f => f.name);
+
+  // رفع الملفات أولاً عبر FormData
+  let avatarPaths = [], bannerPaths = [];
+  if (avatarFiles.length || bannerFiles.length) {
+    const formData = new FormData();
+    [...document.getElementById('prof-avatars').files].forEach(f => formData.append('avatars', f));
+    [...document.getElementById('prof-banners').files].forEach(f => formData.append('banners', f));
+    try {
+      const uploadRes = await fetch('/api/v1/accounts/upload-images', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${TOKEN}` },
+        body: formData,
+      });
+      const uploadData = await uploadRes.json();
+      avatarPaths = uploadData.avatarPaths || [];
+      bannerPaths = uploadData.bannerPaths || [];
+    } catch(e) { return toast('فشل رفع الصور: ' + e.message, 'err'); }
+  }
+
+  const stat = document.getElementById('prof-upd-status');
+  const prog = document.getElementById('prof-upd-progress');
+  stat.textContent = 'جارٍ التحديث…';
+  prog.style.display = 'block';
+  prog.innerHTML = '';
+
+  try {
+    const d = await api('/api/v1/accounts/bulk-update-profiles', {
+      method: 'POST',
+      body: JSON.stringify({
+        accountIds: ids, updates,
+        namesList,
+        locationsList: locsList,
+        useAI: mode === 'ai',
+        niche: niche || undefined,
+        avatarPaths, bannerPaths, imageOrder,
+      }),
+    });
+    stat.textContent = `جارٍ التحديث لـ ${d.total} حساب في الخلفية…`;
+  } catch(e) { stat.textContent = ''; toast(e.message, 'err'); }
+}
+
+async function doBulkCheck() {
+  const btn = document.getElementById('bulk-check-btn');
+  const prog = document.getElementById('bulk-check-progress');
+  btn.disabled = true;
+  prog.style.display = 'block';
+  try {
+    const d = await api('/api/v1/accounts/bulk-check', { method: 'POST' });
+    document.getElementById('bulk-check-counter').textContent = `0/${d.total}`;
+    toast(`🔍 جارٍ فحص ${d.total} حساب — التأخير 10 ثوانٍ بين كل حساب`, 'ok');
+  } catch(e) { toast(e.message, 'err'); }
+  setTimeout(() => { btn.disabled = false; prog.style.display = 'none'; loadAccounts(); }, 5000);
+}
+
+async function doSearch() {
+  const accountId = document.getElementById('sr-acc').value;
+  const keyword   = document.getElementById('sr-keyword').value.trim();
+  const maxResults= parseInt(document.getElementById('sr-max').value||'20',10);
+  if (!keyword) return toast('أدخل كلمة البحث', 'warn');
+  toast('جارٍ البحث…');
+  try {
+    const d = await api('/api/v1/actions/search', { method:'POST', body: JSON.stringify({ accountId, keyword, maxResults }) });
+    const wrap = document.getElementById('search-results');
+    const tbody = document.getElementById('search-tbl').querySelector('tbody');
+    wrap.style.display = 'block';
+    tbody.innerHTML = d.results.length
+      ? d.results.map(r => `
+        <tr>
+          <td style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.text}</td>
+          <td style="font-family:var(--m);font-size:11.5px">@${r.author}</td>
+          <td>
+            <div style="display:flex;gap:5px">
+              <button class="btn btn-sm btn-g" onclick="quickLike('${accountId}','${r.id}')">إعجاب</button>
+              <button class="btn btn-sm" onclick="quickRepost('${accountId}','${r.id}')">إعادة</button>
+            </div>
+          </td>
+        </tr>`).join('')
+      : '<tr><td colspan="3" style="text-align:center;padding:20px;color:var(--t2)">لا نتائج</td></tr>';
+    toast(`وُجد ${d.total} تغريدة`, 'ok');
+  } catch(e) { toast(e.message,'err'); }
+}
+
+async function quickLike(accountId, tweetId) {
+  try { await api('/api/v1/actions/like', { method:'POST', body:JSON.stringify({accountId,tweetId}) }); toast('✅ إعجاب','ok'); } catch(e) { toast(e.message,'err'); }
+}
+async function quickRepost(accountId, tweetId) {
+  try { await api('/api/v1/actions/retweet', { method:'POST', body:JSON.stringify({accountId,tweetId}) }); toast('✅ إعادة تغريد','ok'); } catch(e) { toast(e.message,'err'); }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   المحتوى
+═══════════════════════════════════════════════════════════════ */
+let contentFilter = '';
+async function loadContent() {
+  const params = new URLSearchParams({ limit: 50 });
+  if (contentFilter) params.set('status', contentFilter);
+  try {
+    const d = await api(`/api/v1/content?${params}`);
+    if (!d) return;
+    const statusLabel = s => {
+      const m = { 'مسودة':'p-n','بانتظار_موافقة':'p-a','معتمد':'p-b','مجدول':'p-b','منشور':'p-g','فشل':'p-r','ملغى':'p-n' };
+      return `<span class="pill ${m[s]||'p-n'}">${s}</span>`;
+    };
+    const qColor = q => !q ? 'var(--t2)' : q>7?'var(--grn)':q>4?'var(--amb)':'var(--red)';
+    document.getElementById('content-tbody').innerHTML = d.items.length
+      ? d.items.map(item => `
+        <tr>
+          <td><span class="uname">@${item.account?.username||'—'}</span></td>
+          <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${item.text}</td>
+          <td>${statusLabel(item.status)}</td>
+          <td style="font-family:var(--m);color:${qColor(item.qualityScore)}">${item.qualityScore?.toFixed(1)||'—'}</td>
+          <td style="font-family:var(--m);color:${qColor(10-(item.riskScore||0))}">${item.riskScore?.toFixed(1)||'—'}</td>
+          <td style="font-family:var(--m);font-size:11px;color:var(--t2)">${item.scheduledAt?new Date(item.scheduledAt).toLocaleString('ar-SA'):'—'}</td>
+          <td>
+            <div style="display:flex;gap:5px">
+              ${['مسودة','معتمد','مجدول'].includes(item.status)
+                ? `<button class="btn btn-sm btn-p" onclick="publishNow('${item._id}')">نشر</button>` : ''}
+              ${item.status==='مسودة'
+                ? `<button class="btn btn-sm btn-g" onclick="approveContent('${item._id}')">اعتماد</button>` : ''}
+              ${!['منشور'].includes(item.status)
+                ? `<button class="btn btn-sm btn-r" onclick="cancelContent('${item._id}')">إلغاء</button>` : ''}
+            </div>
+          </td>
+        </tr>`).join('')
+      : '<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--t2)">لا يوجد محتوى</td></tr>';
+  } catch(e) { toast(e.message,'err'); }
+}
+
+function filterContent(s) { contentFilter = s; loadContent(); }
+
+async function publishNow(id) {
+  toast('جارٍ النشر…');
+  try {
+    await api(`/api/v1/content/${id}/publish-now`, { method:'POST' });
+    toast('✅ تم النشر', 'ok');
+    loadContent();
+  } catch(e) { toast(e.message,'err'); }
+}
+
+async function approveContent(id) {
+  try {
+    await api(`/api/v1/content/${id}/approve`, { method:'POST' });
+    toast('✅ تم الاعتماد', 'ok');
+    loadContent();
+  } catch(e) { toast(e.message,'err'); }
+}
+
+async function cancelContent(id) {
+  if (!confirm('إلغاء هذا المحتوى؟')) return;
+  try {
+    await api(`/api/v1/content/${id}/cancel`, { method:'POST', body:JSON.stringify({}) });
+    loadContent();
+  } catch(e) { toast(e.message,'err'); }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   الجدولة
+═══════════════════════════════════════════════════════════════ */
+async function doSchedule() {
+  const accountId  = document.getElementById('sc-acc').value;
+  const text       = document.getElementById('sc-text').value.trim();
+  const scheduledAt= document.getElementById('sc-time').value;
+  if (!text || !scheduledAt) return toast('أكمل جميع الحقول', 'warn');
+
+  try {
+    // إنشاء المحتوى أولاً
+    const item = await api('/api/v1/content', { method:'POST', body: JSON.stringify({ accountId, text, scheduledAt }) });
+    // ثم جدلته
+    await api('/api/v1/content/schedule', { method:'POST', body: JSON.stringify({ accountId, contentId: item._id, scheduledAt }) });
+    toast('✅ تمت الجدولة', 'ok');
+    document.getElementById('sc-text').value = '';
+    loadSchedules();
+  } catch(e) { toast(e.message,'err'); }
+}
+
+async function loadSchedules() {
+  try {
+    const d = await api('/api/v1/content/schedules/list');
+    if (!d) return;
+    document.getElementById('sched-list').innerHTML = d.items.length
+      ? d.items.map(s => `
+        <div class="sched-card">
+          <div class="sched-time">${new Date(s.scheduledAt).toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'})}<br><span style="font-size:10px;color:var(--t2)">${new Date(s.scheduledAt).toLocaleDateString('ar-SA')}</span></div>
+          <div class="sched-info">
+            <div class="sched-text">${s.content?.text||'—'}</div>
+            <div class="sched-meta">@${s.account?.username||'—'} · ${s.type}</div>
+          </div>
+          <button class="btn btn-sm btn-r" onclick="cancelSchedule('${s._id}')">إلغاء</button>
+        </div>`).join('')
+      : '<div style="text-align:center;padding:30px;color:var(--t2);font-size:12px">لا توجد جدولات منتظرة</div>';
+  } catch(e) { toast(e.message,'err'); }
+}
+
+async function cancelSchedule(id) {
+  try {
+    await api(`/api/v1/content/schedules/${id}/cancel`, { method:'POST' });
+    toast('تم إلغاء الجدولة', 'ok');
+    loadSchedules();
+  } catch(e) { toast(e.message,'err'); }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   الذكاء الاصطناعي
+═══════════════════════════════════════════════════════════════ */
+async function doAISuggest() {
+  const accountId = document.getElementById('ai-acc').value;
+  const count     = parseInt(document.getElementById('ai-count').value||'3',10);
+  const style     = document.getElementById('ai-style').value;
+  const topic     = document.getElementById('ai-topic').value.trim();
+  if (!accountId) return toast('اختر الحساب', 'warn');
+
+  document.getElementById('ai-loading').style.display = 'inline';
+  document.getElementById('ai-suggestions-card').style.display = 'none';
+
+  try {
+    const d = await api('/api/v1/actions/suggest-tweets', {
+      method:'POST', body: JSON.stringify({ accountId, count, style, topic })
+    });
+    document.getElementById('ai-loading').style.display = 'none';
+    document.getElementById('ai-suggestions-card').style.display = 'block';
+    document.getElementById('ai-sug-count').textContent = `${d.suggestions.length} اقتراح — حُفظت كمسودات`;
+    const qc = q => !q?'var(--t2)':q>7?'var(--grn)':q>4?'var(--amb)':'var(--red)';
+    document.getElementById('ai-suggestions-list').innerHTML = d.suggestions.map((s,i) => `
+      <div class="ai-card">
+        <div class="ai-card-meta">اقتراح #${i+1} · ${style}</div>
+        <div class="ai-card-text">${s.text}</div>
+        <div class="ai-scores">
+          <span><span class="ai-sc-l">الجودة </span><span class="ai-sc-v" style="color:${qc(s.qualityScore)}">${s.qualityScore?.toFixed(1)||'—'}/10</span></span>
+          <span><span class="ai-sc-l">الخطورة </span><span class="ai-sc-v" style="color:${qc(10-(s.riskScore||0))}">${s.riskScore?.toFixed(1)||'—'}/10</span></span>
+          ${s.note ? `<span><span class="ai-sc-l">ملاحظة: </span><span class="ai-sc-v" style="color:var(--t1)">${s.note}</span></span>` : ''}
+        </div>
+        <div class="ai-actions">
+          <button class="btn btn-sm btn-p" onclick="useAISuggestion('${accountId}','${s.text.replace(/'/g,'&#39;')}')">نشر الآن</button>
+          <button class="btn btn-sm btn-g" onclick="copyToClipboard('${s.text.replace(/'/g,'&#39;')}')">نسخ</button>
+          <button class="btn btn-sm" onclick="document.getElementById('score-txt').value='${s.text.replace(/'/g,'&#39;')}';doScore()">تقييم</button>
+        </div>
+      </div>`).join('');
+  } catch(e) {
+    document.getElementById('ai-loading').style.display = 'none';
+    toast(e.message, 'err');
+  }
+}
+
+async function useAISuggestion(accountId, text) {
+  if (!confirm(`نشر هذه التغريدة الآن؟\n\n"${text.slice(0,100)}…"`)) return;
+  try {
+    await api('/api/v1/actions/tweet', { method:'POST', body: JSON.stringify({ accountId, text }) });
+    toast('✅ تم النشر', 'ok');
+  } catch(e) { toast(e.message,'err'); }
+}
+
+async function doScore() {
+  const text = document.getElementById('score-txt').value.trim();
+  if (!text) return toast('أدخل النص للتقييم', 'warn');
+  try {
+    const d = await api('/api/v1/actions/score-content', { method:'POST', body: JSON.stringify({ text }) });
+    const el = document.getElementById('score-result');
+    el.style.display = 'block';
+    const qc  = q => q>7?'var(--grn)':q>4?'var(--amb)':'var(--red)';
+    const rec = d.recommendation;
+    el.innerHTML = `
+      <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:10px">
+        <span style="font-family:var(--m)"><span style="color:var(--t2)">الجودة </span><span style="font-weight:600;color:${qc(d.qualityScore||0)}">${d.qualityScore?.toFixed(1)||'—'}/10</span></span>
+        <span style="font-family:var(--m)"><span style="color:var(--t2)">الخطورة </span><span style="font-weight:600;color:${qc(10-(d.riskScore||0))}">${d.riskScore?.toFixed(1)||'—'}/10</span></span>
+        <span class="pill ${rec==='موافق'||rec==='APPROVE'?'p-g':rec==='مراجعة'||rec==='REVIEW'?'p-a':'p-r'}">${rec}</span>
+      </div>
+      ${d.flags?.length ? `<div style="font-size:12px;color:var(--amb)">تنبيهات: ${d.flags.join('، ')}</div>` : ''}
+      ${d.suggestion    ? `<div style="font-size:12.5px;color:var(--t1);margin-top:7px">${d.suggestion}</div>` : ''}`;
+  } catch(e) { toast(e.message,'err'); }
+}
+
+function copyToClipboard(text) {
+  navigator.clipboard.writeText(text).then(() => toast('تم النسخ', 'ok')).catch(() => toast('فشل النسخ','err'));
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   المخاطر
+═══════════════════════════════════════════════════════════════ */
+async function loadRisks() {
+  try {
+    const d = await api('/api/v1/dashboard/risks');
+    if (!d) return;
+    document.getElementById('nb-risks').textContent = d.total;
+
+    const sm = d.summary;
+    document.getElementById('risk-summary').innerHTML = [
+      ['حرج','var(--red)',sm['حرج']||0],
+      ['عالي','var(--red)',sm['عالي']||0],
+      ['متوسط','var(--amb)',sm['متوسط']||0],
+      ['منخفض','var(--grn)',sm['منخفض']||0],
+    ].filter(([,, c]) => c>0).map(([l,c,count]) =>
+      `<div style="background:rgba(0,0,0,.25);border:1px solid ${c}40;border-radius:8px;padding:8px 14px;font-family:var(--m)">
+        <div style="font-size:20px;font-weight:700;color:${c}">${count}</div>
+        <div style="font-size:10px;color:var(--t2);text-transform:uppercase;letter-spacing:.06em">${l}</div>
+      </div>`).join('');
+
+    const lmap = { 'حرج':'rb-h','عالي':'rb-h','متوسط':'rb-m','منخفض':'rb-l' };
+    document.getElementById('risk-list').innerHTML = d.risks.length
+      ? d.risks.map(r => `
+        <div class="risk-row">
+          <div class="risk-bar ${lmap[r.level]||'rb-m'}"></div>
+          <div class="risk-info">
+            <div class="risk-title">${r.description}</div>
+            <div class="risk-meta">${r.level} · @${r.account?.username||'—'} · ${new Date(r.createdAt).toLocaleString('ar-SA')}</div>
+          </div>
+          ${r.resolved
+            ? '<span class="pill p-g">تم الحل</span>'
+            : `<button class="btn btn-sm btn-g" onclick="resolveRisk('${r._id}')">حل</button>`}
+        </div>`).join('')
+      : '<div style="text-align:center;padding:30px;color:var(--grn);font-size:12px">✓ لا توجد مخاطر مفتوحة</div>';
+  } catch(e) { toast(e.message,'err'); }
+}
+
+async function resolveRisk(id) {
+  try {
+    await api(`/api/v1/dashboard/risks/${id}/resolve`, { method:'POST', body:JSON.stringify({resolution:'تم الحل يدوياً'}) });
+    toast('تم حل الحدث', 'ok');
+    loadRisks();
+  } catch(e) { toast(e.message,'err'); }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   سجل النشاط
+═══════════════════════════════════════════════════════════════ */
+async function loadAudit() {
+  const cat    = document.getElementById('log-cat').value;
+  const result = document.getElementById('log-res').value;
+  const params = new URLSearchParams({ page: auditPage, limit: 50 });
+  if (cat)    params.set('category', cat);
+  if (result) params.set('result', result);
+
+  try {
+    const d = await api(`/api/v1/dashboard/audit-log?${params}`);
+    if (!d) return;
+    document.getElementById('audit-total').textContent = `${d.total.toLocaleString('ar')} حدث`;
+    document.getElementById('audit-pager').textContent = `الصفحة ${d.page}`;
+
+    const catCol = { مصادقة:'var(--blu2)', نشر:'var(--grn)', تفاعل:'var(--amb)', ذكاء_اصطناعي:'var(--pur)', نظام:'var(--t2)', جلسة:'var(--cyn)' };
+    document.getElementById('audit-tbody').innerHTML = d.logs.length
+      ? d.logs.map(l => `
+        <tr>
+          <td style="font-family:var(--m);font-size:11px;color:var(--t2)">${new Date(l.createdAt).toLocaleTimeString('ar-SA')}</td>
+          <td><span class="uname">@${l.account?.username||'النظام'}</span></td>
+          <td><span style="font-size:11px;font-family:var(--m);color:${catCol[l.category]||'var(--t2)'}">${l.category}</span></td>
+          <td style="font-family:var(--m);font-size:12px">${l.action.replace(/_/g,' ')}</td>
+          <td><span class="pill ${l.result==='نجح'?'p-g':'p-r'}">${l.result}</span></td>
+          <td style="font-family:var(--m);font-size:11px;color:var(--t2)">${l.durationMs?l.durationMs+'ms':'—'}</td>
+        </tr>`).join('')
+      : '<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--t2)">لا يوجد سجل</td></tr>';
+  } catch(e) { toast(e.message,'err'); }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Toast notifications
+═══════════════════════════════════════════════════════════════ */
+function toast(msg, type='info') {
+  const wrap = document.getElementById('toasts');
+  const el   = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.textContent = msg;
+  wrap.appendChild(el);
+  requestAnimationFrame(() => { requestAnimationFrame(() => el.classList.add('show')); });
+  setTimeout(() => {
+    el.classList.remove('show');
+    setTimeout(() => el.remove(), 300);
+  }, 3500);
+}
+</script>
+</body>
+</html>
