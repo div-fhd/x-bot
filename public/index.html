@@ -1768,8 +1768,8 @@ async function loadOverview() {
     const icoColor = { مصادقة:'var(--blu2)', نشر:'var(--grn)', تفاعل:'var(--amb)', ذكاء_اصطناعي:'var(--pur)', نظام:'var(--t2)', جلسة:'var(--cyn)' };
     document.getElementById('overview-feed').innerHTML = d.recentActivity.length
       ? d.recentActivity.map(l => {
-          const ok = l.result === 'نجح';
-          const pCls = ok ? 'p-g' : l.result === 'فشل' ? 'p-r' : 'p-n';
+          const ok = l.result === 'نجح' || l.result === 'success';
+          const pCls = ok ? 'p-g' : l.result === 'فشل' || l.result === 'failure' ? 'p-r' : 'p-n';
           const col  = icoColor[l.category] || 'var(--t2)';
           return `
         <div class="feed-row">
@@ -2687,7 +2687,7 @@ async function loadAudit() {
     const catCol = { مصادقة:'var(--blu2)', نشر:'var(--grn)', تفاعل:'var(--amb)', ذكاء_اصطناعي:'var(--pur)', نظام:'var(--t2)', جلسة:'var(--cyn)' };
     document.getElementById('audit-tbody').innerHTML = d.logs.length
       ? d.logs.map(l => {
-          const ok = l.result === 'نجح';
+          const ok = l.result === 'نجح' || l.result === 'success';
           const rowBg   = ok ? 'rgba(34,223,160,.04)'  : 'rgba(242,86,104,.04)';
           const rowBdr  = ok ? 'rgba(34,223,160,.12)'  : 'rgba(242,86,104,.12)';
           const timeCol = ok ? 'var(--grn)'             : 'var(--red)';
