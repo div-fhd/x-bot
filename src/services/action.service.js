@@ -269,111 +269,206 @@ const ActionSvc = {
   },
 
 // ── Follow ────────────────────────────────────────────────────
-  async follow(account, targetHandle) {
-    if (!account.canDo('follow')) throw new Error(`@${account.username}: daily follow cap reached`);
+  // ── إبلاغ عن حساب ──────────────────────────────────────────
+  async reportAccount(account, targetHandle, reason = 'spam') {
     const page = await this._readyPage(account);
     const handle = targetHandle.replace('@', '');
-    const t0 = Date.now();
-
     try {
-      await page.goto(`https://x.com/${handle}`, {
-        waitUntil: 'domcontentloaded',
-        timeout: 60_000,
-      });
+      await page.goto(`https://x.com/${handle}`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+      await sleep(2000, 3000);
 
-      // تحقق من الجلسة
-      if (page.url().includes('/login')) throw new Error(`Session expired for @${account.username}`);
+      // انتظر تحميل الصفحة
+      await page.waitForSelector('[data-testid="UserName"], [data-testid="userActions"]', { timeout: 30_000 });
+      await sleep(1500, 2000);
 
-      // أغلق الـ cookie overlay بشكل synchronous مباشرةً بعد التنقل
-      await this._dismissCookies(page);
-
-      // انتظر أي محتوى من الصفحة يظهر — أكثر مرونة من primaryColumn
-      await page.waitForFunction(() => {
-        return document.querySelector('[data-testid="UserName"]') ||
-               document.querySelector('[data-testid="follow"]') ||
-               document.querySelector('[data-testid="unfollow"]') ||
-               document.querySelector('[aria-label*="Follow"]') ||
-               document.querySelector('[data-testid="error-detail"]');
-      }, { timeout: 30_000 }).catch(() => {});
-
-      await sleep(800, 1200);
-
-      // تحقق مرة ثانية من الكوكيز بعد الانتظار
-      await this._dismissCookies(page);
-      await sleep(500, 800);
-
-      // استخدم selector دقيق — عدة محاولات بالأولوية
-      const followSelectors = [
-        `[data-testid="follow"]`,
-        `[aria-label="Follow @${handle}"]`,
-        `[aria-label*="Follow @"]`,
-        `[data-testid="follow-${handle}"]`,
-        // fallback: زر داخل container يبدأ اسمه بـ follow
-        `[data-testid^="followButton"]`,
-        `[data-testid="placementTracking"] button`,
+      // افتح قائمة الخيارات
+      const acctBtnSelectors = [
+        '[data-testid="userActions"]',
+        'button[aria-label="More"]',
+        '[aria-label*="More options"]',
       ];
-
-      let btn = null;
-      for (const sel of followSelectors) {
+      let clicked = false;
+      for (const sel of acctBtnSelectors) {
         const count = await page.locator(sel).count().catch(() => 0);
         if (count > 0) {
-          btn = page.locator(sel).first();
-          logger.info(`[Action] Follow btn found: "${sel}" @${handle}`);
+          await page.locator(sel).first().evaluate(el => el.click());
+          clicked = true;
           break;
         }
       }
+      if (!clicked) throw new Error('لم يتم إيجاد قائمة الخيارات');
+      await sleep(800, 1200);
 
-      if (!btn) {
-        // screenshot للتشخيص
-        await page.screenshot({ path: `./data/debug/follow_fail_${handle}_${Date.now()}.png` }).catch(() => {});
-        const pageTitle = await page.title().catch(() => '');
-        throw new Error(`Follow button not found for @${handle} — page: "${pageTitle}"`);
+      // اضغط Report
+      await sleep(600, 900);
+      const rptClicked = await page.evaluate(() => {
+        const items = [...document.querySelectorAll('[role="menuitem"], [data-testid="report"]')];
+        const btn = items.find(el => el.textContent.trim().toLowerCase().includes('report'));
+        if (btn) { btn.click(); return true; }
+        return false;
+      });
+      if (!rptClicked) throw new Error('لم يتم إيجاد خيار الإبلاغ');
+      await sleep(1200, 1800);
+
+      // اختر السبب — الأول محدد تلقائياً
+      await page.locator('[role="radio"]').first().evaluate(el => el.click()).catch(() => {});
+      await sleep(800, 1200);
+
+      // اضغط Next حتى ينتهي
+      for (let step = 0; step < 6; step++) {
+        await sleep(1500, 2000);
+
+        // اختر أول radio غير محدد إذا وجد
+        await page.evaluate(() => {
+          const radios = [...document.querySelectorAll('[role="radio"]')];
+          const unchecked = radios.find(r => r.getAttribute('aria-checked') !== 'true');
+          if (unchecked) unchecked.click();
+          else if (radios[0]) radios[0].click();
+        }).catch(() => {});
+        await sleep(400, 600);
+
+        // اضغط Next أو Done
+        const clicked = await page.evaluate(() => {
+          const btns = [...document.querySelectorAll('button')];
+          const btn = btns.find(b => {
+            const txt = b.textContent.trim().toLowerCase();
+            return (txt === 'next' || txt === 'submit' || txt === 'done') && !b.disabled;
+          });
+          if (btn) { btn.click(); return btn.textContent.trim(); }
+          return null;
+        }).catch(() => null);
+
+        if (!clicked) break;
+
+        await sleep(1500, 2000);
+
+        // تحقق من انتهاء الإبلاغ
+        const done = await page.evaluate(() => {
+          const txt = document.body.innerText.toLowerCase();
+          return txt.includes('thanks') || txt.includes('report received') || !document.querySelector('[role="dialog"]');
+        }).catch(() => false);
+
+        if (done || clicked.toLowerCase() === 'done') break;
       }
 
-      // انتظر الزر يصير visible
-      await btn.waitFor({ state: 'visible', timeout: 10_000 });
-
-      // تحقق إذا متابَع مسبقاً
-      const btnText     = (await btn.innerText().catch(() => '')).toLowerCase().trim();
-      const btnAria     = (await btn.getAttribute('aria-label').catch(() => '') || '').toLowerCase();
-      const isFollowing = ['following','unfollow','متابَع','إلغاء المتابعة']
-        .some(w => btnText.includes(w) || btnAria.includes(w));
-
-      if (isFollowing) {
-        logger.info(`[Action] Already following @${handle}`);
-        return { success: true, alreadyFollowing: true };
-      }
-
-      // اضغط — استخدم Playwright click (مش evaluate)
-      await btn.scrollIntoViewIfNeeded().catch(() => {});
-      await sleep(300, 500);
-      await btn.click({ timeout: 10_000 });
-      await sleep(1200, 2000);
-
-      // تحقق نجاح الضغط
-      const btnTextAfter = (await btn.innerText().catch(() => '')).toLowerCase().trim();
-      const nowFollowing = ['following','متابَع'].some(w => btnTextAfter.includes(w));
-      if (!nowFollowing && btnTextAfter === btnText) {
-        logger.warn(`[Action] Click may have failed, retrying @${handle}`);
-        await btn.evaluate(el => el.click());
-        await sleep(1000, 1500);
-      }
-
-      await account.bump('follow');
-      await log(account._id, 'engage', 'follow', 'success', { target: targetHandle, ms: Date.now() - t0 });
-      logger.info(`[Action] Followed @${handle} (${Date.now() - t0}ms)`);
+      await log(account._id, 'engage', 'report_account', 'success', { target: targetHandle, reason });
+      logger.info(`[Action] Report account: @${handle} by @${account.username}`);
       return { success: true };
-
     } catch (e) {
-      await log(account._id, 'engage', 'follow_failed', 'failure', { target: targetHandle, error: e.message });
-      logger.error(`[Action] Follow failed @${handle}: ${e.message}`);
+      await log(account._id, 'engage', 'report_account', 'failure', { target: targetHandle, error: e.message });
       throw e;
-    } finally {
-      await page.close().catch(() => {});
-    }
+    } finally { await page.close().catch(() => {}); }
   },
 
-  // ── Engagement campaign ───────────────────────────────────────
+  // ── إبلاغ عن تغريدة ─────────────────────────────────────────
+  async reportTweet(account, tweetUrl, reason = 'spam') {
+    const page = await this._readyPage(account);
+    try {
+      await page.goto(tweetUrl, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+      await sleep(2000, 3000);
+
+      // انتظر تحميل التغريدة
+      await page.waitForSelector('article[data-testid="tweet"]', { timeout: 30_000 });
+      await sleep(1500, 2000);
+
+      // افتح قائمة الخيارات على التغريدة — جرب selectors متعددة
+      const moreBtnSelectors = [
+        'article[data-testid="tweet"] [data-testid="caret"]',
+        'article[data-testid="tweet"] button[aria-label="More"]',
+        'article[data-testid="tweet"] [aria-haspopup="menu"]',
+      ];
+      let moreBtn = null;
+      for (const sel of moreBtnSelectors) {
+        const count = await page.locator(sel).count().catch(() => 0);
+        if (count > 0) { moreBtn = page.locator(sel).first(); break; }
+      }
+      if (!moreBtn) throw new Error('لم يتم إيجاد زر الخيارات');
+      await moreBtn.evaluate(el => el.click());
+      await sleep(800, 1200);
+
+      // اضغط Report post
+      await sleep(600, 900);
+      const reportClicked = await page.evaluate(() => {
+        const items = [...document.querySelectorAll('[role="menuitem"], [data-testid="report"]')];
+        const btn = items.find(el => el.textContent.trim().toLowerCase().includes('report'));
+        if (btn) { btn.click(); return true; }
+        return false;
+      });
+      if (!reportClicked) throw new Error('لم يتم إيجاد خيار الإبلاغ');
+      await sleep(1200, 1800);
+
+      // اختر السبب — الأول محدد تلقائياً
+      await page.locator('[role="radio"]').first().evaluate(el => el.click()).catch(() => {});
+      await sleep(800, 1200);
+
+      // اضغط Next حتى ينتهي
+      for (let step = 0; step < 6; step++) {
+        await sleep(1500, 2000);
+
+        // اختر أول radio غير محدد إذا وجد
+        await page.evaluate(() => {
+          const radios = [...document.querySelectorAll('[role="radio"]')];
+          const unchecked = radios.find(r => r.getAttribute('aria-checked') !== 'true');
+          if (unchecked) unchecked.click();
+          else if (radios[0]) radios[0].click();
+        }).catch(() => {});
+        await sleep(400, 600);
+
+        // اضغط Next أو Done
+        const clicked = await page.evaluate(() => {
+          const btns = [...document.querySelectorAll('button')];
+          const btn = btns.find(b => {
+            const txt = b.textContent.trim().toLowerCase();
+            return (txt === 'next' || txt === 'submit' || txt === 'done') && !b.disabled;
+          });
+          if (btn) { btn.click(); return btn.textContent.trim(); }
+          return null;
+        }).catch(() => null);
+
+        if (!clicked) break;
+
+        await sleep(1500, 2000);
+
+        // تحقق من انتهاء الإبلاغ
+        const done = await page.evaluate(() => {
+          const txt = document.body.innerText.toLowerCase();
+          return txt.includes('thanks') || txt.includes('report received') || !document.querySelector('[role="dialog"]');
+        }).catch(() => false);
+
+        if (done || clicked.toLowerCase() === 'done') break;
+      }
+
+      await log(account._id, 'engage', 'report_tweet', 'success', { tweetUrl, reason });
+      logger.info(`[Action] Report tweet: ${tweetUrl} by @${account.username}`);
+      return { success: true };
+    } catch (e) {
+      await log(account._id, 'engage', 'report_tweet', 'failure', { tweetUrl, error: e.message });
+      throw e;
+    } finally { await page.close().catch(() => {}); }
+  },
+
+  async follow(account, targetHandle) {
+    if (!account.canDo('follow')) throw new Error(`@${account.username}: daily follow cap reached`);
+    const page = await this._readyPage(account);
+    try {
+      await page.goto(`https://x.com/${targetHandle.replace('@','')}`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+      await page.waitForSelector('[data-testid^="follow"]', { timeout: 60_000 });
+      await sleep(1000, 1500);
+      const btn = page.locator('[data-testid^="follow"]').first();
+      const txt = (await btn.innerText().catch(() => '')).toLowerCase();
+      if (txt.includes('following') || txt.includes('unfollow')) return { success: true, alreadyFollowing: true };
+      await btn.evaluate(el => el.click());
+      await sleep(800, 1500);
+      await account.bump('follow');
+      await log(account._id, 'engage', 'follow', 'success', { target: targetHandle });
+      return { success: true };
+    } catch (e) {
+      await log(account._id, 'engage', 'follow_failed', 'failure', { target: targetHandle, error: e.message });
+      throw e;
+    } finally { await page.close().catch(() => {}); }
+  },
+
+    // ── Engagement campaign ───────────────────────────────────────
   async engageTweet(accounts, tweetId, actions, opts = {}) {
     const { replyTexts = [], delayBetweenMs = [5000, 15000] } = opts;
     const results = [];
@@ -634,6 +729,29 @@ const ActionSvc = {
     } finally { await page.close().catch(()=>{}); }
   },
 
+  // ── Helpers ───────────────────────────────────────────────────
+  async _readyPage(account) {
+    await AuthSvc.ensureSession(account);
+    const page = await Browser.getPage(account);
+
+    // أغلق popup الكوكيز بعد أي تنقل
+    page.on('load', async () => {
+      await page.evaluate(() => {
+        const texts = ['Aceitar','Accept','Recusar','Decline','Got it','كل ملفات','قبول'];
+        const btn = [...document.querySelectorAll('button')]
+          .find(b => texts.some(t => b.textContent.trim().startsWith(t)));
+        if (btn) btn.click();
+      }).catch(() => {});
+    });
+
+    // احفظ الجلسة عند إغلاق الصفحة عشان الحساب التالي يستفيد منها
+    page.on('close', async () => {
+      await Browser.persistSession(account).catch(() => {});
+    });
+
+    return page;
+  },
+
   // ── جلب نص التغريدة ──────────────────────────────────────────
   async getTweetText(account, tweetId) {
     const page = await this._readyPage(account);
@@ -649,53 +767,6 @@ const ActionSvc = {
     for (const ch of String(text)) {
       await page.keyboard.type(ch, { delay: randInt(30, 70) });
     }
-  },
-
-  // ── Helpers ───────────────────────────────────────────────────
-
-  // إغلاق cookie/consent dialogs بشكل مباشر (synchronous inline)
-  async _dismissCookies(page) {
-    try {
-      await page.evaluate(() => {
-        const phrases = [
-          'Aceitar todos', 'Accept all', 'Recusar', 'Decline', 'Got it',
-          'كل ملفات', 'قبول الكل', 'Refuse non-essential',
-        ];
-        const allBtns = [...document.querySelectorAll('button, [role="button"]')];
-        for (const phrase of phrases) {
-          const btn = allBtns.find(b => b.innerText?.trim().startsWith(phrase.slice(0, 8)));
-          if (btn) { btn.click(); return true; }
-        }
-        // X.com BottomBar cookie notice
-        const bar = document.querySelector('[data-testid="BottomBar"]');
-        if (bar) {
-          const closeBtn = bar.querySelector('button');
-          if (closeBtn) { closeBtn.click(); return true; }
-        }
-        // Generic modal close
-        const overlay = document.querySelector('[data-testid="sheetDialog"] button[aria-label="Close"]');
-        if (overlay) { overlay.click(); return true; }
-        return false;
-      });
-      await sleep(300, 500);
-    } catch {}
-  },
-
-  async _readyPage(account) {
-    await AuthSvc.ensureSession(account);
-    const page = await Browser.getPage(account);
-
-    // أغلق كوكيز على كل load — backup للـ inline calls في كل action
-    page.on('load', async () => {
-      await this._dismissCookies(page).catch(() => {});
-    });
-
-    // احفظ الجلسة عند إغلاق الصفحة
-    page.on('close', async () => {
-      await Browser.persistSession(account).catch(() => {});
-    });
-
-    return page;
   },
 };
 

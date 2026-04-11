@@ -6,13 +6,14 @@ const AccountSchema = new mongoose.Schema({
   username:  { type: String, required: true, unique: true, trim: true, index: true },
   label:     { type: String },
   niche:     { type: String },
+  isPrimary: { type: Boolean, default: false },
   tags:      [String],
   ownedBy:   { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
 
   // Role: what is this account used for?
   role: {
     type: String,
-    // لا يوجد enum محدد — يقبل أي نوع مخصص، الافتراضي 'mixed'
+    enum: ['post', 'engage', 'support', 'mixed'],
     default: 'mixed',
     index: true,
   },

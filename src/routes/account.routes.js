@@ -19,6 +19,7 @@ router.post  ('/:id/suggest-bio',      ctrl.suggestBio);
 const multer = require('multer');
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 router.post  ('/upload-images',        upload.fields([{ name:'avatars', maxCount:50 }, { name:'banners', maxCount:50 }]), ctrl.uploadImages);
+router.post  ('/bulk-check',           ctrl.bulkCheck);
 router.post  ('/bulk-sync-profiles',   ctrl.bulkSyncProfiles);
 router.post  ('/bulk-update-profiles', ctrl.bulkUpdateProfiles);
 module.exports = router;

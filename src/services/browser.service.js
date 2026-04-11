@@ -142,7 +142,15 @@ async function getContext(account) {
         viewport:    { width: 1280, height: 800 },
         colorScheme: 'light',
         ...(storageState ? { storageState } : {}),
-        ...(net.proxyUrl ? { proxy: { server: net.proxyUrl } } : {}),
+        ...(net.proxyUrl ? (() => {
+          try {
+            const u = new URL(net.proxyUrl);
+            const proxyConfig = { server: `${u.protocol}//${u.hostname}:${u.port}` };
+            if (u.username) proxyConfig.username = decodeURIComponent(u.username);
+            if (u.password) proxyConfig.password = decodeURIComponent(u.password);
+            return { proxy: proxyConfig };
+          } catch { return { proxy: { server: net.proxyUrl } }; }
+        })() : {}),
       });
 
       // Stealth patches

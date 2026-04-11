@@ -809,6 +809,20 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 }
 .login-title { font-size: 17px; font-weight: 600; margin-bottom: 4px; text-align: center; }
 
+
+<!-- ── شريط الاختيار الذكي (مكرر لكل عملية) ── -->
+<style>
+.acc-smart-bar { background:var(--s3);border:1px solid var(--bd);border-radius:10px;padding:12px;margin-bottom:12px; }
+.acc-smart-bar label { font-size:10px;font-weight:700;color:var(--t2);letter-spacing:.08em;text-transform:uppercase;margin-bottom:5px;display:block }
+.acc-smart-row { display:grid;grid-template-columns:1fr 1fr 80px 80px;gap:8px;align-items:end;margin-bottom:8px }
+.acc-smart-row2 { display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px }
+.acc-role-pill { padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid var(--bd2);background:transparent;color:var(--t2);font-family:var(--r);transition:all .12s }
+.acc-role-pill.active-all   { background:rgba(255,255,255,.08);color:var(--t0);border-color:var(--bd3) }
+.acc-role-pill.active-post  { background:rgba(79,126,248,.12);color:var(--blu2);border-color:rgba(79,126,248,.3) }
+.acc-role-pill.active-engage{ background:rgba(30,212,138,.1);color:var(--grn);border-color:rgba(30,212,138,.3) }
+.acc-role-pill.active-support{ background:rgba(245,166,35,.1);color:var(--amb);border-color:rgba(245,166,35,.3) }
+.acc-role-pill.active-mixed { background:rgba(255,255,255,.06);color:var(--t1);border-color:var(--bd2) }
+</style>
 </style>
 </head>
 <body>
@@ -911,7 +925,13 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
     <span class="page-title" id="ptitle">نظرة عامة</span>
     <div class="tb-sep"></div>
     <div class="live-pill"><div class="live-dot"></div>مباشر</div>
+    <div id="license-pill" style="display:none;align-items:center;gap:5px;border-radius:20px;padding:3px 10px;font-size:10.5px;font-weight:600;font-family:var(--m)"></div>
     <span class="tb-clock" id="clk">—</span>
+    <div id="jobs-indicator" style="display:none;align-items:center;gap:8px;background:rgba(245,166,35,.08);border:1px solid rgba(245,166,35,.2);border-radius:8px;padding:4px 12px">
+      <div style="width:6px;height:6px;border-radius:50%;background:var(--amb);animation:blink 1s infinite"></div>
+      <span id="jobs-count" style="font-size:11.5px;font-weight:600;color:var(--amb);font-family:var(--m)">عملية جارية</span>
+      <button onclick="stopAllJobs()" style="font-size:11px;color:var(--red);background:rgba(240,72,90,.1);border:1px solid rgba(240,72,90,.2);border-radius:5px;padding:2px 8px;cursor:pointer;font-family:var(--r)">⏹ إيقاف الكل</button>
+    </div>
     <button class="btn btn-sm" onclick="refreshCurrent()" style="gap:5px">
       <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2 8a6 6 0 1 0 1.5-3.9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M2 4v4h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
       تحديث
@@ -978,9 +998,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 
   <!-- ════════════ الحسابات ════════════ -->
   <div class="panel" id="p-accounts">
-    <div style="display:flex;gap:10px;margin-bottom:16px;align-items:center;flex-wrap:wrap">
-      <input id="acc-q" type="text" placeholder="ابحث باسم المستخدم…" style="width:200px" oninput="loadAccounts()">
-      <select id="acc-status" onchange="loadAccounts()" style="width:150px">
+    <div style="display:flex;gap:10px;margin-bottom:12px;align-items:center;flex-wrap:wrap">
+      <input id="acc-q" type="text" placeholder="ابحث باسم المستخدم…" style="width:190px" oninput="loadAccounts()">
+      <select id="acc-status" onchange="loadAccounts()" style="width:145px">
         <option value="">كل الحالات</option>
         <option value="نشط">نشط</option>
         <option value="يحتاج_مصادقة">يحتاج مصادقة</option>
@@ -988,7 +1008,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
         <option value="محظور">محظور</option>
         <option value="غير_نشط">غير نشط</option>
       </select>
-      <select id="acc-role" onchange="loadAccounts()" style="width:130px">
+      <select id="acc-role" onchange="loadAccounts()" style="width:125px">
         <option value="">كل الأدوار</option>
         <option value="post">نشر</option>
         <option value="engage">تفاعل</option>
@@ -996,9 +1016,23 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
         <option value="mixed">مختلط</option>
       </select>
       <div class="tb-sep"></div>
-      <button class="btn btn-p btn-sm" onclick="nav('import')">+ استيراد</button>
-      <button class="btn btn-sm" onclick="showAddModal()">+ إضافة حساب</button>
-      <button class="btn btn-sm" id="bulk-check-btn" onclick="doBulkCheck()" style="border-color:rgba(168,130,255,.35);color:var(--pur)">🔍 فحص الكل</button>
+      <button class="btn btn-sm" onclick="togglePrimaryFilter(this)" style="border-color:rgba(245,166,35,.35);color:var(--amb)">★ الرئيسية</button>
+      <button class="btn btn-sm" id="bulk-check-btn" onclick="doBulkCheckSelected()" style="border-color:rgba(168,130,255,.35);color:var(--pur)">🔍 فحص المحدد</button>
+      <button class="btn btn-sm btn-r" onclick="deleteSelectedAccounts()">🗑 حذف المحدد</button>
+    </div>
+    <!-- شريط تحديد سريع -->
+    <div style="display:flex;gap:6px;margin-bottom:12px;align-items:center;padding:8px 12px;background:var(--s2);border-radius:10px;border:1px solid var(--bd)">
+      <span style="font-size:10.5px;font-weight:700;color:var(--t2);letter-spacing:.06em;text-transform:uppercase;margin-left:4px">تحديد</span>
+      <div style="width:1px;height:16px;background:var(--bd2);margin:0 4px"></div>
+      <button onclick="selectAccountsByRole('all')"    style="padding:4px 10px;border-radius:6px;font-size:11.5px;font-weight:500;cursor:pointer;border:1px solid var(--bd2);background:rgba(255,255,255,.04);color:var(--t1);font-family:var(--r);transition:all .12s" onmouseover="this.style.background='var(--s4)'" onmouseout="this.style.background='rgba(255,255,255,.04)'">الكل</button>
+      <button onclick="selectAccountsByRole('post')"   style="padding:4px 10px;border-radius:6px;font-size:11.5px;font-weight:500;cursor:pointer;border:1px solid rgba(79,126,248,.3);background:rgba(79,126,248,.06);color:var(--blu2);font-family:var(--r);transition:all .12s" onmouseover="this.style.background='rgba(79,126,248,.14)'" onmouseout="this.style.background='rgba(79,126,248,.06)'">نشر</button>
+      <button onclick="selectAccountsByRole('engage')" style="padding:4px 10px;border-radius:6px;font-size:11.5px;font-weight:500;cursor:pointer;border:1px solid rgba(30,212,138,.3);background:rgba(30,212,138,.06);color:var(--grn);font-family:var(--r);transition:all .12s" onmouseover="this.style.background='rgba(30,212,138,.14)'" onmouseout="this.style.background='rgba(30,212,138,.06)'">تفاعل</button>
+      <button onclick="selectAccountsByRole('support')" style="padding:4px 10px;border-radius:6px;font-size:11.5px;font-weight:500;cursor:pointer;border:1px solid rgba(245,166,35,.3);background:rgba(245,166,35,.06);color:var(--amb);font-family:var(--r);transition:all .12s" onmouseover="this.style.background='rgba(245,166,35,.14)'" onmouseout="this.style.background='rgba(245,166,35,.06)'">دعم</button>
+      <button onclick="selectAccountsByRole('mixed')"  style="padding:4px 10px;border-radius:6px;font-size:11.5px;font-weight:500;cursor:pointer;border:1px solid var(--bd2);background:rgba(255,255,255,.04);color:var(--t2);font-family:var(--r);transition:all .12s" onmouseover="this.style.background='var(--s4)'" onmouseout="this.style.background='rgba(255,255,255,.04)'">مختلط</button>
+      <button onclick="selectPrimaryAccounts()"        style="padding:4px 10px;border-radius:6px;font-size:11.5px;font-weight:500;cursor:pointer;border:1px solid rgba(245,166,35,.3);background:rgba(245,166,35,.06);color:var(--amb);font-family:var(--r);transition:all .12s" onmouseover="this.style.background='rgba(245,166,35,.14)'" onmouseout="this.style.background='rgba(245,166,35,.06)'">★ رئيسية</button>
+      <div style="width:1px;height:16px;background:var(--bd2);margin:0 4px"></div>
+      <button onclick="selectAccountsByRole('none')"   style="padding:4px 10px;border-radius:6px;font-size:11.5px;font-weight:500;cursor:pointer;border:1px solid rgba(240,72,90,.25);background:rgba(240,72,90,.05);color:var(--red);font-family:var(--r);transition:all .12s" onmouseover="this.style.background='rgba(240,72,90,.12)'" onmouseout="this.style.background='rgba(240,72,90,.05)'">✕ إلغاء</button>
+      <span id="acc-selected-count" style="font-size:11.5px;font-weight:600;color:var(--blu2);margin-right:auto;font-family:var(--m)"></span>
     </div>
     <div id="bulk-check-progress" style="display:none;padding:8px 12px;background:var(--s2);border-radius:8px;margin-bottom:12px;font-size:12px;color:var(--t2);font-family:var(--m)">
       جارٍ الفحص… <span id="bulk-check-counter">0/0</span>
@@ -1006,7 +1040,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
     <div class="card">
       <div class="tbl-wrap">
       <table class="tbl">
-        <thead><tr><th>المستخدم</th><th>الدور</th><th>المجال</th><th>الحالة</th><th>آخر نشاط</th><th>اليوم</th><th>إجراءات</th></tr></thead>
+        <thead><tr><th style="width:32px"></th><th>المستخدم</th><th>الدور</th><th>الحالة</th><th>آخر نشاط</th><th>اليوم</th><th style="width:50px">رئيسي</th><th>إجراءات</th></tr></thead>
         <tbody id="acc-tbody">
           <tr><td colspan="7" style="text-align:center;padding:30px;color:var(--t2)">جارٍ التحميل…</td></tr>
         </tbody>
@@ -1024,19 +1058,22 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   <div class="panel" id="p-import">
     <div class="notice notice-info">
       <span class="notice-ico">ℹ</span>
-      <span>الصيغة المدعومة: <code style="font-family:var(--m);background:var(--s3);padding:1px 5px;border-radius:4px">username:password:email:session_token:auth_token</code> — حساب لكل سطر. الحسابات تُضاف إلى قاعدة البيانات فقط ولا تُفتح جلسات تلقائياً.</span>
+      <span>تدعم المنصة عدة صيغ — حساب لكل سطر. الحسابات تُضاف إلى قاعدة البيانات ولا تُفتح جلسات تلقائياً.</span>
     </div>
     <div class="format-box">
-      <span>username</span>:<em>password</em>:<span>email</span>:<em>session_token</em>:<span>auth_token</span><br>
-      brandaccount:<em>Pass123!</em>:<span><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="cdafacaea68daaa0aca4a1e3aea2a0">[email&#160;protected]</a></span>:<em>ct0_token_here</em>:<span>auth_token_here</span><br>
-      techpulse_io:<em>Tech456!</em>:<span></span>:<em></em>:<span></span><br>
-      cryptonews_:<em>Crypto789!</em>:<span><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="6715020427020a060e0b4904080a">[email&#160;protected]</a></span>:<em></em>:<span></span>
+      <span style="color:var(--t2);font-size:10px;letter-spacing:.08em;text-transform:uppercase">الصيغ المدعومة</span><br><br>
+      <span style="color:var(--amb)">① الجديد</span>  <span>login</span>:<em>password</em>:<span>email</span>:<em>mailpassword</em>:<span>authtoken</span>:<em>2fa</em><br>
+      <span style="color:var(--t2)">② القديم</span>   <span>login</span>:<em>password</em>:<span>email</span>:<em>session_token</em>:<span>auth_token</span><br>
+      <span style="color:var(--t2)">③ البسيط</span>  <span>login</span>:<em>password</em><br><br>
+      <span style="color:var(--blu2)">مثال①</span> john_doe:<em>Pass123!</em>:<span>mail[at]gmail.com</span>:<em>gmailPass!</em>:<span>auth_tkn</span>:<em>TOTPSECRET</em><br>
+      <span style="color:var(--t2)">مثال②</span> john_doe:<em>Pass123!</em>:<span>mail[at]gmail.com</span>:<em>ct0_token</em>:<span>auth_tkn</span><br>
+      <span style="font-size:10.5px;color:var(--t3)">+ بروكسي في النهاية: socks5://user:pass@host:port</span>
     </div>
 
     <div class="card" style="margin-bottom:14px">
       <div class="card-h"><span class="card-title">الصق الحسابات</span></div>
       <div class="card-b">
-        <textarea id="bulk-txt" rows="8" placeholder="brandaccount:password:email:session_token:auth_token&#10;handle2:pass2:::&#10;handle3:pass3:email3::" oninput="parseBulk()" style="font-family:var(--m);font-size:12px;direction:ltr"></textarea>
+        <textarea id="bulk-txt" rows="8" placeholder="login:password:email:mailpassword:authtoken:2fa&#10;login2:password2:email2:::&#10;login3:password3" oninput="parseBulk()" style="font-family:var(--m);font-size:12px;direction:ltr"></textarea>
       </div>
     </div>
 
@@ -1074,12 +1111,18 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
       <div class="field"><label>المجال الافتراضي</label>
         <select id="bulk-niche"><option>عام</option><option>تقنية</option><option>SaaS</option><option>كريبتو</option><option>تسويق</option><option>أعمال</option></select>
       </div>
-      <div class="field"><label>وتيرة الفحص</label>
+      <div class="field">
+        <label>الفحص عند الاستيراد</label>
         <select id="bulk-stagger">
-          <option value="staggered">متدرج — 30 ثانية (موصى به)</option>
-          <option value="safe">آمن — 2 دقيقة</option>
-          <option value="manual">يدوي — بلا فحص</option>
+          <option value="manual" selected>بلا فحص — موصى به</option>
         </select>
+        <div style="font-size:11px;color:var(--amb);margin-top:5px">⚠️ الفحص التلقائي معطّل لحماية الحسابات من الحظر — افحص يدوياً بعد الاستيراد</div>
+      </div>
+      <div class="field" style="grid-column:1/-1">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;text-transform:none;letter-spacing:0;font-size:12.5px;font-weight:500">
+          <input type="checkbox" id="bulk-update-existing" style="width:14px;height:14px;accent-color:var(--blu)">
+          تحديث الحسابات الموجودة — يُحدّث credentials وال token إذا كان الحساب مضافاً مسبقاً
+        </label>
       </div>
     </div>
 
@@ -1110,6 +1153,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
       <button class="atab" onclick="showAtab('repost',this)">إعادة تغريد</button>
       <button class="atab" onclick="showAtab('reply',this)">رد</button>
       <button class="atab" onclick="showAtab('search',this)">بحث</button>
+      <button class="atab" onclick="showAtab('report',this)">إبلاغ</button>
       <button class="atab" onclick="showAtab('profile',this)">👤 البروفايل</button>
     </div>
 
@@ -1134,14 +1178,66 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 
     <!-- نشر جماعي بالـ AI -->
     <div id="at-tweet-multi" class="card" style="display:none">
-      <div class="card-h"><span class="card-title">🤖 نشر جماعي بالذكاء الاصطناعي</span></div>
+      <div class="card-h"><span class="card-title">🚀 نشر جماعي</span></div>
       <div class="card-b">
-        <div class="form-grid">
-          <div class="field"><label>الموضوع</label><input id="tm-topic" type="text" placeholder="مثال: أهمية الاستثمار المبكر"></div>
-          <div class="field"><label>الهاشتاق</label><input id="tm-hashtag" type="text" placeholder="#استثمار #مال" style="direction:ltr"></div>
+
+        <!-- وضع المحتوى -->
+        <div class="field" style="margin-bottom:14px">
+          <label>وضع المحتوى</label>
+          <select id="tm-mode" onchange="onTweetModeChange(this.value)">
+            <option value="ai">🤖 AI — يولّد محتوى مختلف لكل حساب</option>
+            <option value="manual">✍️ يدوي — تغريدة لكل حساب بالترتيب</option>
+            <option value="same">📋 نفس النص — للكل</option>
+          </select>
+        </div>
+
+        <!-- وضع AI -->
+        <div id="tm-ai-opts">
+          <div class="form-grid">
+            <div class="field"><label>الموضوع</label><input id="tm-topic" type="text" placeholder="مثال: أهمية الاستثمار المبكر"></div>
+            <div class="field"><label>الهاشتاق</label><input id="tm-hashtag" type="text" placeholder="#استثمار #مال" style="direction:ltr"></div>
+          </div>
+        </div>
+
+        <!-- وضع يدوي -->
+        <div id="tm-manual-opts" style="display:none">
+          <div class="field" style="margin-bottom:12px">
+            <label>التغريدات <small style="color:var(--t2);font-weight:400">— افصل بين كل تغريدة بـ <code style="background:var(--s4);padding:1px 5px;border-radius:4px;font-family:var(--m)">---</code></small></label>
+            <textarea id="tm-manual-texts" placeholder="تغريدة الحساب الأول&#10;يمكن أن تكون على عدة أسطر&#10;---&#10;تغريدة الحساب الثاني&#10;---&#10;تغريدة الحساب الثالث" style="min-height:140px;direction:rtl;font-size:12.5px"></textarea>
+          </div>
+        </div>
+
+        <!-- وضع نفس النص -->
+        <div id="tm-same-opts" style="display:none">
+          <div class="field" style="margin-bottom:12px">
+            <label>نص التغريدة</label>
+            <textarea id="tm-same-text" placeholder="اكتب التغريدة هنا…" maxlength="280" style="min-height:90px;direction:rtl"></textarea>
+          </div>
+        </div>
+
+        <!-- صور -->
+        <div class="form-grid" style="margin-bottom:12px">
+          <div class="field">
+            <label>صور مرفقة <small style="color:var(--t2);font-weight:400">— اختياري، حتى 4 صور لكل تغريدة</small></label>
+            <input id="tm-images" type="file" accept="image/*,video/mp4" multiple onchange="previewTweetImages(this)">
+            <div id="tm-images-preview" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px"></div>
+          </div>
+          <div class="field">
+            <label>توزيع الصور</label>
+            <select id="tm-img-order">
+              <option value="same">نفس المجموعة للكل</option>
+              <option value="sequential">بالترتيب — كل حساب صورة مختلفة</option>
+              <option value="random">عشوائي — كل حساب يأخذ صورة عشوائية</option>
+            </select>
+            <div style="font-size:11px;color:var(--t2);margin-top:4px">كل تغريدة تقبل حتى 4 صور — إذا رفعت أكثر تُوزَّع على الحسابات</div>
+          </div>
+        </div>
+
+        <!-- إعدادات -->
+        <div class="form-grid" style="margin-bottom:12px">
           <div class="field"><label>الترتيب</label>
             <select id="tm-order">
-              <option value="sequential">تسلسلي (الأول فالأول)</option>
+              <option value="sequential">تسلسلي</option>
               <option value="random">عشوائي</option>
             </select>
           </div>
@@ -1153,12 +1249,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
             </select>
           </div>
         </div>
-        <div class="field" style="margin-bottom:10px">
-          <label>اختر الحسابات <small style="color:var(--t2)">(Ctrl+Click لاختيار متعدد)</small></label>
-          <select id="tm-accounts" multiple style="height:120px;font-family:var(--m)"></select>
-        </div>
+
+        <div id="tm-acc-container"></div>
         <div style="display:flex;gap:10px;align-items:center">
-          <button class="btn" onclick="selectAllAccounts('tm-accounts')">تحديد الكل</button>
           <button class="btn btn-p" onclick="doTweetMulti()">🚀 نشر الآن</button>
           <span id="tm-status" style="font-size:12px;color:var(--t2)"></span>
         </div>
@@ -1201,11 +1294,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
           <div class="field fg-full"><label>رابط أو ID التغريدة</label><input id="lk-tweet" type="text" placeholder="https://x.com/user/status/123456 أو 123456" style="direction:ltr"></div>
         </div>
         <div class="field" style="margin-bottom:10px">
-          <label>الحسابات المُنفِّذة <small style="color:var(--t2)">(Ctrl+Click لاختيار متعدد)</small></label>
-          <select id="lk-acc" multiple style="height:120px;font-family:var(--m)"></select>
+          <div id="lk-acc-container"></div>
         </div>
         <div style="display:flex;gap:10px;align-items:center">
-          <button class="btn" onclick="selectAllAccounts('lk-acc')">تحديد الكل</button>
           <button class="btn btn-p" onclick="doLikeMulti()">إعجاب</button>
           <span id="lk-status" style="font-size:12px;color:var(--t2)"></span>
         </div>
@@ -1254,14 +1345,51 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
           </div>
         </div>
         <div class="field" style="margin-bottom:10px">
-          <label>الحسابات المُنفِّذة <small style="color:var(--t2)">(Ctrl+Click لاختيار متعدد)</small></label>
-          <select id="ry-acc" multiple style="height:120px;font-family:var(--m)"></select>
+          <div id="ry-acc-container"></div>
         </div>
         <div style="display:flex;gap:10px;align-items:center">
-          <button class="btn" onclick="selectAllAccounts('ry-acc')">تحديد الكل</button>
           <button class="btn btn-p" onclick="doReplyMulti()">إرسال الرد</button>
           <span id="ry-status" style="font-size:12px;color:var(--t2)"></span>
         </div>
+      </div>
+    </div>
+
+    <!-- إبلاغ -->
+    <div id="at-report" class="card" style="display:none">
+      <div class="card-h"><span class="card-title">🚨 إبلاغ جماعي</span></div>
+      <div class="card-b">
+        <div class="notice notice-warn" style="margin-bottom:14px">
+          <span class="notice-ico">⚠</span>
+          <span>للإبلاغ عن حسابات أو تغريدات مسيئة فقط. التأخير 15-25 ثانية بين كل حساب.</span>
+        </div>
+        <div class="form-grid" style="margin-bottom:14px">
+          <div class="field">
+            <label>نوع الإبلاغ</label>
+            <select id="report-type" onchange="onReportTypeChange(this.value)">
+              <option value="account">إبلاغ عن حساب</option>
+              <option value="tweet">إبلاغ عن تغريدة</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>سبب الإبلاغ</label>
+            <select id="report-reason">
+              <option value="spam">سبام</option>
+              <option value="abusive">محتوى مسيء</option>
+              <option value="impersonation">انتحال هوية</option>
+              <option value="sensitive">محتوى حساس</option>
+            </select>
+          </div>
+          <div class="field fg-full">
+            <label id="report-target-label">معرّف الحساب</label>
+            <input id="report-target" type="text" placeholder="@username" style="direction:ltr;font-family:var(--m)">
+          </div>
+        </div>
+        <div id="rp-report-container"></div>
+        <div style="display:flex;gap:10px;align-items:center;margin-top:8px">
+          <button class="btn btn-r" onclick="doReport()">🚨 إبلاغ الآن</button>
+          <span id="report-status" style="font-size:12px;color:var(--t2)"></span>
+        </div>
+        <div id="report-progress" style="display:none;margin-top:12px;padding:10px;background:var(--s3);border-radius:8px;font-size:12px;font-family:var(--m);max-height:150px;overflow-y:auto"></div>
       </div>
     </div>
 
@@ -1518,38 +1646,81 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 </main>
 </div><!-- /app -->
 
-<!-- modal تعديل الحساب -->
-<div id="edit-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:999;display:none;align-items:center;justify-content:center">
-  <div style="background:var(--s2);border:1px solid var(--bd);border-radius:14px;padding:24px;width:440px;max-width:95vw">
-    <div style="font-size:15px;font-weight:500;margin-bottom:16px">تعديل الحساب — <span id="edit-username" style="color:var(--t2)"></span></div>
-    <div class="field" style="margin-bottom:12px">
-      <label>الدور</label>
-      <select id="edit-role">
-        <option value="mixed">مختلط</option>
-        <option value="post">نشر</option>
-        <option value="engage">تفاعل</option>
-        <option value="support">دعم</option>
-      </select>
+<!-- modal تعديل الحساب الكامل -->
+<div id="edit-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:999;align-items:center;justify-content:center;overflow-y:auto;padding:20px">
+  <div style="background:var(--s2);border:1px solid var(--bd2);border-radius:14px;padding:24px;width:520px;max-width:95vw;margin:auto">
+    <div style="font-size:15px;font-weight:600;margin-bottom:18px;display:flex;align-items:center;justify-content:space-between">
+      <span>تعديل — <span id="edit-username" style="color:var(--blu2);font-family:var(--m)"></span></span>
+      <button onclick="closeEditModal()" style="background:none;border:none;color:var(--t2);cursor:pointer;font-size:20px;line-height:1">×</button>
     </div>
-    <div class="field" style="margin-bottom:12px">
-      <label>المجال</label>
-      <input id="edit-niche" type="text" placeholder="تقنية، أعمال، كريبتو…">
+    <div class="form-grid">
+      <div class="field">
+        <label>الدور</label>
+        <select id="edit-role">
+          <option value="mixed">مختلط</option>
+          <option value="post">نشر</option>
+          <option value="engage">تفاعل</option>
+          <option value="support">دعم</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>المجال</label>
+        <input id="edit-niche" type="text" placeholder="تقنية، أعمال…">
+      </div>
+      <div class="field fg-full">
+        <label>البروكسي</label>
+        <input id="edit-proxy" type="text" placeholder="http://user:pass@host:port" style="direction:ltr;font-family:var(--m)">
+      </div>
     </div>
-    <div class="field" style="margin-bottom:16px">
-      <label>البروكسي <small style="color:var(--t2);font-weight:400">socks5://user:pass@host:port</small></label>
-      <input id="edit-proxy" type="text" placeholder="socks5://..." style="direction:ltr;font-family:var(--m)">
+    <div style="border-top:1px solid var(--bd);margin:14px 0;padding-top:14px">
+      <div class="form-grid" style="margin-bottom:14px">
+        <div class="field fg-full">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;text-transform:none;letter-spacing:0;font-size:12.5px;font-weight:500">
+            <input type="checkbox" id="edit-is-primary" style="width:14px;height:14px;accent-color:var(--blu)">
+            حساب رئيسي — يستقبل الدعم من الحسابات الأخرى
+          </label>
+        </div>
+      </div>
+    </div>
+    <div style="border-top:1px solid var(--bd);margin:14px 0;padding-top:14px">
+      <div style="font-size:11px;font-weight:700;color:var(--t2);margin-bottom:10px;letter-spacing:.08em;text-transform:uppercase">بيانات الدخول</div>
+      <div class="form-grid">
+        <div class="field">
+          <label>كلمة المرور</label>
+          <input id="edit-password" type="password" placeholder="فارغ = بدون تغيير">
+        </div>
+        <div class="field">
+          <label>الإيميل</label>
+          <input id="edit-email" type="text" placeholder="user[at]mail.com" style="direction:ltr">
+        </div>
+        <div class="field">
+          <label>كلمة مرور الإيميل</label>
+          <input id="edit-mail-password" type="password" placeholder="فارغ = بدون تغيير">
+        </div>
+        <div class="field">
+          <label>Auth Token</label>
+          <input id="edit-auth-token" type="text" placeholder="auth_token" style="direction:ltr;font-family:var(--m);font-size:11px">
+        </div>
+        <div class="field">
+          <label>Session Token (ct0)</label>
+          <input id="edit-session-token" type="text" placeholder="ct0 token" style="direction:ltr;font-family:var(--m);font-size:11px">
+        </div>
+        <div class="field">
+          <label>2FA Secret</label>
+          <input id="edit-2fa" type="text" placeholder="TOTP secret" style="direction:ltr;font-family:var(--m)">
+        </div>
+      </div>
     </div>
     <div style="display:flex;gap:10px;justify-content:flex-end">
       <button class="btn" onclick="closeEditModal()">إلغاء</button>
-      <button class="btn btn-p" onclick="saveEditAccount()">حفظ</button>
+      <button class="btn btn-p" onclick="saveEditAccountFull()">💾 حفظ</button>
     </div>
   </div>
 </div>
-
 <!-- إشعارات -->
 <div class="toast-wrap" id="toasts"></div>
 
-<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script src="/socket.io/socket.io.js"></script>
+<script src="/socket.io/socket.io.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
 /* ═══════════════════════════════════════════════════════════════
@@ -1577,8 +1748,25 @@ document.addEventListener('DOMContentLoaded', () => {
 function init() {
   tick();
   setInterval(tick, 1000);
+  // استعادة بيانات المستخدم
+  const savedUser = localStorage.getItem('xops_user');
+  if (savedUser) {
+    try {
+      const u = JSON.parse(savedUser);
+      document.getElementById('user-name').textContent = u.name || 'مستخدم';
+      document.getElementById('user-role').textContent = u.role === 'subscriber' ? 'مشترك' : 'مدير النظام';
+      document.getElementById('user-av').textContent   = (u.name||'م')[0].toUpperCase();
+    } catch {}
+  }
+  // إعادة تطبيق الصلاحيات المحفوظة
+  const savedPerms = localStorage.getItem('xops_permissions');
+  if (savedPerms) {
+    try { setTimeout(() => applyPermissions(JSON.parse(savedPerms)), 200); } catch {}
+  }
   loadOverview();
   loadActiveAccounts();
+  loadLicense();
+  setInterval(pollJobs, 5000);
   setInterval(() => {
     if (currentPanel === 'overview') loadOverview();
   }, 30000);
@@ -1603,6 +1791,41 @@ function init() {
     socket.on('tweet:multi:progress', d => {
       const prog = document.getElementById('tm-progress');
       if (prog) prog.innerHTML += `<div>${d.success ? '✅' : '❌'} @${d.username} (${d.done}/${d.total})</div>`;
+    });
+    socket.on('report:progress', d => {
+      const prog = document.getElementById('report-progress');
+      if (prog) {
+        const color = d.success ? 'var(--grn)' : 'var(--red)';
+        prog.innerHTML += `<div style="color:${color}">${d.done}/${d.total} @${d.username}: ${d.success ? '✓ تم' : '✕ ' + (d.error||'فشل')}</div>`;
+        prog.scrollTop = prog.scrollHeight;
+      }
+    });
+    socket.on('report:done', d => {
+      toast(`✅ اكتمل الإبلاغ (${d.done}/${d.total})`, 'ok');
+      document.getElementById('report-status').textContent = '';
+    });
+    socket.on('risk:new', d => {
+      const lvlColors = { critical:'var(--red)', high:'var(--red)', medium:'var(--amb)', low:'var(--grn)' };
+      const color = lvlColors[d.level] || 'var(--amb)';
+      toast(`⚠️ @${d.username}: ${d.description}`, d.level === 'critical' || d.level === 'high' ? 'err' : 'warn');
+      const badge = document.getElementById('nb-risks');
+      if (badge) badge.textContent = (+badge.textContent || 0) + 1;
+      if (currentPanel === 'risks') loadRisks();
+    });
+    socket.on('job:cancelled', d => {
+      toast(`⏹ أُوقف النشر (${d.done} حساب تم)`, 'ok');
+      document.getElementById('tm-status').textContent = '';
+      pollJobs();
+    });
+    socket.on('account:check:progress', d => {
+      const el = document.getElementById('bulk-check-counter');
+      if (el) el.textContent = `${d.done}/${d.total} — @${d.username}: ${d.status||''}`;
+    });
+    socket.on('account:check:done', d => {
+      document.getElementById('bulk-check-progress').style.display = 'none';
+      document.getElementById('bulk-check-btn').disabled = false;
+      toast(`✅ اكتمل الفحص (${d.total})`, 'ok');
+      loadAccounts();
     });
     socket.on('profile:sync:progress', d => {
       const prog = document.getElementById('prof-sync-progress');
@@ -1658,17 +1881,34 @@ async function doLogin() {
     if (!res.ok) { errEl.textContent = data.error || 'خطأ'; errEl.style.display = 'block'; return; }
     TOKEN = data.token;
     localStorage.setItem('xops_token', TOKEN);
-    document.getElementById('user-name').textContent  = data.user.email;
-    document.getElementById('user-role').textContent  = data.user.role;
-    document.getElementById('user-av').textContent    = data.user.email[0].toUpperCase();
+    const userName = data.user.name || data.user.email;
+    document.getElementById('user-name').textContent = userName;
+    document.getElementById('user-role').textContent = data.user.role === 'subscriber' ? 'مشترك' : 'مدير النظام';
+    document.getElementById('user-av').textContent   = userName[0].toUpperCase();
     document.getElementById('login-page').style.display = 'none';
     document.getElementById('app').style.display = 'flex';
+    // حفظ بيانات المستخدم في localStorage
+    localStorage.setItem('xops_user', JSON.stringify({
+      name:        data.user.name || data.user.email,
+      role:        data.user.role,
+      permissions: data.user.permissions || null,
+    }));
+    if (data.user.permissions) {
+      localStorage.setItem('xops_permissions', JSON.stringify(data.user.permissions));
+    }
     init();
+    // تطبيق الصلاحيات بعد ظهور الـ DOM
+    if (data.user.permissions) {
+      const perms = data.user.permissions;
+      setTimeout(() => applyPermissions(perms), 300);
+    }
   } catch(e) { errEl.textContent = e.message; errEl.style.display = 'block'; }
 }
 
 function logout() {
   localStorage.removeItem('xops_token');
+  localStorage.removeItem('xops_permissions');
+  localStorage.removeItem('xops_user');
   TOKEN = '';
   location.reload();
 }
@@ -1688,13 +1928,23 @@ function nav(id, btn) {
   document.getElementById('ptitle').textContent = titles[id] || id;
   currentPanel = id;
 
-  if (id === 'accounts') { accPage = 1; loadAccounts(); }
+  if (id === 'accounts') { accPage = 1; _showPrimaryOnly = false; loadAccounts(); }
   if (id === 'risks')    loadRisks();
   if (id === 'audit')    { auditPage = 1; loadAudit(); }
   if (id === 'content')  loadContent();
   if (id === 'schedule') { loadSchedules(); fillAccountSelects('sc-acc'); }
   if (id === 'ai')       fillAccountSelects('ai-acc');
-  if (id === 'actions')  { fillAllActionSelects(); }
+  if (id === 'actions') {
+    fillAllActionSelects();
+    // بناء الـ smart selectors
+    setTimeout(() => {
+      buildSmartSelector('tm-acc-container', 'tm-accounts');
+      buildSmartSelector('fl-acc-container', 'fl-acc');
+      buildSmartSelector('lk-acc-container', 'lk-acc');
+      buildSmartSelector('rp-acc-container', 'rp-acc');
+      buildSmartSelector('ry-acc-container', 'ry-acc');
+    }, 100);
+  }
   if (id === 'profiles') {
     if (allActiveAccounts.length) {
       fillAccountMultiSelects('prof-sync-acc','prof-upd-acc');
@@ -1704,7 +1954,103 @@ function nav(id, btn) {
   }
 }
 
-function refreshCurrent() { nav(currentPanel); loadOverview(); }
+// ── Jobs ─────────────────────────────────────────────────────
+let _jobsInterval = null;
+
+async function pollJobs() {
+  try {
+    const d = await api('/api/v1/actions/jobs');
+    const jobs = d.jobs || [];
+    const indicator = document.getElementById('jobs-indicator');
+    const count = document.getElementById('jobs-count');
+    if (jobs.length > 0) {
+      indicator.style.display = 'flex';
+      const types = jobs.map(j => j.type === 'tweet-multi' ? 'نشر جماعي' : j.type).join('، ');
+      count.textContent = `${jobs.length} عملية: ${types}`;
+    } else {
+      indicator.style.display = 'none';
+    }
+  } catch {}
+}
+
+async function stopAllJobs() {
+  if (!confirm('إيقاف جميع العمليات الجارية؟')) return;
+  try {
+    const d = await api('/api/v1/actions/jobs/cancel-all', { method: 'POST' });
+    toast(`⏹ أُوقفت ${d.cancelled} عملية`, 'ok');
+    pollJobs();
+  } catch(e) { toast(e.message, 'err'); }
+}
+
+// pollJobs يبدأ من init() فقط بعد تسجيل الدخول
+
+// ── الترخيص ───────────────────────────────────────────────────
+async function loadLicense() {
+  try {
+    const d = await api('/api/v1/license');
+    const pill = document.getElementById('license-pill');
+    if (!pill) return;
+    if (d.standalone) { pill.style.display = 'none'; return; }
+    if (d.valid) {
+      const days = d.daysLeft;
+      const color = days <= 3 ? 'rgba(240,72,90,.15)' : days <= 7 ? 'rgba(245,166,35,.12)' : 'rgba(30,212,138,.1)';
+      const tcolor = days <= 3 ? 'var(--red)' : days <= 7 ? 'var(--amb)' : 'var(--grn)';
+      pill.style.display = 'flex';
+      pill.style.background = color;
+      pill.style.color = tcolor;
+      pill.style.border = `1px solid ${tcolor}30`;
+      pill.textContent = `${days} يوم`;
+      pill.title = `اشتراك ${d.subscriber} — ينتهي ${new Date(d.endDate).toLocaleDateString('ar-SA')}`;
+      // إخفاء الميزات الممنوعة
+      setTimeout(() => applyPermissions(d.permissions), 300);
+    } else {
+      pill.style.display = 'flex';
+      pill.style.background = 'rgba(240,72,90,.12)';
+      pill.style.color = 'var(--red)';
+      pill.style.border = '1px solid rgba(240,72,90,.25)';
+      pill.textContent = 'ترخيص منتهي';
+    }
+  } catch {}
+}
+
+function applyPermissions(p) {
+  if (!p) return;
+  var navBtns = document.querySelectorAll('.nav-btn');
+  navBtns.forEach(function(btn) {
+    var oc = btn.getAttribute('onclick') || '';
+    if (p.aiEnabled === false && oc.indexOf('ai') !== -1 && oc.indexOf('nav') !== -1) btn.style.display = 'none';
+    if (p.scheduleEnabled === false && oc.indexOf('schedule') !== -1) btn.style.display = 'none';
+    if (p.profilesEnabled === false && oc.indexOf('profiles') !== -1) btn.style.display = 'none';
+    if (p.bulkImport === false && oc.indexOf('import') !== -1) btn.style.display = 'none';
+  });
+  document.querySelectorAll('.atab').forEach(function(btn) {
+    var oc = btn.getAttribute('onclick') || '';
+    if (p.reportEnabled === false && oc.indexOf('report') !== -1) btn.style.display = 'none';
+    if (p.scheduleEnabled === false && oc.indexOf('schedule') !== -1) btn.style.display = 'none';
+  });
+  var aiOpt = document.querySelector('#tm-mode option[value="ai"]');
+  if (aiOpt && p.aiEnabled === false) aiOpt.style.display = 'none';
+  if (p.maxAccounts) window._maxAccounts = p.maxAccounts;
+}
+
+function refreshCurrent() {
+  // إعادة تطبيق الصلاحيات
+  const savedPerms = localStorage.getItem('xops_permissions');
+  if (savedPerms) { try { applyPermissions(JSON.parse(savedPerms)); } catch {} }
+  const panel = document.getElementById('p-' + currentPanel);
+  if (panel) {
+    if (currentPanel === 'accounts') loadAccounts();
+    else if (currentPanel === 'overview') loadOverview();
+    else if (currentPanel === 'audit') loadAudit();
+    else if (currentPanel === 'risks') loadRisks();
+    else if (currentPanel === 'content') loadContent();
+    else if (currentPanel === 'schedule') loadSchedules();
+    else if (currentPanel === 'profiles') {
+      loadActiveAccounts().then(() => fillAccountMultiSelects('prof-sync-acc','prof-upd-acc'));
+    }
+  }
+  if (currentPanel !== 'overview') loadOverview();
+}
 
 /* ═══════════════════════════════════════════════════════════════
    ساعة
@@ -1807,9 +2153,10 @@ async function loadAccounts() {
   const status = document.getElementById('acc-status').value;
   const params = new URLSearchParams({ page: accPage, limit: 30 });
   const role = document.getElementById('acc-role').value;
-  if (q)      params.set('q', q);
-  if (status) params.set('status', status);
-  if (role)   params.set('role', role);
+  if (q)                params.set('q', q);
+  if (status)           params.set('status', status);
+  if (role)             params.set('role', role);
+  if (_showPrimaryOnly) params.set('isPrimary', 'true');
 
   try {
     const d = await api(`/api/v1/accounts?${params}`);
@@ -1828,18 +2175,21 @@ async function loadAccounts() {
           const rowStyle = isBad ? 'background:rgba(242,86,104,.03);border-right:2px solid rgba(242,86,104,.2)' : needsAuth ? 'background:rgba(248,179,64,.03);border-right:2px solid rgba(248,179,64,.15)' : '';
           return `
         <tr style="${rowStyle}">
+          <td style="text-align:center"><input type="checkbox" class="acc-cb" data-id="${a._id}" data-role="${a.role||'mixed'}" onchange="onAccCbChange(this)" style="width:15px;height:15px;cursor:pointer;accent-color:var(--blu);display:block;margin:auto"></td>
           <td><span class="uname">@${a.username}</span></td>
           <td><span class="pill ${a.role==='post'?'p-b':a.role==='engage'?'p-g':a.role==='support'?'p-a':'p-n'}">${a.role==='post'?'نشر':a.role==='engage'?'تفاعل':a.role==='support'?'دعم':'مختلط'}</span></td>
           <td style="color:var(--t2)">${a.niche||'—'}</td>
           <td>${statusBadge(a.status)}</td>
           <td style="font-family:var(--m);font-size:11px;color:var(--t2)">${a.lastActiveAt?new Date(a.lastActiveAt).toLocaleTimeString('ar-SA'):'—'}</td>
           <td style="font-family:var(--m)">${(a.todayCounters?.posts||0)}/${a.dailyCaps?.post||10}</td>
+          <td style="text-align:center">
+            ${a.isPrimary ? '<span style="color:var(--amb);font-size:14px" title="حساب رئيسي">★</span>' : '<span style="color:var(--t3);font-size:14px">☆</span>'}
+          </td>
           <td>
             <div style="display:flex;gap:5px">
               <button class="btn btn-sm" onclick="checkAccount('${a._id}')">فحص</button>
-              <button class="btn btn-sm ${a.status!=='نشط'?'btn-p':''}" onclick="loginAccount('${a._id}')">دخول</button>
-              <button class="btn btn-sm" onclick="editAccount('${a._id}','${a.username}','${a.network?.proxyUrl||''}','${a.role||'mixed'}','${a.niche||''}')">تعديل</button>
-              <button class="btn btn-sm" style="color:var(--red);border-color:rgba(239,74,87,.25)" onclick="deleteAccount('${a._id}','${a.username}')">حذف</button>
+              <button class="btn btn-sm" onclick="editAccount('${a._id}')">تعديل</button>
+              <button class="btn btn-sm btn-r" onclick="deleteAccount('${a._id}','${a.username}')">حذف</button>
             </div>
           </td>
         </tr>`; }).join('')
@@ -1900,38 +2250,165 @@ function getSelectedAccounts(selectId) {
 }
 
 let _editAccountId = null;
+let _editAccountData = {};
 
+// تعديل بسيط (قديم) — للتوافق
 function editAccount(id, username, proxy, role, niche) {
+  editAccountFull(id);
+}
+
+// فتح modal التعديل الكامل
+async function editAccountFull(id) {
   _editAccountId = id;
-  document.getElementById('edit-username').textContent = '@' + username;
-  document.getElementById('edit-proxy').value  = proxy  || '';
-  document.getElementById('edit-role').value   = role   || 'mixed';
-  document.getElementById('edit-niche').value  = niche  || '';
-  const m = document.getElementById('edit-modal');
-  m.style.display = 'flex';
+  try {
+    const a = await api(`/api/v1/accounts/${id}`);
+    _editAccountData = a;
+    document.getElementById('edit-username').textContent  = '@' + a.username;
+    document.getElementById('edit-role').value            = a.role  || 'mixed';
+    document.getElementById('edit-niche').value           = a.niche || '';
+    document.getElementById('edit-proxy').value           = a.network?.proxyUrl || '';
+    document.getElementById('edit-email').value           = a.email         || '';
+    document.getElementById('edit-password').value        = '';
+    document.getElementById('edit-mail-password').value   = '';
+    document.getElementById('edit-auth-token').value      = a.auth_token    || '';
+    document.getElementById('edit-session-token').value   = a.session_token || '';
+    document.getElementById('edit-2fa').value             = a.totp_secret   || '';
+    document.getElementById('edit-is-primary').checked    = a.isPrimary || false;
+    const m = document.getElementById('edit-modal');
+    m.style.display = 'flex';
+  } catch(e) { toast(e.message, 'err'); }
 }
 
 function closeEditModal() {
   document.getElementById('edit-modal').style.display = 'none';
 }
 
-async function saveEditAccount() {
-  const proxy = document.getElementById('edit-proxy').value.trim();
-  const role  = document.getElementById('edit-role').value;
-  const niche = document.getElementById('edit-niche').value.trim();
+async function saveEditAccountFull() {
+  const role         = document.getElementById('edit-role').value;
+  const niche        = document.getElementById('edit-niche').value.trim();
+  const proxy        = document.getElementById('edit-proxy').value.trim();
+  const password     = document.getElementById('edit-password').value.trim();
+  const mailPassword = document.getElementById('edit-mail-password').value.trim();
+  const email        = document.getElementById('edit-email').value.trim();
+  const authToken    = document.getElementById('edit-auth-token').value.trim();
+  const sessionToken = document.getElementById('edit-session-token').value.trim();
+  const twofa        = document.getElementById('edit-2fa').value.trim();
+  const isPrimary    = document.getElementById('edit-is-primary').checked;
+
   try {
+    // تحديث البيانات الأساسية
     await api(`/api/v1/accounts/${_editAccountId}`, {
       method: 'PATCH',
       body: JSON.stringify({
-        role,
-        niche,
+        role, niche, isPrimary,
         network: { proxyUrl: proxy || null },
       }),
     });
+
+    // تحديث credentials إذا في تغيير
+    if (password || mailPassword || email || authToken || sessionToken || twofa) {
+      await api(`/api/v1/accounts/${_editAccountId}/credentials`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          ...(password      ? { password }                   : {}),
+          ...(mailPassword  ? { mail_password: mailPassword } : {}),
+          ...(email         ? { email }                       : {}),
+          ...(authToken     ? { auth_token: authToken }       : {}),
+          ...(sessionToken  ? { session_token: sessionToken } : {}),
+          ...(twofa         ? { totp_secret: twofa }          : {}),
+        }),
+      });
+    }
+
     toast('✅ تم الحفظ', 'ok');
     closeEditModal();
     loadAccounts();
+    loadActiveAccounts();
   } catch(e) { toast(e.message, 'err'); }
+}
+
+// تحديد الحسابات
+function toggleAllAccounts(cb) {
+  document.querySelectorAll('.acc-cb').forEach(c => c.checked = cb.checked);
+  updateAccSelectedCount();
+}
+
+function onAccCbChange(cb) {
+  const row = cb.closest('tr');
+  if (cb.checked) {
+    row.style.background = 'rgba(79,126,248,.08)';
+    row.style.borderRight = '2px solid rgba(79,126,248,.5)';
+  } else {
+    row.style.background = '';
+    row.style.borderRight = '';
+  }
+  updateAccSelectedCount();
+}
+
+function selectAccountsByRole(role) {
+  document.querySelectorAll('.acc-cb').forEach(c => {
+    if (role === 'all')       c.checked = true;
+    else if (role === 'none') c.checked = false;
+    else c.checked = c.dataset.role === role;
+    // تطبيق التظليل
+    const row = c.closest('tr');
+    if (c.checked) {
+      row.style.background  = 'rgba(79,126,248,.08)';
+      row.style.borderRight = '2px solid rgba(79,126,248,.5)';
+    } else {
+      row.style.background  = '';
+      row.style.borderRight = '';
+    }
+  });
+  updateAccSelectedCount();
+}
+
+function updateAccSelectedCount() {
+  const count = document.querySelectorAll('.acc-cb:checked').length;
+  const el = document.getElementById('acc-selected-count');
+  if (el) el.textContent = count > 0 ? `${count} محدد` : '';
+  const allCb = document.getElementById('acc-check-all');
+  const total = document.querySelectorAll('.acc-cb').length;
+  if (allCb) allCb.indeterminate = count > 0 && count < total;
+  if (allCb) allCb.checked = count === total && total > 0;
+}
+
+function getSelectedAccountIds() {
+  return [...document.querySelectorAll('.acc-cb:checked')].map(c => c.dataset.id);
+}
+
+// فحص المحدد
+async function doBulkCheckSelected() {
+  const ids = getSelectedAccountIds();
+  const btn = document.getElementById('bulk-check-btn');
+  const prog = document.getElementById('bulk-check-progress');
+  if (!ids.length) return toast('اختر حسابات أولاً', 'warn');
+  btn.disabled = true;
+  prog.style.display = 'block';
+  document.getElementById('bulk-check-counter').textContent = `0/${ids.length}`;
+  try {
+    const d = await api('/api/v1/accounts/bulk-check', {
+      method: 'POST',
+      body: JSON.stringify({ accountIds: ids }),
+    });
+    document.getElementById('bulk-check-counter').textContent = `0/${d.total}`;
+  } catch(e) { toast(e.message, 'err'); btn.disabled = false; prog.style.display = 'none'; }
+}
+
+// حذف المحدد نهائياً
+async function deleteSelectedAccounts() {
+  const ids = [...document.querySelectorAll('.acc-cb:checked')].map(c => c.dataset.id);
+  if (!ids.length) return toast('لم تحدد أي حساب', 'warn');
+  if (!confirm(`⚠️ حذف ${ids.length} حساب نهائياً من قاعدة البيانات؟\nلا يمكن التراجع عن هذا الإجراء.`)) return;
+  let done = 0;
+  for (const id of ids) {
+    try {
+      await api(`/api/v1/accounts/${id}?hard=true`, { method:'DELETE' });
+      done++;
+    } catch(e) {}
+  }
+  toast(`🗑 حُذف ${done} حساب نهائياً`, 'ok');
+  loadAccounts(); loadActiveAccounts();
 }
 
 async function checkAccount(id) {
@@ -1952,13 +2429,34 @@ async function loginAccount(id) {
   } catch(e) { toast(e.message, 'err'); }
 }
 
+let _showPrimaryOnly = false;
+function selectPrimaryAccounts() {
+  document.querySelectorAll('.acc-cb').forEach(cb => {
+    const row  = cb.closest('tr');
+    const star = row.querySelector('[title="حساب رئيسي"]');
+    cb.checked = !!star;
+    if (cb.checked) {
+      row.style.background  = 'rgba(79,126,248,.08)';
+      row.style.borderRight = '2px solid rgba(79,126,248,.5)';
+    } else {
+      row.style.background  = '';
+      row.style.borderRight = '';
+    }
+  });
+  updateAccSelectedCount();
+}
+
+function togglePrimaryFilter(btn) {
+  _showPrimaryOnly = !_showPrimaryOnly;
+  btn.style.background = _showPrimaryOnly ? 'rgba(245,166,35,.15)' : '';
+  loadAccounts();
+}
+
 async function deleteAccount(id, username) {
-  const hard = confirm(`حذف @${username} نهائياً من قاعدة البيانات؟\n\nاضغط موافق للحذف الكامل، أو إلغاء للإخفاء فقط.`);
-  const cancel = !hard && !confirm(`إخفاء @${username} من الداشبورد فقط؟`);
-  if (cancel) return;
+  if (!confirm(`⚠️ حذف @${username} نهائياً من قاعدة البيانات؟\nلا يمكن التراجع عن هذا الإجراء.`)) return;
   try {
-    await api(`/api/v1/accounts/${id}?hard=${hard}`, { method:'DELETE' });
-    toast(`${hard?'🗑 حُذف نهائياً':'🙈 أُخفي'}: @${username}`, 'ok');
+    await api(`/api/v1/accounts/${id}?hard=true`, { method:'DELETE' });
+    toast(`🗑 حُذف نهائياً: @${username}`, 'ok');
     loadAccounts(); loadActiveAccounts();
   } catch(e) { toast(e.message, 'err'); }
 }
@@ -2050,7 +2548,7 @@ async function doImport() {
   try {
     const d = await api('/api/v1/accounts/bulk-import', {
       method: 'POST',
-      body: JSON.stringify({ text, defaultNiche: niche, defaultRole: role, stagger }),
+      body: JSON.stringify({ text, defaultNiche: niche, defaultRole: role, stagger, updateExisting: document.getElementById('bulk-update-existing').checked }),
     });
     if (!d) return;
 
@@ -2089,6 +2587,18 @@ function showAtab(id, btn) {
   const el = document.getElementById('at-'+id);
   if (el) el.style.display = 'block';
   if (btn) btn.classList.add('on');
+  // إعادة بناء الـ smart selector
+  const map = {
+    'tweet-multi': ['tm-acc-container','tm-accounts'],
+    'follow':      ['fl-acc-container','fl-acc'],
+    'like':        ['lk-acc-container','lk-acc'],
+    'repost':      ['rp-acc-container','rp-acc'],
+    'reply':       ['ry-acc-container','ry-acc'],
+    'report':      ['rp-report-container','rp-report'],
+  };
+  if (map[id] && allActiveAccounts.length) {
+    buildSmartSelector(map[id][0], map[id][1]);
+  }
 }
 
 function extractTweetId(val) {
@@ -2254,20 +2764,163 @@ async function doReplyMulti() {
   toast(`✅ رد: نجح ${done}${failed ? ' | فشل '+failed : ''}`, done > 0 ? 'ok' : 'err');
 }
 
+// ── الاختيار الذكي للحسابات ──────────────────────────────────
+function buildSmartSelector(containerId, selectId) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+
+  const roles = [
+    { val: 'all',     label: 'الكل',    cls: 'active-all' },
+    { val: 'post',    label: 'نشر',     cls: 'active-post' },
+    { val: 'engage',  label: 'تفاعل',   cls: 'active-engage' },
+    { val: 'support', label: 'دعم',     cls: 'active-support' },
+    { val: 'mixed',   label: 'مختلط',   cls: 'active-mixed' },
+  ];
+
+  container.innerHTML = `
+    <div class="acc-smart-bar">
+      <div class="acc-smart-row">
+        <div class="field">
+          <label>الدور</label>
+          <div class="acc-smart-row2" id="${containerId}-roles">
+            ${roles.map(r => `<button class="acc-role-pill ${r.val==='all'?'active-all':''}" data-role="${r.val}" onclick="smartSelectRole('${containerId}','${selectId}',this)">${r.label}</button>`).join('')}
+          </div>
+        </div>
+        <div class="field">
+          <label>عدد الحسابات</label>
+          <input type="number" id="${containerId}-count" min="1" max="999" placeholder="الكل" style="height:34px">
+        </div>
+        <div class="field">
+          <label>الترتيب</label>
+          <select id="${containerId}-order" style="height:34px">
+            <option value="sequential">تسلسلي</option>
+            <option value="random">عشوائي</option>
+          </select>
+        </div>
+        <div class="field" style="align-self:end">
+          <button class="btn btn-sm" onclick="applySmartSelect('${containerId}','${selectId}')" style="height:34px;width:100%">تطبيق</button>
+        </div>
+      </div>
+      <div class="field">
+        <label>الحسابات المحددة <span id="${containerId}-sel-count" style="color:var(--blu2);font-weight:700"></span></label>
+        <select id="${selectId}" multiple style="height:100px;font-family:var(--m)"></select>
+      </div>
+    </div>
+  `;
+
+  // ملء الـ select
+  const opts = allActiveAccounts.length
+    ? allActiveAccounts.map(a => `<option value="${a._id}">@${a.username} (${a.role==='post'?'نشر':a.role==='engage'?'تفاعل':a.role==='support'?'دعم':'مختلط'})</option>`).join('')
+    : '<option disabled>لا توجد حسابات نشطة</option>';
+  document.getElementById(selectId).innerHTML = opts;
+  updateSmartCount(containerId, selectId);
+}
+
+function smartSelectRole(containerId, selectId, btn) {
+  // تحديث الأزرار
+  document.querySelectorAll(`#${containerId}-roles .acc-role-pill`).forEach(b => {
+    b.className = 'acc-role-pill';
+  });
+  const roleMap = { all:'active-all', post:'active-post', engage:'active-engage', support:'active-support', mixed:'active-mixed' };
+  btn.classList.add(roleMap[btn.dataset.role] || 'active-all');
+  applySmartSelect(containerId, selectId);
+}
+
+function applySmartSelect(containerId, selectId) {
+  const activeBtn = document.querySelector(`#${containerId}-roles .acc-role-pill[class*="active-"]`);
+  const role      = activeBtn?.dataset.role || 'all';
+  const count     = parseInt(document.getElementById(`${containerId}-count`)?.value) || 0;
+  const order     = document.getElementById(`${containerId}-order`)?.value || 'sequential';
+  const select    = document.getElementById(selectId);
+  if (!select) return;
+
+  // فلتر بالدور
+  let options = [...select.options];
+  if (role !== 'all') {
+    const accounts = allActiveAccounts.filter(a => (a.role || 'mixed') === role);
+    const ids = new Set(accounts.map(a => a._id));
+    options = options.filter(o => ids.has(o.value));
+  }
+
+  // ترتيب
+  if (order === 'random') options = options.sort(() => Math.random() - 0.5);
+
+  // عدد
+  const limit = count > 0 ? count : options.length;
+  const selected = new Set(options.slice(0, limit).map(o => o.value));
+
+  [...select.options].forEach(o => { o.selected = selected.has(o.value); });
+  updateSmartCount(containerId, selectId);
+}
+
+function updateSmartCount(containerId, selectId) {
+  const count = document.querySelectorAll(`#${selectId} option:checked`).length;
+  const el = document.getElementById(`${containerId}-sel-count`);
+  if (el) el.textContent = count > 0 ? `(${count} محدد)` : '';
+}
+
+function onTweetModeChange(val) {
+  document.getElementById('tm-ai-opts').style.display     = val === 'ai'     ? 'block' : 'none';
+  document.getElementById('tm-manual-opts').style.display = val === 'manual' ? 'block' : 'none';
+  document.getElementById('tm-same-opts').style.display   = val === 'same'   ? 'block' : 'none';
+}
+
+function previewTweetImages(input) {
+  const preview = document.getElementById('tm-images-preview');
+  preview.innerHTML = '';
+  [...input.files].forEach(file => {
+    const url = URL.createObjectURL(file);
+    if (file.type.startsWith('video/')) {
+      preview.innerHTML += `<div style="width:60px;height:52px;background:var(--s4);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--t2);border:1px solid var(--bd)">🎬 فيديو</div>`;
+    } else {
+      preview.innerHTML += `<img src="${url}" style="width:60px;height:52px;object-fit:cover;border-radius:6px;border:1px solid var(--bd)">`;
+    }
+  });
+}
+
 async function doTweetMulti() {
-  const topic   = document.getElementById('tm-topic').value.trim();
-  const hashtag = document.getElementById('tm-hashtag').value.trim();
+  const mode    = document.getElementById('tm-mode').value;
   const order   = document.getElementById('tm-order').value;
   const delayParts = document.getElementById('tm-delay').value.split(',');
   const [minD, maxD] = [+delayParts[0], +delayParts[1]];
-  let   ids = getSelectedAccounts('tm-accounts');
+  let ids = getSelectedAccounts('tm-accounts');
   if (!ids.length) return toast('اختر حساباً على الأقل', 'warn');
-  if (!topic) return toast('أدخل الموضوع', 'warn');
   if (order === 'random') ids = ids.sort(() => Math.random() - 0.5);
 
-  const s = document.getElementById('tm-status');
+  // المحتوى حسب الوضع
+  const topic   = document.getElementById('tm-topic').value.trim();
+  const hashtag = document.getElementById('tm-hashtag').value.trim();
+  const manualTexts = document.getElementById('tm-manual-texts').value.trim()
+    .split(/\n---\n|^---$/m)
+    .map(t => t.trim())
+    .filter(Boolean);
+  const sameText = document.getElementById('tm-same-text').value.trim();
+
+  if (mode === 'ai'     && !topic)                     return toast('أدخل الموضوع', 'warn');
+  if (mode === 'manual' && !manualTexts.length)         return toast('أدخل التغريدات', 'warn');
+  if (mode === 'same'   && !sameText)                   return toast('أدخل نص التغريدة', 'warn');
+
+  // رفع الصور أولاً
+  const imageFiles = [...(document.getElementById('tm-images').files || [])];
+  let mediaPaths = [];
+  if (imageFiles.length) {
+    const formData = new FormData();
+    imageFiles.forEach(f => formData.append('images', f));
+    try {
+      const r = await fetch('/api/v1/actions/upload-media', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${TOKEN}` },
+        body: formData,
+      });
+      const d = await r.json();
+      mediaPaths = d.paths || [];
+    } catch(e) { return toast('فشل رفع الصور: ' + e.message, 'err'); }
+  }
+
+  const imgOrder = document.getElementById('tm-img-order').value;
+  const s    = document.getElementById('tm-status');
   const prog = document.getElementById('tm-progress');
-  s.textContent = `جارٍ توليد المحتوى لـ ${ids.length} حساب…`;
+  s.textContent = `جارٍ النشر على ${ids.length} حساب…`;
   prog.style.display = 'block';
   prog.innerHTML = '';
 
@@ -2275,17 +2928,23 @@ async function doTweetMulti() {
     const d = await api('/api/v1/actions/tweet-multi', {
       method: 'POST',
       body: JSON.stringify({
-        accountIds: ids,
-        text:       topic,
-        topic:      topic,
-        hashtags:   hashtag,
-        varyText:   true,
-        delayMinMs: minD,
-        delayMaxMs: maxD,
+        accountIds:   ids,
+        mode,
+        text:         mode === 'same' ? sameText : topic,
+        topic:        topic,
+        hashtags:     hashtag,
+        manualTexts:  mode === 'manual' ? manualTexts : [],
+        varyText:     mode === 'ai',
+        mediaPaths,
+        imageOrder:   imgOrder,
+        delayMinMs:   minD,
+        delayMaxMs:   maxD,
       }),
     });
-    s.textContent = `✅ بدأ النشر على ${d.accounts?.length||ids.length} حساب`;
-    prog.innerHTML = `<div style="color:var(--grn)">جارٍ النشر في الخلفية… ستظهر النتائج في سجل النشاط</div>`;
+    s.textContent = `✅ بدأ النشر على ${d.total || ids.length} حساب`;
+    prog.innerHTML = `<div style="color:var(--grn)">جارٍ النشر في الخلفية…
+      <button onclick="cancelTweetMultiJob(${d.jobId})" style="margin-right:10px;font-size:11px;color:var(--red);background:rgba(240,72,90,.1);border:1px solid rgba(240,72,90,.2);border-radius:5px;padding:2px 8px;cursor:pointer">⏹ إيقاف</button>
+    </div>`;
   } catch(e) {
     s.textContent = '';
     toast(e.message, 'err');
@@ -2304,6 +2963,58 @@ function previewImages(input, previewId) {
     const url = URL.createObjectURL(file);
     preview.innerHTML += `<img src="${url}" style="width:52px;height:52px;object-fit:cover;border-radius:6px;border:1px solid var(--bd)">`;
   });
+}
+
+// ── الإبلاغ ──────────────────────────────────────────────────
+function onReportTypeChange(val) {
+  const label = document.getElementById('report-target-label');
+  const input = document.getElementById('report-target');
+  if (val === 'account') {
+    label.textContent = 'معرّف الحساب';
+    input.placeholder = '@username';
+  } else {
+    label.textContent = 'رابط التغريدة';
+    input.placeholder = 'https://x.com/user/status/123...';
+  }
+}
+
+async function doReport() {
+  const type   = document.getElementById('report-type').value;
+  const target = document.getElementById('report-target').value.trim();
+  const reason = document.getElementById('report-reason').value;
+  const ids    = getSelectedAccounts('rp-report');
+  const s      = document.getElementById('report-status');
+  const prog   = document.getElementById('report-progress');
+
+  if (!target) return toast('أدخل الهدف', 'warn');
+  if (!ids.length) return toast('اختر حسابات', 'warn');
+  if (!confirm(`إبلاغ عن ${type === 'account' ? 'الحساب' : 'التغريدة'} من ${ids.length} حساب؟`)) return;
+
+  s.textContent = `جارٍ الإبلاغ من ${ids.length} حساب…`;
+  prog.style.display = 'block';
+  prog.innerHTML = '';
+
+  try {
+    const endpoint = type === 'account' ? '/api/v1/actions/report-account' : '/api/v1/actions/report-tweet';
+    const body = type === 'account'
+      ? { accountIds: ids, targetHandle: target, reason }
+      : { accountIds: ids, tweetUrl: target, reason };
+
+    const d = await api(endpoint, { method: 'POST', body: JSON.stringify(body) });
+    s.textContent = `✅ بدأ الإبلاغ من ${d.total} حساب`;
+    prog.innerHTML = `<div style="color:var(--grn)">جارٍ الإبلاغ في الخلفية…</div>`;
+  } catch(e) {
+    s.textContent = '';
+    toast(e.message, 'err');
+  }
+}
+
+async function cancelTweetMultiJob(jobId) {
+  if (!jobId) return;
+  try {
+    await api(`/api/v1/actions/jobs/${jobId}/cancel`, { method: 'POST' });
+    toast('⏹ جارٍ إيقاف النشر…', 'ok');
+  } catch(e) { toast(e.message, 'err'); }
 }
 
 async function doSyncProfiles() {
@@ -2632,31 +3343,44 @@ async function loadRisks() {
     document.getElementById('nb-risks').textContent = d.total;
 
     const sm = d.summary;
-    document.getElementById('risk-summary').innerHTML = [
-      ['حرج','var(--red)',sm['حرج']||0],
-      ['عالي','var(--red)',sm['عالي']||0],
-      ['متوسط','var(--amb)',sm['متوسط']||0],
-      ['منخفض','var(--grn)',sm['منخفض']||0],
-    ].filter(([,, c]) => c>0).map(([l,c,count]) =>
-      `<div style="background:rgba(0,0,0,.25);border:1px solid ${c}40;border-radius:8px;padding:8px 14px;font-family:var(--m)">
-        <div style="font-size:20px;font-weight:700;color:${c}">${count}</div>
-        <div style="font-size:10px;color:var(--t2);text-transform:uppercase;letter-spacing:.06em">${l}</div>
-      </div>`).join('');
+    const levelMap = {
+      critical: { label:'حرج',    color:'var(--red)' },
+      high:     { label:'عالي',   color:'var(--red)' },
+      medium:   { label:'متوسط',  color:'var(--amb)' },
+      low:      { label:'منخفض',  color:'var(--grn)' },
+    };
+    document.getElementById('risk-summary').innerHTML = Object.entries(levelMap)
+      .filter(([k]) => sm[k] > 0)
+      .map(([k, {label, color}]) =>
+        `<div style="background:rgba(0,0,0,.25);border:1px solid ${color}40;border-radius:8px;padding:8px 14px;font-family:var(--m)">
+          <div style="font-size:20px;font-weight:700;color:${color}">${sm[k]}</div>
+          <div style="font-size:10px;color:var(--t2);text-transform:uppercase;letter-spacing:.06em">${label}</div>
+        </div>`).join('') || '<span style="font-size:12px;color:var(--grn)">✓ لا مخاطر</span>';
 
-    const lmap = { 'حرج':'rb-h','عالي':'rb-h','متوسط':'rb-m','منخفض':'rb-l' };
+    const lmap = { critical:'rb-h', high:'rb-h', medium:'rb-m', low:'rb-l' };
+    const typeLabel = {
+      account_suspended: 'حساب موقوف',
+      auth_required:     'يحتاج مصادقة',
+      daily_cap_warning: 'اقتراب من الحد اليومي',
+      inactive_account:  'حساب غير نشط',
+    };
     document.getElementById('risk-list').innerHTML = d.risks.length
       ? d.risks.map(r => `
         <div class="risk-row">
           <div class="risk-bar ${lmap[r.level]||'rb-m'}"></div>
           <div class="risk-info">
             <div class="risk-title">${r.description}</div>
-            <div class="risk-meta">${r.level} · @${r.account?.username||'—'} · ${new Date(r.createdAt).toLocaleString('ar-SA')}</div>
+            <div class="risk-meta">
+              <span class="pill ${r.level==='critical'||r.level==='high'?'p-r':r.level==='medium'?'p-a':'p-n'}" style="font-size:10px">${levelMap[r.level]?.label||r.level}</span>
+              <span style="color:var(--blu2)">@${r.account?.username||'—'}</span>
+              · ${new Date(r.createdAt).toLocaleString('ar-SA')}
+            </div>
           </div>
           ${r.resolved
             ? '<span class="pill p-g">تم الحل</span>'
-            : `<button class="btn btn-sm btn-g" onclick="resolveRisk('${r._id}')">حل</button>`}
+            : `<button class="btn btn-sm btn-g" onclick="resolveRisk('${r._id}')">✓ حل</button>`}
         </div>`).join('')
-      : '<div style="text-align:center;padding:30px;color:var(--grn);font-size:12px">✓ لا توجد مخاطر مفتوحة</div>';
+      : '<div style="text-align:center;padding:40px;color:var(--grn);font-size:13px">✓ لا توجد مخاطر مفتوحة</div>';
   } catch(e) { toast(e.message,'err'); }
 }
 

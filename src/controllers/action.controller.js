@@ -5,6 +5,29 @@ const ActionSvc      = require('../services/action.service');
 const AISvc          = require('../services/ai.service');
 const logger         = require('../utils/logger');
 
+// ── نظام Jobs ─────────────────────────────────────────────────
+const activeJobs = new Map();
+let jobCounter = 0;
+function createJob(type, accounts) {
+  const id = ++jobCounter;
+  activeJobs.set(id, { id, type, cancelled: false, accounts: accounts.map(a => a.username), startedAt: new Date() });
+  return id;
+}
+function cancelJob(id) {
+  const job = activeJobs.get(+id);
+  if (job) { job.cancelled = true; return true; }
+  return false;
+}
+function isCancelled(id) {
+  return activeJobs.get(id)?.cancelled === true;
+}
+function finishJob(id) {
+  activeJobs.delete(id);
+}
+function getActiveJobs() {
+  return [...activeJobs.values()];
+}
+
 const ActionCtrl = {
 
   // ── Single tweet ──────────────────────────────────────────────
@@ -25,42 +48,104 @@ const ActionCtrl = {
 
   // ── Multi-account tweet ───────────────────────────────────────
   // Post same text (or AI-varied text) to multiple accounts with delay
+  // ── Jobs ──────────────────────────────────────────────────────
+  listJobs(req, res) {
+    res.json({ jobs: getActiveJobs() });
+  },
+
+  cancelJob(req, res) {
+    const { jobId } = req.params;
+    const ok = cancelJob(jobId);
+    if (ok) {
+      logger.info(`[Jobs] Job ${jobId} cancelled by user`);
+      res.json({ cancelled: true, jobId });
+    } else {
+      res.status(404).json({ error: 'Job not found or already finished' });
+    }
+  },
+
+  cancelAllJobs(req, res) {
+    const jobs = getActiveJobs();
+    jobs.forEach(j => cancelJob(j.id));
+    logger.info(`[Jobs] All ${jobs.length} jobs cancelled`);
+    res.json({ cancelled: jobs.length });
+  },
+
+  async uploadMedia(req, res) {
+    const fs   = require('fs');
+    const path = require('path');
+    const dir  = path.join(process.cwd(), 'data', 'media');
+    fs.mkdirSync(dir, { recursive: true });
+    const paths = [];
+    for (const file of (req.files?.images || [])) {
+      const ext  = file.originalname.split('.').pop();
+      const dest = path.join(dir, `media_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`);
+      fs.writeFileSync(dest, file.buffer);
+      paths.push(dest);
+    }
+    res.json({ paths });
+  },
+
   async tweetMulti(req, res) {
-    const { accountIds, text, varyText = false, delayMinMs = 8000, delayMaxMs = 25000, topic, hashtags } = req.body;
+    const { accountIds, text, mode = 'ai', varyText = false, manualTexts = [], delayMinMs = 8000, delayMaxMs = 25000, topic, hashtags, mediaPaths = [], imageOrder = 'same' } = req.body;
     const actualTopic = topic || text;
-    if (!accountIds?.length || !text) return res.status(400).json({ error: 'accountIds[] and text required' });
+    if (!accountIds?.length) return res.status(400).json({ error: 'accountIds[] required' });
+    if (mode === 'ai' && !actualTopic) return res.status(400).json({ error: 'topic required for AI mode' });
+    if (mode === 'manual' && !manualTexts.length) return res.status(400).json({ error: 'manualTexts required for manual mode' });
+    if (mode === 'same' && !text) return res.status(400).json({ error: 'text required for same mode' });
 
     const accounts = await Account.find({ _id: { $in: accountIds }, isActive: true, status: 'نشط' });
     if (!accounts.length) return res.status(400).json({ error: 'No active accounts found' });
 
     // Respond immediately, run in background
-    res.json({ queued: true, accounts: accounts.map(a => a.username), total: accounts.length });
+    const jobId = createJob('tweet-multi', accounts);
+    res.json({ queued: true, jobId, accounts: accounts.map(a => a.username), total: accounts.length });
 
     // Background execution
     setImmediate(async () => {
-      const textFn = varyText
-        ? async (account) => {
-            try {
-              const sugs = await AISvc.suggestTweets({
-                niche: account.niche || 'general',
-                topic: actualTopic,
-                count: 1,
-              });
-              let generated = sugs[0]?.text || text;
-              if (hashtags && !generated.includes(hashtags.split(' ')[0])) {
-                generated = generated.trim() + '\n\n' + hashtags;
-              }
-              if (generated.length > 280) generated = generated.slice(0, 277) + '…';
-              return generated;
-            } catch { return text; }
+      // توزيع الصور — كل تغريدة تأخذ حتى 4 صور
+      const shuffled = arr => [...arr].sort(() => Math.random() - 0.5);
+      const mediaList = imageOrder === 'random' ? shuffled(mediaPaths) : mediaPaths;
+      const getMedia = (i) => {
+        if (!mediaList.length) return [];
+        if (imageOrder === 'same') {
+          // نفس المجموعة للكل (حتى 4 صور)
+          return mediaList.slice(0, 4);
+        }
+        if (imageOrder === 'sequential') {
+          // كل حساب يأخذ صورة مختلفة بالترتيب
+          return [mediaList[i % mediaList.length]];
+        }
+        // عشوائي — كل حساب يأخذ صورة عشوائية
+        return [mediaList[Math.floor(Math.random() * mediaList.length)]];
+      };
+
+      const textFn = async (account, i) => {
+        if (mode === 'manual') return manualTexts[i % manualTexts.length];
+        if (mode === 'same')   return text;
+        // AI mode
+        try {
+          const sugs = await AISvc.suggestTweets({ niche: account.niche || 'general', topic: actualTopic, count: 1 });
+          let generated = sugs[0]?.text || text || actualTopic;
+          if (hashtags && !generated.includes(hashtags.split(' ')[0])) {
+            generated = generated.trim() + '\n\n' + hashtags;
           }
-        : () => text;
+          if (generated.length > 280) generated = generated.slice(0, 277) + '…';
+          return generated;
+        } catch { return actualTopic; }
+      };
 
       for (let i = 0; i < accounts.length; i++) {
+        if (isCancelled(jobId)) {
+          logger.info(`[TweetMulti] job ${jobId} cancelled at ${i}/${accounts.length}`);
+          if (global.io) global.io.emit('job:cancelled', { jobId, type: 'tweet-multi', done: i });
+          break;
+        }
         const account = accounts[i];
         try {
-          const t = typeof textFn === 'function' ? await textFn(account) : text;
-          const r = await ActionSvc.tweet(account, { text: t });
+          const t = await textFn(account, i);
+          const mediaLocalPaths = getMedia(i);
+          const r = await ActionSvc.tweet(account, { text: t, mediaLocalPaths });
           await Content.create({
             account: account._id, text: t, status: 'منشور',
             publishedAt: new Date(), tweetId: r.tweetId, tweetUrl: r.tweetUrl,
@@ -77,12 +162,69 @@ const ActionCtrl = {
           await new Promise(r => setTimeout(r, delay));
         }
       }
-      if (global.io) global.io.emit('tweet:multi:done', { total: accounts.length });
+      finishJob(jobId);
+      if (global.io) global.io.emit('tweet:multi:done', { total: accounts.length, jobId });
       logger.info(`[TweetMulti] Completed for ${accounts.length} accounts`);
     });
   },
 
   // ── Follow ────────────────────────────────────────────────────
+  async reportAccount(req, res) {
+    const { accountIds, targetHandle, reason = 'spam' } = req.body;
+    if (!accountIds?.length || !targetHandle) return res.status(400).json({ error: 'accountIds[] and targetHandle required' });
+    const accounts = await Account.find({ _id: { $in: accountIds }, isActive: true });
+    if (!accounts.length) return res.status(400).json({ error: 'No active accounts found' });
+
+    const jobId = createJob('report-account', accounts);
+    res.json({ started: true, jobId, total: accounts.length });
+
+    setImmediate(async () => {
+      let done = 0;
+      for (let i = 0; i < accounts.length; i++) {
+        if (isCancelled(jobId)) break;
+        const account = accounts[i];
+        try {
+          await ActionSvc.reportAccount(account, targetHandle, reason);
+          if (global.io) global.io.emit('report:progress', { done: ++done, total: accounts.length, username: account.username, success: true });
+        } catch (e) {
+          logger.warn(`[Report] @${account.username}: ${e.message}`);
+          if (global.io) global.io.emit('report:progress', { done: ++done, total: accounts.length, username: account.username, error: e.message });
+        }
+        if (i < accounts.length - 1) await new Promise(r => setTimeout(r, 15000 + Math.random() * 10000));
+      }
+      finishJob(jobId);
+      if (global.io) global.io.emit('report:done', { total: accounts.length, done });
+    });
+  },
+
+  async reportTweet(req, res) {
+    const { accountIds, tweetUrl, reason = 'spam' } = req.body;
+    if (!accountIds?.length || !tweetUrl) return res.status(400).json({ error: 'accountIds[] and tweetUrl required' });
+    const accounts = await Account.find({ _id: { $in: accountIds }, isActive: true });
+    if (!accounts.length) return res.status(400).json({ error: 'No active accounts found' });
+
+    const jobId = createJob('report-tweet', accounts);
+    res.json({ started: true, jobId, total: accounts.length });
+
+    setImmediate(async () => {
+      let done = 0;
+      for (let i = 0; i < accounts.length; i++) {
+        if (isCancelled(jobId)) break;
+        const account = accounts[i];
+        try {
+          await ActionSvc.reportTweet(account, tweetUrl, reason);
+          if (global.io) global.io.emit('report:progress', { done: ++done, total: accounts.length, username: account.username, success: true });
+        } catch (e) {
+          logger.warn(`[Report] @${account.username}: ${e.message}`);
+          if (global.io) global.io.emit('report:progress', { done: ++done, total: accounts.length, username: account.username, error: e.message });
+        }
+        if (i < accounts.length - 1) await new Promise(r => setTimeout(r, 15000 + Math.random() * 10000));
+      }
+      finishJob(jobId);
+      if (global.io) global.io.emit('report:done', { total: accounts.length, done });
+    });
+  },
+
   async follow(req, res) {
     const { accountId, targetHandle } = req.body;
     if (!accountId || !targetHandle) return res.status(400).json({ error: 'accountId and targetHandle required' });

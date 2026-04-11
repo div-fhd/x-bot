@@ -56,18 +56,7 @@ const AuthSvc = {
     const creds = Vault.decryptAccount(account.credentials);
     const ctx   = await Browser.getContext(account);
 
-    // إذا الحساب نشط وعنده token — ثق به مباشرة بدون فتح أي صفحة
-    if (account.status === 'نشط' && creds.auth_token) {
-      logger.info(`[Auth] @${account.username} — trusted active ✓`);
-      return ctx;
-    }
-
-    // إذا عنده جلسة محفوظة — جرب مباشرة
-    const savedSession = await require('./vault.service').loadSession(account._id.toString());
-    if (savedSession) {
-      logger.info(`[Auth] @${account.username} — using saved session`);
-      return ctx;
-    }
+    // الخطوة 1: تجاوز API verify — غير موثوق على السيرفر
 
     const state = await this._classify(account, ctx);
     if (state === 'active') return ctx;
@@ -75,6 +64,12 @@ const AuthSvc = {
     logger.info(`[Auth] @${account.username} — state: ${state}, login required`);
 
     if (!creds.password) {
+      // حدّث حالة الحساب في قاعدة البيانات
+      const statusMap = { expired: 'يحتاج_مصادقة', checkpoint: 'نقطة_تحقق', suspended: 'موقوف', unknown: 'غير_نشط' };
+      account.status        = statusMap[state] || 'يحتاج_مصادقة';
+      account.lastCheckedAt = new Date();
+      await account.save().catch(() => {});
+      logger.warn(`[Auth] @${account.username} — status updated: ${account.status}`);
       throw new Error(`@${account.username}: no password and session is invalid (state: ${state})`);
     }
 
@@ -109,23 +104,10 @@ const AuthSvc = {
 
   // ── Health check ─────────────────────────────────────────────
   async checkHealth(account) {
+    // تأخير عشوائي لتفادي فتح متصفحات متعددة في نفس الوقت
+    await sleep(randInt(0, 2000));
     try {
       const creds = Vault.decryptAccount(account.credentials);
-
-      // إذا عنده auth_token — اعتبره نشط مباشرة
-      if (creds.auth_token) {
-        account.status        = 'نشط';
-        account.lastActiveAt  = new Date();
-        account.lastCheckedAt = new Date();
-        await account.save();
-        await log(account._id, 'session', 'health_check', 'success', { via: 'token' });
-        logger.info(`[Auth] Health check @${account.username}: نشط (token)`);
-        return { state: 'active', status: 'نشط' };
-      }
-
-      // بدون token — فحص عبر المتصفح
-      const ctx   = await Browser.getContext(account);
-      const state = await this._classify(account, ctx);
       const statusMap = {
         active:     'نشط',
         expired:    'يحتاج_مصادقة',
@@ -133,14 +115,19 @@ const AuthSvc = {
         suspended:  'موقوف',
         unknown:    'غير_نشط',
       };
+
+      // فحص عبر المتصفح فقط — الأكثر موثوقية على السيرفر
+
+      // ثانياً — فحص عبر المتصفح مع timeout أطول
+      const ctx   = await Browser.getContext(account);
+      const state = await this._classify(account, ctx);
       account.status        = statusMap[state] || 'غير_نشط';
       account.lastCheckedAt = new Date();
       if (state === 'active') account.lastActiveAt = new Date();
       await account.save();
-      await log(account._id, 'session', 'health_check', 'success', { via: 'browser', state });
+      await log(account._id, 'session', 'health_check', 'success', { state, method: 'browser' });
       logger.info(`[Auth] Health check @${account.username}: ${state} → ${account.status}`);
       return { state, status: account.status };
-
     } catch (e) {
       account.status     = 'غير_نشط';
       account.statusNote = e.message;
@@ -154,24 +141,39 @@ const AuthSvc = {
   async _classify(account, ctx) {
     const page = await ctx.newPage();
     try {
-      await page.goto(X_HOME, { waitUntil: 'domcontentloaded', timeout: 35_000 });
-      await sleep(1500, 2500);
+      await page.goto(X_HOME, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+      await sleep(2000, 3000);
+
+      // أغلق cookie popup إذا ظهر
+      await page.evaluate(() => {
+        const btn = [...document.querySelectorAll('button')]
+          .find(b => ['Aceitar','Accept','Recusar','Decline'].some(t => b.textContent.trim().startsWith(t)));
+        if (btn) btn.click();
+      }).catch(() => {});
 
       const url = page.url();
       if (url.includes('/login') || url.includes('/i/flow/login')) return 'expired';
-      if (url.includes('/account/access') || url.includes('/challenge'))  return 'checkpoint';
-      if (url.includes('/suspended'))                                       return 'suspended';
+      if (url.includes('/account/access') || url.includes('/challenge')) return 'checkpoint';
+      if (url.includes('/suspended')) return 'suspended';
 
-      const hasTimeline = await page.locator('[data-testid="primaryColumn"]').count().catch(() => 0);
-      const hasCompose  = await page.locator('[data-testid="SideNav_NewTweet_Button"]').count().catch(() => 0);
+      // انتظر أي علامة على إن الصفحة حملت
+      const ready = await Promise.race([
+        page.locator('[data-testid="primaryColumn"]').waitFor({ timeout: 15_000 }).then(() => true),
+        page.locator('[data-testid="SideNav_NewTweet_Button"]').waitFor({ timeout: 15_000 }).then(() => true),
+      ]).catch(() => false);
 
-      if (hasTimeline > 0 || hasCompose > 0) {
+      if (ready) {
         account.status        = 'نشط';
         account.lastActiveAt  = new Date();
         account.lastCheckedAt = new Date();
         await account.save().catch(() => {});
         return 'active';
       }
+
+      // تحقق مرة ثانية من الـ URL بعد التحميل
+      const url2 = page.url();
+      if (url2.includes('/login') || url2.includes('/i/flow')) return 'expired';
+
       return 'expired';
     } catch (e) {
       logger.warn(`[Auth] classify error @${account.username}: ${e.message}`);
@@ -349,6 +351,46 @@ const AuthSvc = {
     }
 
     return 'unknown';
+  },
+
+  // ── التحقق من صلاحية auth_token عبر API ─────────────────────
+  async _verifyViaAPI(creds) {
+    try {
+      const https  = require('https');
+      const BEARER = 'AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA';
+
+      // بناء الـ cookies
+      let cookie = `auth_token=${creds.auth_token}`;
+      if (creds.session_token) cookie += `; ct0=${creds.session_token}`;
+
+      const result = await new Promise((resolve, reject) => {
+        const req = https.request({
+          hostname: 'api.twitter.com',
+          path: '/1.1/account/verify_credentials.json?skip_status=true&include_entities=false',
+          method: 'GET',
+          headers: {
+            'Authorization':  `Bearer ${BEARER}`,
+            'Cookie':         cookie,
+            'x-csrf-token':   creds.session_token || creds.auth_token.slice(0, 32),
+            'User-Agent':     'TwitterAndroid/10.21.0-release.0 (310210000-r-0) ONEPLUS+A3010/9 (OnePlus;ONEPLUS+A3010;OnePlus;OnePlus3;0;;1;2016)',
+            'x-twitter-client-language': 'en',
+          },
+        }, (res) => {
+          let raw = '';
+          res.on('data', c => raw += c);
+          res.on('end', () => resolve({ status: res.statusCode, body: raw }));
+        });
+        req.on('error', reject);
+        req.setTimeout(12000, () => { req.destroy(); reject(new Error('timeout')); });
+        req.end();
+      });
+
+      logger.info(`[Auth] _verifyViaAPI @${creds.auth_token?.slice(0,8)}… → ${result.status} | ${result.body?.slice(0,80)}`);
+      return result.status === 200;
+    } catch (e) {
+      logger.warn(`[Auth] _verifyViaAPI error: ${e.message}`);
+      return false;
+    }
   },
 
   // ── Human-like typing ─────────────────────────────────────────

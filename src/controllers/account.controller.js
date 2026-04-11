@@ -11,11 +11,15 @@ const logger   = require('../utils/logger');
 const AccountCtrl = {
 
   async list(req, res) {
-    const { status, role, page = 1, limit = 50, q } = req.query;
+    const { status, role, page = 1, limit = 50, q, isPrimary } = req.query;
     const filter = { isActive: true };
-    if (status) filter.status = status;
-    if (role)   filter.role   = role;
-    if (q)      filter.username = { $regex: q, $options: 'i' };
+    if (status)    filter.status    = status;
+    if (role)      filter.role      = role;
+    if (q)         filter.username  = { $regex: q, $options: 'i' };
+    if (isPrimary) filter.isPrimary = true;
+    // تطبيق حد عدد الحسابات للمشترك
+    const maxAcc = req.user?.permissions?.maxAccounts;
+    const effectiveLimit = maxAcc ? Math.min(+limit, maxAcc) : +limit;
     const [accounts, total] = await Promise.all([
       Account.find(filter).select('-credentials').sort({ createdAt: -1 })
         .skip((page-1)*limit).limit(+limit).lean(),
@@ -25,8 +29,18 @@ const AccountCtrl = {
   },
 
   async get(req, res) {
-    const a = await Account.findById(req.params.id).select('-credentials').lean();
+    const a = await Account.findById(req.params.id).lean();
     if (!a) return res.status(404).json({ error: 'Account not found' });
+    // فك تشفير بيانات الدخول لعرضها في صفحة التعديل
+    try {
+      const creds = Vault.decryptAccount(a.credentials || {});
+      a.email         = creds.email         || '';
+      a.auth_token    = creds.auth_token     || '';
+      a.session_token = creds.session_token  || '';
+      a.totp_secret   = creds.totp_secret    || '';
+      a.mail_password = creds.mail_password  || '';
+    } catch {}
+    delete a.credentials;
     res.json(a);
   },
 
@@ -52,18 +66,29 @@ const AccountCtrl = {
   },
 
   async bulkImport(req, res) {
-    const { text, defaultNiche, defaultTimezone, defaultRole, stagger = 'staggered' } = req.body;
+    const { text, defaultNiche, defaultTimezone, defaultRole, stagger = 'staggered', updateExisting = false } = req.body;
     if (!text) return res.status(400).json({ error: 'text required' });
     const { valid, invalid, total } = parseBulkText(text);
     if (!valid.length) return res.status(400).json({ error: 'No valid accounts found', invalid, total });
 
-    const results = { created: [], skipped: [], errors: [] };
+    const results = { created: [], updated: [], skipped: [], errors: [] };
 
     for (let i = 0; i < valid.length; i++) {
       const row = valid[i];
       try {
-        if (await Account.exists({ username: row.username })) {
-          results.skipped.push(row.username); continue;
+        const existing = await Account.findOne({ username: row.username });
+        if (existing) {
+          if (!updateExisting) { results.skipped.push(row.username); continue; }
+          // تحديث بيانات الحساب الموجود
+          const creds = Vault.encryptAccount(row);
+          existing.credentials = creds;
+          if (row.proxy_url)    existing.network = { ...existing.network, proxyUrl: row.proxy_url };
+          if (defaultRole)      existing.role    = defaultRole;
+          if (defaultNiche)     existing.niche   = defaultNiche;
+          await existing.save();
+          results.updated.push(row.username);
+          logger.info(`[Import] Updated: @${row.username}`);
+          continue;
         }
         const creds = Vault.encryptAccount(row);
         const account = await Account.create({
@@ -76,18 +101,8 @@ const AccountCtrl = {
           network: { proxyUrl: row.proxy_url || null, timezone: defaultTimezone || 'America/New_York' },
         });
 
-        // Staggered session check — do NOT open all browsers at once
-        if (stagger !== 'manual') {
-          const delayMs = stagger === 'safe' ? i * 120_000 : i * 30_000;
-          setTimeout(async () => {
-            try {
-              const acc = await Account.findById(account._id);
-              if (acc) await AuthSvc.checkHealth(acc);
-            } catch (e) {
-              logger.warn(`[Import] Health check @${row.username}: ${e.message}`);
-            }
-          }, delayMs + 3000);
-        }
+        // الفحص التلقائي معطّل — استخدم زر "فحص المحدد" يدوياً
+        // if (stagger !== 'manual') { ... }
 
         results.created.push(row.username);
       } catch (e) {
@@ -104,7 +119,7 @@ const AccountCtrl = {
   },
 
   async update(req, res) {
-    const allowed = ['label','niche','tags','role','network','features','dailyCaps','notes','status'];
+    const allowed = ['label','niche','tags','role','network','features','dailyCaps','notes','status','isPrimary'];
     const updates = {};
     for (const k of allowed) if (req.body[k] !== undefined) updates[k] = req.body[k];
     const a = await Account.findByIdAndUpdate(req.params.id, { $set: updates }, { new: true }).select('-credentials');
@@ -123,18 +138,29 @@ const AccountCtrl = {
       auth_token:    req.body.auth_token    || current.auth_token,
       totp_secret:   req.body.totp_secret   || current.totp_secret,
     });
-    await account.save();
-    await Vault.deleteSession(account._id.toString()); // invalidate cached session
-    account.status = 'يحتاج_مصادقة';
-    account.statusNote = 'Credentials updated';
+    // إذا تغير الـ auth_token → أعد المصادقة، وإلا احتفظ بالحالة الحالية
+    const tokenChanged = req.body.auth_token && req.body.auth_token !== current.auth_token;
+    if (tokenChanged) {
+      await Vault.deleteSession(account._id.toString());
+      account.status     = 'يحتاج_مصادقة';
+      account.statusNote = 'Credentials updated';
+    }
     await account.save();
     logger.info(`[Account] Credentials updated: @${account.username}`);
     res.json({ success: true });
   },
 
   async remove(req, res) {
-    await Account.findByIdAndUpdate(req.params.id, { isActive: false });
-    await Vault.deleteSession(req.params.id);
+    const hard = req.query.hard === 'true';
+    if (hard) {
+      await Account.findByIdAndDelete(req.params.id);
+      await Vault.deleteSession(req.params.id);
+      logger.info(`[Account] Deleted permanently: ${req.params.id}`);
+    } else {
+      await Account.findByIdAndUpdate(req.params.id, { isActive: false });
+      await Vault.deleteSession(req.params.id);
+      logger.info(`[Account] Hidden: ${req.params.id}`);
+    }
     res.json({ success: true });
   },
 
@@ -166,15 +192,65 @@ const AccountCtrl = {
     res.json(result);
   },
 
+  async suggestBio(req, res) {
+    const account = await Account.findById(req.params.id).select('-credentials').lean();
+    if (!account) return res.status(404).json({ error: 'Account not found' });
+    const result = await AISvc.suggestBio({
+      niche:    account.niche    || req.body.niche    || 'general',
+      name:     account.profile?.displayName || account.username,
+      keywords: req.body.keywords || [],
+    });
+    res.json(result);
+  },
+
+  async stats(req, res) {
+    const [total, byStatus, byRole] = await Promise.all([
+      Account.countDocuments({ isActive: true }),
+      Account.aggregate([{ $match: { isActive:true } }, { $group: { _id:'$status', count:{ $sum:1 } } }]),
+      Account.aggregate([{ $match: { isActive:true } }, { $group: { _id:'$role',   count:{ $sum:1 } } }]),
+    ]);
+    res.json({
+      total,
+      byStatus: byStatus.reduce((a,s)=>{ a[s._id]=s.count; return a; }, {}),
+      byRole:   byRole.reduce((a,r)=>{ a[r._id]=r.count; return a; }, {}),
+    });
+  },
+
+  // ── رفع الصور ──────────────────────────────────────────────────
+  async bulkCheck(req, res) {
+    const { accountIds } = req.body;
+    const query = accountIds?.length
+      ? { _id: { $in: accountIds }, isActive: true }
+      : { isActive: true };
+    const accounts = await Account.find(query);
+    if (!accounts.length) return res.json({ total: 0 });
+    res.json({ started: true, total: accounts.length });
+    setImmediate(async () => {
+      let done = 0;
+      for (const account of accounts) {
+        try {
+          await AuthSvc.checkHealth(account);
+        } catch(e) {
+          logger.warn(`[BulkCheck] @${account.username}: ${e.message}`);
+        }
+        done++;
+        if (global.io) global.io.emit('account:check:progress', {
+          done, total: accounts.length, username: account.username, status: account.status,
+        });
+        if (done < accounts.length) await new Promise(r => setTimeout(r, 5000));
+      }
+      if (global.io) global.io.emit('account:check:done', { total: accounts.length });
+      logger.info(`[BulkCheck] اكتمل: ${done}/${accounts.length}`);
+    });
+  },
+
   async uploadImages(req, res) {
     const fs   = require('fs');
     const path = require('path');
     const dir  = path.join(process.cwd(), 'data', 'images');
     fs.mkdirSync(dir, { recursive: true });
-
     const avatarPaths = [];
     const bannerPaths = [];
-
     const files = req.files || {};
     for (const file of (files.avatars || [])) {
       const dest = path.join(dir, `avatar_${Date.now()}_${file.originalname}`);
@@ -189,6 +265,7 @@ const AccountCtrl = {
     res.json({ avatarPaths, bannerPaths });
   },
 
+  // ── مزامنة بروفايل جماعي ──────────────────────────────────────
   async bulkSyncProfiles(req, res) {
     const { accountIds } = req.body;
     const query = accountIds?.length
@@ -215,6 +292,7 @@ const AccountCtrl = {
     });
   },
 
+  // ── تحديث بروفايل جماعي ──────────────────────────────────────
   async bulkUpdateProfiles(req, res) {
     const { accountIds, updates = {}, namesList = [], locationsList = [], useAI = false, niche, avatarPaths = [], bannerPaths = [], imageOrder = 'sequential' } = req.body;
     const query = accountIds?.length
@@ -232,7 +310,6 @@ const AccountCtrl = {
         const account = accounts[i];
         try {
           let finalUpdates = { ...updates };
-          // الاسم بالترتيب — إذا في قائمة أسماء تأخذ كل حساب اسمه
           if (namesList.length > 0)     finalUpdates.displayName = namesList[i % namesList.length];
           if (locationsList.length > 0) finalUpdates.location    = locationsList[i % locationsList.length];
           if (avatars.length > 0) finalUpdates.avatarPath = avatars[i % avatars.length];
@@ -256,30 +333,6 @@ const AccountCtrl = {
       if (global.io) global.io.emit('profile:update:done', { total: accounts.length, done });
     });
   },
-
-  async suggestBio(req, res) {
-    const account = await Account.findById(req.params.id).select('-credentials').lean();
-    if (!account) return res.status(404).json({ error: 'Account not found' });
-    const result = await AISvc.suggestBio({
-      niche:    account.niche    || req.body.niche    || 'general',
-      name:     account.profile?.displayName || account.username,
-      keywords: req.body.keywords || [],
-    });
-    res.json(result);
-  },
-
-  async stats(req, res) {
-    const [total, byStatus, byRole] = await Promise.all([
-      Account.countDocuments({ isActive: true }),
-      Account.aggregate([{ $match: { isActive:true } }, { $group: { _id:'$status', count:{ $sum:1 } } }]),
-      Account.aggregate([{ $match: { isActive:true } }, { $group: { _id:'$role',   count:{ $sum:1 } } }]),
-    ]);
-    res.json({
-      total,
-      byStatus: byStatus.reduce((a,s)=>{ a[s._id]=s.count; return a; }, {}),
-      byRole:   byRole.reduce((a,r)=>{ a[r._id]=r.count; return a; }, {}),
-    });
-  },
 };
 
-module.exports = AccountCtrl; 
+module.exports = AccountCtrl;

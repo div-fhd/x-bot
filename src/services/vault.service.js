@@ -29,21 +29,23 @@ const Vault = {
 
   encryptAccount(raw) {
     return {
-      passwordEnc:    this.enc(raw.password),
-      email:          raw.email         || null,
-      sessionTokenEnc:raw.session_token ? this.enc(raw.session_token) : null,
-      authTokenEnc:   raw.auth_token    ? this.enc(raw.auth_token)    : null,
-      totpSecretEnc:  raw.totp_secret   ? this.enc(raw.totp_secret)   : null,
+      passwordEnc:     this.enc(raw.password),
+      email:           raw.email          || null,
+      sessionTokenEnc: raw.session_token  ? this.enc(raw.session_token)  : null,
+      authTokenEnc:    raw.auth_token     ? this.enc(raw.auth_token)     : null,
+      totpSecretEnc:   raw.totp_secret    ? this.enc(raw.totp_secret)    : null,
+      mailPasswordEnc: raw.mail_password  ? this.enc(raw.mail_password)  : null,
     };
   },
 
   decryptAccount(stored) {
     return {
       password:      this.dec(stored.passwordEnc),
-      email:         stored.email          || null,
-      session_token: stored.sessionTokenEnc ? this.dec(stored.sessionTokenEnc) : null,
-      auth_token:    stored.authTokenEnc    ? this.dec(stored.authTokenEnc)    : null,
-      totp_secret:   stored.totpSecretEnc   ? this.dec(stored.totpSecretEnc)   : null,
+      email:         stored.email              || null,
+      session_token: stored.sessionTokenEnc    ? this.dec(stored.sessionTokenEnc)    : null,
+      auth_token:    stored.authTokenEnc       ? this.dec(stored.authTokenEnc)       : null,
+      totp_secret:   stored.totpSecretEnc      ? this.dec(stored.totpSecretEnc)      : null,
+      mail_password: stored.mailPasswordEnc    ? this.dec(stored.mailPasswordEnc)    : null,
     };
   },
 
