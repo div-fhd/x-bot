@@ -66,6 +66,12 @@ router.post('/login', async (req, res) => {
           permissions: result.data.permissions,
           daysLeft:    result.data.daysLeft,
         }, cfg.appSecret, { expiresIn: '24h' });
+        // تحقق إن المشترك يدخل على السيرفر الصحيح
+        const allowedEmail = process.env.SUBSCRIBER_EMAIL;
+        if (allowedEmail && email.toLowerCase() !== allowedEmail.toLowerCase()) {
+          return res.status(403).json({ error: 'هذا الحساب غير مخصص لهذا السيرفر' });
+        }
+
         return res.json({
           token,
           user: { id: subscriberId, email, role: 'subscriber', name: result.data.name, daysLeft: result.data.daysLeft, permissions: result.data.permissions },
