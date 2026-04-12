@@ -10,13 +10,44 @@ const activeJobs = new Map();
 let jobCounter = 0;
 function createJob(type, accounts) {
   const id = ++jobCounter;
-  activeJobs.set(id, { id, type, cancelled: false, accounts: accounts.map(a => a.username), startedAt: new Date() });
+  activeJobs.set(id, {
+    id, type, cancelled: false,
+    accounts: accounts.map(a => a.username),
+    total: accounts.length,
+    done: 0,
+    startedAt: new Date(),
+  });
   return id;
+}
+
+function updateJobProgress(id, done) {
+  const job = activeJobs.get(id);
+  if (job) job.done = done;
+}
+
+function getJobETA(id) {
+  const job = activeJobs.get(id);
+  if (!job || !job.done || !job.total) return null;
+  const elapsed = (Date.now() - new Date(job.startedAt)) / 1000;
+  const rate    = job.done / elapsed;
+  const remaining = (job.total - job.done) / rate;
+  return Math.round(remaining);
 }
 function cancelJob(id) {
   const job = activeJobs.get(+id);
-  if (job) { job.cancelled = true; return true; }
-  return false;
+  if (!job) return false;
+  job.cancelled = true;
+  // أغلق browser context الحساب الحالي فوراً
+  const Browser = require('./src/services/browser.service');
+  if (job.currentAccountId) {
+    Browser.closeContext(job.currentAccountId).catch(() => {});
+  }
+  return true;
+}
+
+function setJobCurrentAccount(id, accountId) {
+  const job = activeJobs.get(id);
+  if (job) job.currentAccountId = accountId;
 }
 function isCancelled(id) {
   return activeJobs.get(id)?.cancelled === true;
@@ -142,6 +173,7 @@ const ActionCtrl = {
           break;
         }
         const account = accounts[i];
+        setJobCurrentAccount(jobId, account._id.toString());
         try {
           const t = await textFn(account, i);
           const mediaLocalPaths = getMedia(i);
@@ -157,9 +189,18 @@ const ActionCtrl = {
           logger.error(`[TweetMulti] @${account.username}: ${e.message}`);
           if (global.io) global.io.emit('tweet:multi:progress', { username: account.username, done: i+1, total: accounts.length, success: false, error: e.message });
         }
+        updateJobProgress(jobId, i + 1);
+        const eta = getJobETA(jobId);
+        if (global.io) global.io.emit('job:progress', { jobId, done: i+1, total: accounts.length, eta });
+
         if (i < accounts.length - 1) {
           const delay = delayMinMs + Math.random() * (delayMaxMs - delayMinMs);
-          await new Promise(r => setTimeout(r, delay));
+          // انتظر مع فحص الإلغاء كل ثانية
+          const steps = Math.ceil(delay / 1000);
+          for (let s = 0; s < steps; s++) {
+            if (isCancelled(jobId)) break;
+            await new Promise(r => setTimeout(r, Math.min(1000, delay - s * 1000)));
+          }
         }
       }
       finishJob(jobId);
@@ -185,7 +226,8 @@ const ActionCtrl = {
         const account = accounts[i];
         try {
           await ActionSvc.reportAccount(account, targetHandle, reason);
-          if (global.io) global.io.emit('report:progress', { done: ++done, total: accounts.length, username: account.username, success: true });
+          updateJobProgress(jobId, ++done);
+          if (global.io) global.io.emit('report:progress', { done, total: accounts.length, username: account.username, success: true });
         } catch (e) {
           logger.warn(`[Report] @${account.username}: ${e.message}`);
           if (global.io) global.io.emit('report:progress', { done: ++done, total: accounts.length, username: account.username, error: e.message });
@@ -287,6 +329,100 @@ const ActionCtrl = {
 
     const result = await ActionSvc.reply(account, tweetId, replyText);
     res.json({ ...result, replyText });
+  },
+
+  // ── Follow Multi ──────────────────────────────────────────────
+  async followMulti(req, res) {
+    const { accountIds, targetHandle, delayMinMs = 20000, delayMaxMs = 40000 } = req.body;
+    if (!accountIds?.length || !targetHandle) return res.status(400).json({ error: 'accountIds[] and targetHandle required' });
+    const accounts = await Account.find({ _id: { $in: accountIds }, isActive: true });
+    if (!accounts.length) return res.status(400).json({ error: 'No active accounts' });
+    const jobId = createJob('follow', accounts);
+    res.json({ started: true, jobId, total: accounts.length });
+    setImmediate(async () => {
+      for (let i = 0; i < accounts.length; i++) {
+        if (isCancelled(jobId)) { if (global.io) global.io.emit('job:cancelled', { jobId }); break; }
+        setJobCurrentAccount(jobId, accounts[i]._id.toString());
+        try {
+          await ActionSvc.follow(accounts[i], targetHandle);
+          if (global.io) global.io.emit('job:progress', { jobId, done: i+1, total: accounts.length, username: accounts[i].username, success: true });
+        } catch(e) {
+          if (global.io) global.io.emit('job:progress', { jobId, done: i+1, total: accounts.length, username: accounts[i].username, success: false });
+        }
+        updateJobProgress(jobId, i+1);
+        if (i < accounts.length - 1) {
+          const delay = delayMinMs + Math.random() * (delayMaxMs - delayMinMs);
+          for (let s = 0; s < Math.ceil(delay/1000); s++) {
+            if (isCancelled(jobId)) break;
+            await new Promise(r => setTimeout(r, Math.min(1000, delay - s*1000)));
+          }
+        }
+      }
+      finishJob(jobId);
+      if (global.io) global.io.emit('job:done', { jobId, type: 'follow' });
+    });
+  },
+
+  // ── Like Multi ────────────────────────────────────────────────
+  async likeMulti(req, res) {
+    const { accountIds, tweetId, delayMinMs = 15000, delayMaxMs = 30000 } = req.body;
+    if (!accountIds?.length || !tweetId) return res.status(400).json({ error: 'accountIds[] and tweetId required' });
+    const accounts = await Account.find({ _id: { $in: accountIds }, isActive: true });
+    if (!accounts.length) return res.status(400).json({ error: 'No active accounts' });
+    const jobId = createJob('like', accounts);
+    res.json({ started: true, jobId, total: accounts.length });
+    setImmediate(async () => {
+      for (let i = 0; i < accounts.length; i++) {
+        if (isCancelled(jobId)) { if (global.io) global.io.emit('job:cancelled', { jobId }); break; }
+        try {
+          await ActionSvc.like(accounts[i], tweetId);
+          if (global.io) global.io.emit('job:progress', { jobId, done: i+1, total: accounts.length, username: accounts[i].username, success: true });
+        } catch(e) {
+          if (global.io) global.io.emit('job:progress', { jobId, done: i+1, total: accounts.length, username: accounts[i].username, success: false });
+        }
+        updateJobProgress(jobId, i+1);
+        if (i < accounts.length - 1) {
+          const delay = delayMinMs + Math.random() * (delayMaxMs - delayMinMs);
+          for (let s = 0; s < Math.ceil(delay/1000); s++) {
+            if (isCancelled(jobId)) break;
+            await new Promise(r => setTimeout(r, Math.min(1000, delay - s*1000)));
+          }
+        }
+      }
+      finishJob(jobId);
+      if (global.io) global.io.emit('job:done', { jobId, type: 'like' });
+    });
+  },
+
+  // ── Retweet Multi ─────────────────────────────────────────────
+  async retweetMulti(req, res) {
+    const { accountIds, tweetId, delayMinMs = 15000, delayMaxMs = 30000 } = req.body;
+    if (!accountIds?.length || !tweetId) return res.status(400).json({ error: 'accountIds[] and tweetId required' });
+    const accounts = await Account.find({ _id: { $in: accountIds }, isActive: true });
+    if (!accounts.length) return res.status(400).json({ error: 'No active accounts' });
+    const jobId = createJob('retweet', accounts);
+    res.json({ started: true, jobId, total: accounts.length });
+    setImmediate(async () => {
+      for (let i = 0; i < accounts.length; i++) {
+        if (isCancelled(jobId)) { if (global.io) global.io.emit('job:cancelled', { jobId }); break; }
+        try {
+          await ActionSvc.retweet(accounts[i], tweetId);
+          if (global.io) global.io.emit('job:progress', { jobId, done: i+1, total: accounts.length, username: accounts[i].username, success: true });
+        } catch(e) {
+          if (global.io) global.io.emit('job:progress', { jobId, done: i+1, total: accounts.length, username: accounts[i].username, success: false });
+        }
+        updateJobProgress(jobId, i+1);
+        if (i < accounts.length - 1) {
+          const delay = delayMinMs + Math.random() * (delayMaxMs - delayMinMs);
+          for (let s = 0; s < Math.ceil(delay/1000); s++) {
+            if (isCancelled(jobId)) break;
+            await new Promise(r => setTimeout(r, Math.min(1000, delay - s*1000)));
+          }
+        }
+      }
+      finishJob(jobId);
+      if (global.io) global.io.emit('job:done', { jobId, type: 'retweet' });
+    });
   },
 
   // ── Search ────────────────────────────────────────────────────

@@ -899,6 +899,11 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
     </button>
 
     <div class="nav-sec">المراقبة</div>
+    <button class="nav-btn" onclick="nav('jobs',this)">
+      <svg class="nav-ico" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.4"/><path d="M8 5v3.5l2.5 1.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+      العمليات النشطة
+      <span class="nbadge nb-a" id="nb-jobs" style="display:none">0</span>
+    </button>
     <button class="nav-btn" onclick="nav('risks',this)">
       <svg class="nav-ico" viewBox="0 0 16 16" fill="none"><path d="M8 1.5L14.5 13H1.5L8 1.5z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M8 6.5v3M8 11v.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
       المخاطر
@@ -927,10 +932,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
     <div class="live-pill"><div class="live-dot"></div>مباشر</div>
     <div id="license-pill" style="display:none;align-items:center;gap:5px;border-radius:20px;padding:3px 10px;font-size:10.5px;font-weight:600;font-family:var(--m)"></div>
     <span class="tb-clock" id="clk">—</span>
-    <div id="jobs-indicator" style="display:none;align-items:center;gap:8px;background:rgba(245,166,35,.08);border:1px solid rgba(245,166,35,.2);border-radius:8px;padding:4px 12px">
+    <div id="jobs-indicator" style="display:none;align-items:center;gap:6px;background:rgba(245,166,35,.08);border:1px solid rgba(245,166,35,.2);border-radius:8px;padding:4px 12px;cursor:pointer" onclick="nav('jobs')">
       <div style="width:6px;height:6px;border-radius:50%;background:var(--amb);animation:blink 1s infinite"></div>
       <span id="jobs-count" style="font-size:11.5px;font-weight:600;color:var(--amb);font-family:var(--m)">عملية جارية</span>
-      <button onclick="stopAllJobs()" style="font-size:11px;color:var(--red);background:rgba(240,72,90,.1);border:1px solid rgba(240,72,90,.2);border-radius:5px;padding:2px 8px;cursor:pointer;font-family:var(--r)">⏹ إيقاف الكل</button>
     </div>
     <button class="btn btn-sm" onclick="refreshCurrent()" style="gap:5px">
       <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2 8a6 6 0 1 0 1.5-3.9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M2 4v4h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -1215,21 +1219,28 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
           </div>
         </div>
 
-        <!-- صور -->
-        <div class="form-grid" style="margin-bottom:12px">
-          <div class="field">
-            <label>صور مرفقة <small style="color:var(--t2);font-weight:400">— اختياري، حتى 4 صور لكل تغريدة</small></label>
-            <input id="tm-images" type="file" accept="image/*,video/mp4" multiple onchange="previewTweetImages(this)">
-            <div id="tm-images-preview" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px"></div>
+        <!-- صور/فيديو -->
+        <div style="border:1px solid var(--bd);border-radius:10px;padding:14px;margin-bottom:12px;background:var(--s3)">
+          <div style="font-size:10.5px;font-weight:700;color:var(--t2);letter-spacing:.08em;text-transform:uppercase;margin-bottom:12px">مرفقات</div>
+          <div class="form-grid">
+            <div class="field">
+              <label>صور <small style="color:var(--t2);font-weight:400">— يمكن اختيار أكثر من صورة</small></label>
+              <input id="tm-images" type="file" accept="image/jpeg,image/png,image/gif,image/webp" multiple onchange="previewMedia(this,'tm-img-preview')">
+              <div id="tm-img-preview" style="display:flex;gap:5px;flex-wrap:wrap;margin-top:6px"></div>
+            </div>
+            <div class="field">
+              <label>فيديو <small style="color:var(--t2);font-weight:400">— ملف واحد</small></label>
+              <input id="tm-video" type="file" accept="video/mp4,video/mov,video/avi" onchange="previewMedia(this,'tm-vid-preview')">
+              <div id="tm-vid-preview" style="margin-top:6px"></div>
+            </div>
           </div>
-          <div class="field">
-            <label>توزيع الصور</label>
+          <div class="field" style="margin-top:8px">
+            <label>توزيع على الحسابات</label>
             <select id="tm-img-order">
-              <option value="same">نفس المجموعة للكل</option>
-              <option value="sequential">بالترتيب — كل حساب صورة مختلفة</option>
-              <option value="random">عشوائي — كل حساب يأخذ صورة عشوائية</option>
+              <option value="same">نفس الملفات للكل</option>
+              <option value="sequential">بالترتيب — كل حساب مجموعة مختلفة</option>
+              <option value="random">عشوائي</option>
             </select>
-            <div style="font-size:11px;color:var(--t2);margin-top:4px">كل تغريدة تقبل حتى 4 صور — إذا رفعت أكثر تُوزَّع على الحسابات</div>
           </div>
         </div>
 
@@ -1243,6 +1254,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
           </div>
           <div class="field"><label>التأخير بين الحسابات</label>
             <select id="tm-delay">
+              <option value="0,0">بدون تأخير</option>
               <option value="15000,30000">15-30 ثانية (عادي)</option>
               <option value="30000,60000">30-60 ثانية (آمن)</option>
               <option value="60000,120000">1-2 دقيقة (محافظ)</option>
@@ -1266,20 +1278,19 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
         <div class="form-grid">
           <div class="field fg-full"><label>الحساب المستهدف</label><input id="fl-target" type="text" placeholder="@username" style="direction:ltr"></div>
         </div>
-        <div class="field" style="margin-bottom:10px">
-          <label>الحسابات المُنفِّذة <small style="color:var(--t2)">(Ctrl+Click لاختيار متعدد)</small></label>
-          <select id="fl-acc" multiple style="height:120px;font-family:var(--m)"></select>
-        </div>
-        <div class="field" style="margin-bottom:10px">
-          <label>التأخير بين الحسابات</label>
-          <select id="fl-delay">
-            <option value="10000,20000">10-20 ثانية</option>
-            <option value="20000,40000">20-40 ثانية (موصى)</option>
-            <option value="60000,120000">1-2 دقيقة (محافظ)</option>
-          </select>
+        <div id="fl-acc-container"></div>
+        <div class="form-grid" style="margin-bottom:12px">
+          <div class="field">
+            <label>التأخير بين الحسابات</label>
+            <select id="fl-delay">
+              <option value="0,0">بدون تأخير</option>
+              <option value="10000,20000">10-20 ثانية</option>
+              <option value="20000,40000" selected>20-40 ثانية (موصى)</option>
+              <option value="60000,120000">1-2 دقيقة (محافظ)</option>
+            </select>
+          </div>
         </div>
         <div style="display:flex;gap:10px;align-items:center">
-          <button class="btn" onclick="selectAllAccounts('fl-acc')">تحديد الكل</button>
           <button class="btn btn-p" onclick="doFollowMulti()">متابعة</button>
           <span id="fl-status" style="font-size:12px;color:var(--t2)"></span>
         </div>
@@ -1296,6 +1307,17 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
         <div class="field" style="margin-bottom:10px">
           <div id="lk-acc-container"></div>
         </div>
+        <div class="form-grid" style="margin-bottom:12px">
+          <div class="field">
+            <label>التأخير بين الحسابات</label>
+            <select id="lk-delay">
+              <option value="0,0">بدون تأخير</option>
+              <option value="5000,10000">5-10 ثانية</option>
+              <option value="15000,30000" selected>15-30 ثانية (موصى به)</option>
+              <option value="30000,60000">30-60 ثانية (آمن)</option>
+            </select>
+          </div>
+        </div>
         <div style="display:flex;gap:10px;align-items:center">
           <button class="btn btn-p" onclick="doLikeMulti()">إعجاب</button>
           <span id="lk-status" style="font-size:12px;color:var(--t2)"></span>
@@ -1310,12 +1332,19 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
         <div class="form-grid">
           <div class="field fg-full"><label>رابط أو ID التغريدة</label><input id="rp-tweet" type="text" placeholder="https://x.com/user/status/123456" style="direction:ltr"></div>
         </div>
-        <div class="field" style="margin-bottom:10px">
-          <label>الحسابات المُنفِّذة <small style="color:var(--t2)">(Ctrl+Click لاختيار متعدد)</small></label>
-          <select id="rp-acc" multiple style="height:120px;font-family:var(--m)"></select>
+        <div id="rp-acc-container"></div>
+        <div class="form-grid" style="margin-bottom:12px">
+          <div class="field">
+            <label>التأخير بين الحسابات</label>
+            <select id="rp-delay">
+              <option value="0,0">بدون تأخير</option>
+              <option value="5000,10000">5-10 ثانية</option>
+              <option value="15000,30000" selected>15-30 ثانية (موصى به)</option>
+              <option value="30000,60000">30-60 ثانية (آمن)</option>
+            </select>
+          </div>
         </div>
         <div style="display:flex;gap:10px;align-items:center">
-          <button class="btn" onclick="selectAllAccounts('rp-acc')">تحديد الكل</button>
           <button class="btn btn-p" onclick="doRepostMulti()">إعادة تغريد</button>
           <span id="rp-status" style="font-size:12px;color:var(--t2)"></span>
         </div>
@@ -1346,6 +1375,24 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
         </div>
         <div class="field" style="margin-bottom:10px">
           <div id="ry-acc-container"></div>
+        </div>
+        <div class="form-grid" style="margin-bottom:12px">
+          <div class="field">
+            <label>التأخير بين الحسابات</label>
+            <select id="ry-delay">
+              <option value="0,0">بدون تأخير</option>
+              <option value="5000,10000">5-10 ثانية</option>
+              <option value="15000,30000" selected>15-30 ثانية (موصى به)</option>
+              <option value="30000,60000">30-60 ثانية (آمن)</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-grid" style="margin-bottom:12px">
+          <div class="field">
+            <label>صورة/فيديو <small style="color:var(--t2);font-weight:400">اختياري</small></label>
+            <input id="ry-media" type="file" accept="image/*,video/mp4" onchange="previewMedia(this,'ry-media-preview')">
+            <div id="ry-media-preview" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px"></div>
+          </div>
         </div>
         <div style="display:flex;gap:10px;align-items:center">
           <button class="btn btn-p" onclick="doReplyMulti()">إرسال الرد</button>
@@ -1607,6 +1654,18 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   </div>
 
   <!-- ════════════ سجل النشاط ════════════ -->
+  <!-- ════════════ العمليات النشطة ════════════ -->
+  <div class="panel" id="p-jobs">
+    <div style="display:flex;gap:10px;margin-bottom:16px;align-items:center">
+      <button class="btn btn-sm" onclick="loadJobs()">↻ تحديث</button>
+      <button class="btn btn-sm btn-r" onclick="stopAllJobs()">⏹ إيقاف الكل</button>
+      <span id="jobs-summary" style="font-size:12px;color:var(--t2);margin-right:auto"></span>
+    </div>
+    <div id="jobs-panel-list">
+      <div style="text-align:center;padding:30px;color:var(--t2)">لا توجد عمليات نشطة</div>
+    </div>
+  </div>
+
   <div class="panel" id="p-audit">
     <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center">
       <select id="log-cat" onchange="loadAudit()" style="width:150px">
@@ -1812,6 +1871,9 @@ function init() {
       if (badge) badge.textContent = (+badge.textContent || 0) + 1;
       if (currentPanel === 'risks') loadRisks();
     });
+    socket.on('job:progress', d => {
+      if (currentPanel === 'jobs') loadJobs();
+    });
     socket.on('job:cancelled', d => {
       toast(`⏹ أُوقف النشر (${d.done} حساب تم)`, 'ok');
       document.getElementById('tm-status').textContent = '';
@@ -1916,7 +1978,7 @@ function logout() {
 /* ═══════════════════════════════════════════════════════════════
    التنقل
 ═══════════════════════════════════════════════════════════════ */
-const titles = { overview:'نظرة عامة', accounts:'الحسابات', import:'استيراد جماعي', actions:'إجراءات يدوية', content:'المحتوى', schedule:'الجدولة', ai:'اقتراحات الذكاء الاصطناعي', risks:'المخاطر', profiles:'البروفايلات', audit:'سجل النشاط' };
+const titles = { overview:'نظرة عامة', jobs:'العمليات النشطة', accounts:'الحسابات', import:'استيراد جماعي', actions:'إجراءات يدوية', content:'المحتوى', schedule:'الجدولة', ai:'اقتراحات الذكاء الاصطناعي', risks:'المخاطر', profiles:'البروفايلات', audit:'سجل النشاط' };
 
 function nav(id, btn) {
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('on'));
@@ -1930,6 +1992,7 @@ function nav(id, btn) {
 
   if (id === 'accounts') { accPage = 1; _showPrimaryOnly = false; loadAccounts(); }
   if (id === 'risks')    loadRisks();
+  if (id === 'jobs')     loadJobs();
   if (id === 'audit')    { auditPage = 1; loadAudit(); }
   if (id === 'content')  loadContent();
   if (id === 'schedule') { loadSchedules(); fillAccountSelects('sc-acc'); }
@@ -1957,20 +2020,99 @@ function nav(id, btn) {
 // ── Jobs ─────────────────────────────────────────────────────
 let _jobsInterval = null;
 
+const jobTypeNames = {
+  'tweet-multi':    'نشر جماعي',
+  'follow':         'متابعة جماعية',
+  'like':           'إعجاب جماعي',
+  'retweet':        'إعادة تغريد جماعية',
+  'report-account': 'إبلاغ عن حساب',
+  'report-tweet':   'إبلاغ عن تغريدة',
+};
+
 async function pollJobs() {
   try {
     const d = await api('/api/v1/actions/jobs');
     const jobs = d.jobs || [];
     const indicator = document.getElementById('jobs-indicator');
-    const count = document.getElementById('jobs-count');
+    const count     = document.getElementById('jobs-count');
+    const nbJobs    = document.getElementById('nb-jobs');
+
     if (jobs.length > 0) {
       indicator.style.display = 'flex';
-      const types = jobs.map(j => j.type === 'tweet-multi' ? 'نشر جماعي' : j.type).join('، ');
+      const types = jobs.map(j => jobTypeNames[j.type] || j.type).join('، ');
       count.textContent = `${jobs.length} عملية: ${types}`;
+      if (nbJobs) { nbJobs.style.display = ''; nbJobs.textContent = jobs.length; }
     } else {
       indicator.style.display = 'none';
+      if (nbJobs) nbJobs.style.display = 'none';
     }
+
+    // تحديث صفحة العمليات إذا مفتوحة
+    if (currentPanel === 'jobs') renderJobsPanel(jobs);
   } catch {}
+}
+
+async function loadJobs() {
+  try {
+    const d = await api('/api/v1/actions/jobs');
+    renderJobsPanel(d.jobs || []);
+  } catch(e) { toast(e.message, 'err'); }
+}
+
+function renderJobsPanel(jobs) {
+  const el = document.getElementById('jobs-panel-list');
+  const summary = document.getElementById('jobs-summary');
+  if (!el) return;
+
+  if (!jobs.length) {
+    el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--grn);font-size:13px">✓ لا توجد عمليات نشطة الآن</div>';
+    if (summary) summary.textContent = '';
+    return;
+  }
+
+  if (summary) summary.textContent = `${jobs.length} عملية نشطة`;
+
+  el.innerHTML = jobs.map(j => {
+    const started  = new Date(j.startedAt).toLocaleTimeString('ar-SA');
+    const done     = j.done || 0;
+    const total    = j.total || j.accounts?.length || 0;
+    const pct      = total ? Math.round(done / total * 100) : 0;
+    const accounts = (j.accounts || []).slice(0, 4).join(', ') + (j.accounts?.length > 4 ? ` +${j.accounts.length - 4}` : '');
+
+    // حساب ETA
+    const elapsed  = (Date.now() - new Date(j.startedAt)) / 1000;
+    const rate     = done > 0 ? done / elapsed : 0;
+    const etaSec   = rate > 0 ? Math.round((total - done) / rate) : null;
+    const etaText  = etaSec !== null ? (etaSec > 60 ? `${Math.round(etaSec/60)} دقيقة` : `${etaSec} ثانية`) : '—';
+
+    return `<div class="card" style="margin-bottom:10px">
+      <div class="card-h">
+        <span class="pill p-a">${jobTypeNames[j.type] || j.type}</span>
+        <span style="font-size:11px;color:var(--t2);font-family:var(--m);margin-right:8px">بدأ ${started}</span>
+        <div style="flex:1"></div>
+        <button class="btn btn-sm btn-r" onclick="cancelJobById(${j.id})">⏹ إيقاف</button>
+      </div>
+      <div class="card-b">
+        <div style="display:flex;justify-content:space-between;font-size:11.5px;margin-bottom:8px">
+          <span style="color:var(--t1)">${done} / ${total} حساب</span>
+          <span style="color:var(--t2)">الوقت المتبقي: <span style="color:var(--amb);font-weight:600">${etaText}</span></span>
+        </div>
+        <div style="height:4px;background:var(--s4);border-radius:2px;overflow:hidden;margin-bottom:8px">
+          <div style="height:100%;width:${pct}%;background:var(--blu);border-radius:2px;transition:width .3s"></div>
+        </div>
+        <div style="font-size:11px;color:var(--t2);font-family:var(--m)">${accounts}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function cancelJobById(jobId) {
+  try {
+    await api(`/api/v1/actions/jobs/${jobId}/cancel`, { method: 'POST' });
+    toast('⏹ جارٍ إيقاف العملية…', 'ok');
+    loadJobs();
+    pollJobs();
+  } catch(e) { toast(e.message, 'err'); }
 }
 
 async function stopAllJobs() {
@@ -2043,6 +2185,7 @@ function refreshCurrent() {
     else if (currentPanel === 'overview') loadOverview();
     else if (currentPanel === 'audit') loadAudit();
     else if (currentPanel === 'risks') loadRisks();
+    else if (currentPanel === 'jobs') loadJobs();
     else if (currentPanel === 'content') loadContent();
     else if (currentPanel === 'schedule') loadSchedules();
     else if (currentPanel === 'profiles') {
@@ -2664,53 +2807,51 @@ async function doFollowMulti() {
   const [minD, maxD] = [+delayParts[0], +delayParts[1]];
   const ids = getSelectedAccounts('fl-acc');
   if (!ids.length) return toast('اختر حساباً على الأقل', 'warn');
-  document.getElementById('fl-status').textContent = `جارٍ التنفيذ على ${ids.length} حساب…`;
-  let done = 0, failed = 0;
-  for (let i = 0; i < ids.length; i++) {
-    try {
-      await api('/api/v1/actions/follow', { method:'POST', body: JSON.stringify({ accountId: ids[i], targetHandle: target }) });
-      done++;
-    } catch(e) { failed++; }
-    if (i < ids.length - 1) await new Promise(r => setTimeout(r, minD + Math.random() * (maxD - minD)));
-  }
-  document.getElementById('fl-status').textContent = '';
-  toast(`✅ متابعة: نجح ${done}${failed?' | فشل '+failed:''}`, done>0?'ok':'err');
+  try {
+    const d = await api('/api/v1/actions/follow-multi', {
+      method: 'POST',
+      body: JSON.stringify({ accountIds: ids, targetHandle: target, delayMinMs: minD, delayMaxMs: maxD }),
+    });
+    document.getElementById('fl-status').textContent = `✅ بدأ على ${d.total} حساب`;
+    setTimeout(() => { document.getElementById('fl-status').textContent = ''; }, 3000);
+  } catch(e) { toast(e.message, 'err'); }
 }
 
 async function doLikeMulti() {
   const tweetId = extractTweetId(document.getElementById('lk-tweet').value);
   if (!tweetId) return toast('أدخل رابط أو ID التغريدة', 'warn');
+  const delayParts = document.getElementById('lk-delay').value.split(',');
+  const [minD, maxD] = [+delayParts[0], +delayParts[1]];
   const ids = getSelectedAccounts('lk-acc');
   if (!ids.length) return toast('اختر حساباً على الأقل', 'warn');
-  document.getElementById('lk-status').textContent = `جارٍ التنفيذ على ${ids.length} حساب…`;
-  let done = 0, failed = 0;
-  for (let i = 0; i < ids.length; i++) {
-    try {
-      await api('/api/v1/actions/like', { method:'POST', body: JSON.stringify({ accountId: ids[i], tweetId }) });
-      done++;
-    } catch(e) { failed++; }
-    if (i < ids.length - 1) await new Promise(r => setTimeout(r, 5000 + Math.random() * 10000));
-  }
-  document.getElementById('lk-status').textContent = '';
-  toast(`✅ إعجاب: نجح ${done}${failed?' | فشل '+failed:''}`, done>0?'ok':'err');
+  try {
+    const d = await api('/api/v1/actions/like-multi', {
+      method: 'POST',
+      body: JSON.stringify({ accountIds: ids, tweetId, delayMinMs: minD, delayMaxMs: maxD }),
+    });
+    document.getElementById('lk-status').textContent = `✅ بدأ على ${d.total} حساب`;
+    setTimeout(() => { document.getElementById('lk-status').textContent = ''; }, 3000);
+  } catch(e) { toast(e.message, 'err'); }
 }
 
 async function doRepostMulti() {
-  const tweetId = extractTweetId(document.getElementById('rp-tweet').value);
-  if (!tweetId) return toast('أدخل رابط أو ID التغريدة', 'warn');
+  const rpInput = document.getElementById('rp-tweet').value.trim();
+  if (!rpInput) return toast('أدخل رابط أو ID التغريدة', 'warn');
+  const match = rpInput.match(/status\/(\d+)/);
+  const tweetId = match ? match[1] : rpInput.replace(/\D/g,'');
+  if (!tweetId) return toast('رابط أو ID غير صحيح', 'warn');
+  const delayParts = document.getElementById('rp-delay')?.value.split(',') || ['15000','30000'];
+  const [minD, maxD] = [+delayParts[0], +delayParts[1]];
   const ids = getSelectedAccounts('rp-acc');
-  if (!ids.length) return toast('اختر حساباً على الأقل — اضغط Ctrl+A أو زر تحديد الكل', 'warn');
-  document.getElementById('rp-status').textContent = `جارٍ التنفيذ على ${ids.length} حساب…`;
-  let done = 0, failed = 0;
-  for (let i = 0; i < ids.length; i++) {
-    try {
-      await api('/api/v1/actions/retweet', { method:'POST', body: JSON.stringify({ accountId: ids[i], tweetId }) });
-      done++;
-    } catch(e) { failed++; }
-    if (i < ids.length - 1) await new Promise(r => setTimeout(r, 5000 + Math.random() * 10000));
-  }
-  document.getElementById('rp-status').textContent = '';
-  toast(`✅ إعادة تغريد: نجح ${done}${failed?' | فشل '+failed:''}`, done>0?'ok':'err');
+  if (!ids.length) return toast('اختر حساباً على الأقل', 'warn');
+  try {
+    const d = await api('/api/v1/actions/retweet-multi', {
+      method: 'POST',
+      body: JSON.stringify({ accountIds: ids, tweetId, delayMinMs: minD, delayMaxMs: maxD }),
+    });
+    document.getElementById('rp-status').textContent = `✅ بدأ على ${d.total} حساب`;
+    setTimeout(() => { document.getElementById('rp-status').textContent = ''; }, 3000);
+  } catch(e) { toast(e.message, 'err'); }
 }
 
 function onReplyModeChange(val) {
@@ -2730,13 +2871,26 @@ async function doReplyMulti() {
   const mode  = document.getElementById('ry-mode').value;
   const text  = document.getElementById('ry-text').value.trim();
   const hint  = document.getElementById('ry-ai-hint').value.trim();
+  const delayParts = document.getElementById('ry-delay')?.value.split(',') || ['15000','30000'];
+  const [minD, maxD] = [+delayParts[0], +delayParts[1]];
   const ids   = getSelectedAccounts('ry-acc');
   if (!ids.length) return toast('اختر حساباً على الأقل', 'warn');
   if (mode === 'manual' && !text) return toast('أدخل نص الرد', 'warn');
 
-  // قائمة ردود يدوية (سطر لكل حساب)
-  const textLines = text ? text.split('\n').map(l => l.trim()).filter(Boolean) : [];
+  // رفع الصور
+  let mediaPaths = [];
+  const mediaFiles = [...(document.getElementById('ry-media')?.files || [])];
+  if (mediaFiles.length) {
+    const fd = new FormData();
+    mediaFiles.forEach(f => fd.append('images', f));
+    try {
+      const r = await fetch('/api/v1/actions/upload-media', { method:'POST', headers:{Authorization:`Bearer ${TOKEN}`}, body: fd });
+      const d = await r.json();
+      mediaPaths = d.paths || [];
+    } catch(e) { return toast('فشل رفع الصورة: ' + e.message, 'err'); }
+  }
 
+  const textLines = text ? text.split('\n').map(l => l.trim()).filter(Boolean) : [];
   const stat = document.getElementById('ry-status');
   stat.textContent = `جارٍ التنفيذ على ${ids.length} حساب…`;
   let done = 0, failed = 0;
@@ -2751,14 +2905,14 @@ async function doReplyMulti() {
           text: mode === 'manual' ? (textLines[i % textLines.length] || textLines[0]) : null,
           useAI: mode === 'ai',
           aiHint: hint || null,
+          mediaLocalPaths: mediaPaths,
         }),
       });
       done++;
-    } catch(e) {
-      failed++;
-      logger?.warn?.(`reply @${ids[i]}: ${e.message}`);
+    } catch(e) { failed++; }
+    if (i < ids.length - 1 && (minD > 0 || maxD > 0)) {
+      await new Promise(r => setTimeout(r, minD + Math.random() * (maxD - minD)));
     }
-    if (i < ids.length - 1) await new Promise(r => setTimeout(r, 8000 + Math.random() * 12000));
   }
   stat.textContent = '';
   toast(`✅ رد: نجح ${done}${failed ? ' | فشل '+failed : ''}`, done > 0 ? 'ok' : 'err');
@@ -2812,7 +2966,12 @@ function buildSmartSelector(containerId, selectId) {
   const opts = allActiveAccounts.length
     ? allActiveAccounts.map(a => `<option value="${a._id}">@${a.username} (${a.role==='post'?'نشر':a.role==='engage'?'تفاعل':a.role==='support'?'دعم':'مختلط'})</option>`).join('')
     : '<option disabled>لا توجد حسابات نشطة</option>';
-  document.getElementById(selectId).innerHTML = opts;
+  const sel = document.getElementById(selectId);
+  sel.innerHTML = opts;
+  // ستايل عند التحديد
+  sel.addEventListener('change', () => {
+    updateSmartCount(containerId, selectId);
+  });
   updateSmartCount(containerId, selectId);
 }
 
@@ -2856,13 +3015,31 @@ function applySmartSelect(containerId, selectId) {
 function updateSmartCount(containerId, selectId) {
   const count = document.querySelectorAll(`#${selectId} option:checked`).length;
   const el = document.getElementById(`${containerId}-sel-count`);
-  if (el) el.textContent = count > 0 ? `(${count} محدد)` : '';
+  if (el) {
+    el.textContent = count > 0 ? `${count} محدد` : '';
+    el.style.color = count > 0 ? 'var(--blu2)' : 'var(--t2)';
+    el.style.fontWeight = count > 0 ? '700' : '400';
+  }
 }
 
 function onTweetModeChange(val) {
   document.getElementById('tm-ai-opts').style.display     = val === 'ai'     ? 'block' : 'none';
   document.getElementById('tm-manual-opts').style.display = val === 'manual' ? 'block' : 'none';
   document.getElementById('tm-same-opts').style.display   = val === 'same'   ? 'block' : 'none';
+}
+
+function previewMedia(input, previewId) {
+  const preview = document.getElementById(previewId);
+  if (!preview) return;
+  preview.innerHTML = '';
+  [...input.files].forEach(file => {
+    const url = URL.createObjectURL(file);
+    if (file.type.startsWith('video/')) {
+      preview.innerHTML += `<div style="width:60px;height:52px;background:var(--s4);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--t2);border:1px solid var(--bd)">🎬</div>`;
+    } else {
+      preview.innerHTML += `<img src="${url}" style="width:60px;height:52px;object-fit:cover;border-radius:6px;border:1px solid var(--bd)">`;
+    }
+  });
 }
 
 function previewTweetImages(input) {
@@ -2891,7 +3068,7 @@ async function doTweetMulti() {
   const topic   = document.getElementById('tm-topic').value.trim();
   const hashtag = document.getElementById('tm-hashtag').value.trim();
   const manualTexts = document.getElementById('tm-manual-texts').value.trim()
-    .split(/\n---\n|^---$/m)
+    .split(/\n---\n|\n---$|^---\n/m)
     .map(t => t.trim())
     .filter(Boolean);
   const sameText = document.getElementById('tm-same-text').value.trim();
@@ -2900,21 +3077,25 @@ async function doTweetMulti() {
   if (mode === 'manual' && !manualTexts.length)         return toast('أدخل التغريدات', 'warn');
   if (mode === 'same'   && !sameText)                   return toast('أدخل نص التغريدة', 'warn');
 
-  // رفع الصور أولاً
-  const imageFiles = [...(document.getElementById('tm-images').files || [])];
+  // رفع الصور والفيديو
   let mediaPaths = [];
-  if (imageFiles.length) {
-    const formData = new FormData();
-    imageFiles.forEach(f => formData.append('images', f));
+  const formData = new FormData();
+  let hasFiles = false;
+  // صور متعددة
+  [...(document.getElementById('tm-images')?.files || [])].forEach(f => {
+    formData.append('images', f); hasFiles = true;
+  });
+  // فيديو
+  const videoFile = document.getElementById('tm-video')?.files?.[0];
+  if (videoFile) { formData.append('images', videoFile); hasFiles = true; }
+  if (hasFiles) {
     try {
       const r = await fetch('/api/v1/actions/upload-media', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${TOKEN}` },
-        body: formData,
+        method: 'POST', headers: { 'Authorization': `Bearer ${TOKEN}` }, body: formData,
       });
       const d = await r.json();
       mediaPaths = d.paths || [];
-    } catch(e) { return toast('فشل رفع الصور: ' + e.message, 'err'); }
+    } catch(e) { return toast('فشل رفع الملفات: ' + e.message, 'err'); }
   }
 
   const imgOrder = document.getElementById('tm-img-order').value;
