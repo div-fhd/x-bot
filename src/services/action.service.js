@@ -314,41 +314,20 @@ const ActionSvc = {
       await page.locator('[role="radio"]').first().evaluate(el => el.click()).catch(() => {});
       await sleep(800, 1200);
 
-      // اضغط Next حتى ينتهي
+      // اضغط Next خطوة خطوة
       for (let step = 0; step < 6; step++) {
-        await sleep(1500, 2000);
-
-        // اختر أول radio غير محدد إذا وجد
+        await sleep(1200, 1800);
+        // اختر أول radio
         await page.evaluate(() => {
-          const radios = [...document.querySelectorAll('[role="radio"]')];
-          const unchecked = radios.find(r => r.getAttribute('aria-checked') !== 'true');
-          if (unchecked) unchecked.click();
-          else if (radios[0]) radios[0].click();
+          const r = document.querySelector('[role="radio"]');
+          if (r) r.click();
         }).catch(() => {});
-        await sleep(400, 600);
-
-        // اضغط Next أو Done
-        const clicked = await page.evaluate(() => {
-          const btns = [...document.querySelectorAll('button')];
-          const btn = btns.find(b => {
-            const txt = b.textContent.trim().toLowerCase();
-            return (txt === 'next' || txt === 'submit' || txt === 'done') && !b.disabled;
-          });
-          if (btn) { btn.click(); return btn.textContent.trim(); }
-          return null;
-        }).catch(() => null);
-
-        if (!clicked) break;
-
-        await sleep(1500, 2000);
-
-        // تحقق من انتهاء الإبلاغ
-        const done = await page.evaluate(() => {
-          const txt = document.body.innerText.toLowerCase();
-          return txt.includes('thanks') || txt.includes('report received') || !document.querySelector('[role="dialog"]');
-        }).catch(() => false);
-
-        if (done || clicked.toLowerCase() === 'done') break;
+        await sleep(500, 700);
+        // اضغط Next
+        const next = page.locator('button:text-is("Next")').first();
+        const hasNext = await next.count().catch(() => 0);
+        if (!hasNext) break;
+        await next.click().catch(() => {});
       }
 
       await log(account._id, 'engage', 'report_account', 'success', { target: targetHandle, reason });
@@ -401,41 +380,20 @@ const ActionSvc = {
       await page.locator('[role="radio"]').first().evaluate(el => el.click()).catch(() => {});
       await sleep(800, 1200);
 
-      // اضغط Next حتى ينتهي
+      // اضغط Next خطوة خطوة
       for (let step = 0; step < 6; step++) {
-        await sleep(1500, 2000);
-
-        // اختر أول radio غير محدد إذا وجد
+        await sleep(1200, 1800);
+        // اختر أول radio
         await page.evaluate(() => {
-          const radios = [...document.querySelectorAll('[role="radio"]')];
-          const unchecked = radios.find(r => r.getAttribute('aria-checked') !== 'true');
-          if (unchecked) unchecked.click();
-          else if (radios[0]) radios[0].click();
+          const r = document.querySelector('[role="radio"]');
+          if (r) r.click();
         }).catch(() => {});
-        await sleep(400, 600);
-
-        // اضغط Next أو Done
-        const clicked = await page.evaluate(() => {
-          const btns = [...document.querySelectorAll('button')];
-          const btn = btns.find(b => {
-            const txt = b.textContent.trim().toLowerCase();
-            return (txt === 'next' || txt === 'submit' || txt === 'done') && !b.disabled;
-          });
-          if (btn) { btn.click(); return btn.textContent.trim(); }
-          return null;
-        }).catch(() => null);
-
-        if (!clicked) break;
-
-        await sleep(1500, 2000);
-
-        // تحقق من انتهاء الإبلاغ
-        const done = await page.evaluate(() => {
-          const txt = document.body.innerText.toLowerCase();
-          return txt.includes('thanks') || txt.includes('report received') || !document.querySelector('[role="dialog"]');
-        }).catch(() => false);
-
-        if (done || clicked.toLowerCase() === 'done') break;
+        await sleep(500, 700);
+        // اضغط Next
+        const next = page.locator('button:text-is("Next")').first();
+        const hasNext = await next.count().catch(() => 0);
+        if (!hasNext) break;
+        await next.click().catch(() => {});
       }
 
       await log(account._id, 'engage', 'report_tweet', 'success', { tweetUrl, reason });
@@ -452,13 +410,65 @@ const ActionSvc = {
     const page = await this._readyPage(account);
     try {
       await page.goto(`https://x.com/${targetHandle.replace('@','')}`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
-      await page.waitForSelector('[data-testid^="follow"]', { timeout: 60_000 });
       await sleep(1000, 1500);
-      const btn = page.locator('[data-testid^="follow"]').first();
-      const txt = (await btn.innerText().catch(() => '')).toLowerCase();
-      if (txt.includes('following') || txt.includes('unfollow')) return { success: true, alreadyFollowing: true };
-      await btn.evaluate(el => el.click());
-      await sleep(800, 1500);
+      // تجاوز تحذير "This account is temporarily restricted"
+      const warningBtn = page.locator('button:has-text("Yes, view profile"), a:has-text("Yes, view profile")').first();
+      if (await warningBtn.count().catch(() => 0)) {
+        await warningBtn.click();
+        await sleep(1500, 2000);
+      }
+      await sleep(1500, 2000);
+
+      // تحقق من صفحة Cloudflare أو account/access
+      const currentUrl = page.url();
+      if (currentUrl.includes('/account/access') || currentUrl.includes('Just a moment')) {
+        throw new Error(`@${account.username}: Cloudflare checkpoint — الحساب يحتاج تحقق`);
+      }
+
+      // البحث عن زر المتابعة
+      const clicked = await page.evaluate(() => {
+        // الطريقة 1: data-testid ينتهي بـ "-follow"
+        const byEndFollow = document.querySelector('[data-testid$="-follow"]');
+        if (byEndFollow) { byEndFollow.click(); return 'end-follow'; }
+
+        // الطريقة 2: aria-label يبدأ بـ "Follow @"
+        const byAria = document.querySelector('[aria-label^="Follow @"]');
+        if (byAria) { byAria.click(); return 'aria'; }
+
+        // الطريقة 3: data-testid="follow"
+        const byTestId = document.querySelector('[data-testid="follow"]');
+        if (byTestId) { byTestId.click(); return 'testid'; }
+
+        // الطريقة 4: نص الزر
+        const btns = [...document.querySelectorAll('button[role="button"], div[role="button"]')];
+        const byText = btns.find(b => {
+          const t = b.textContent.trim().toLowerCase();
+          return t === 'follow' || t === 'متابعة';
+        });
+        if (byText) { byText.click(); return 'text'; }
+
+        // تحقق إذا يتابعه مسبقاً
+        const alreadyFollow = document.querySelector('[data-testid$="-unfollow"], [aria-label^="Following @"], [aria-label^="Unfollow @"]');
+        if (alreadyFollow) return 'already';
+
+        return null;
+      });
+
+      if (clicked === 'already') return { success: true, alreadyFollowing: true };
+      if (!clicked) throw new Error('لم يتم إيجاد زر المتابعة');
+
+      logger.info(`[Action] Follow btn clicked via: ${clicked} @${targetHandle}`);
+      // انتظر تأكيد المتابعة
+      await sleep(2000, 3000);
+      // تحقق إن المتابعة تمت فعلاً
+      const confirmed = await page.evaluate(() => {
+        return !!(
+          document.querySelector('[data-testid$="-unfollow"]') ||
+          document.querySelector('[aria-label^="Following @"]') ||
+          document.querySelector('[aria-label^="Unfollow @"]')
+        );
+      }).catch(() => true);
+      logger.info(`[Action] Follow confirmed: ${confirmed} @${targetHandle}`);
       await account.bump('follow');
       await log(account._id, 'engage', 'follow', 'success', { target: targetHandle });
       return { success: true };

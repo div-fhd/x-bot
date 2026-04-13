@@ -1157,6 +1157,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
       <button class="atab" onclick="showAtab('repost',this)">إعادة تغريد</button>
       <button class="atab" onclick="showAtab('reply',this)">رد</button>
       <button class="atab" onclick="showAtab('search',this)">بحث</button>
+      <button class="atab" onclick="showAtab('mutual',this)">متابعة تبادلية</button>
       <button class="atab" onclick="showAtab('report',this)">إبلاغ</button>
       <button class="atab" onclick="showAtab('profile',this)">👤 البروفايل</button>
     </div>
@@ -1397,6 +1398,33 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
         <div style="display:flex;gap:10px;align-items:center">
           <button class="btn btn-p" onclick="doReplyMulti()">إرسال الرد</button>
           <span id="ry-status" style="font-size:12px;color:var(--t2)"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- متابعة تبادلية -->
+    <div id="at-mutual" class="card" style="display:none">
+      <div class="card-h"><span class="card-title">🔄 متابعة تبادلية</span></div>
+      <div class="card-b">
+        <div class="notice notice-info" style="margin-bottom:14px">
+          <span class="notice-ico">ℹ</span>
+          <span>كل حساب من المحددين سيتابع جميع الحسابات الأخرى المحددة — المجموع: <strong id="mutual-total-ops">0</strong> عملية متابعة</span>
+        </div>
+        <div id="mutual-acc-container"></div>
+        <div class="form-grid" style="margin-bottom:12px;margin-top:8px">
+          <div class="field">
+            <label>التأخير بين كل متابعة</label>
+            <select id="mutual-delay">
+              <option value="0,0">بدون تأخير</option>
+              <option value="5000,10000">5-10 ثانية</option>
+              <option value="10000,25000" selected>10-25 ثانية (موصى به)</option>
+              <option value="30000,60000">30-60 ثانية (آمن)</option>
+            </select>
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center">
+          <button class="btn btn-p" onclick="doMutualFollow()">🔄 بدء المتابعة التبادلية</button>
+          <span id="mutual-status" style="font-size:12px;color:var(--t2)"></span>
         </div>
       </div>
     </div>
@@ -2027,6 +2055,7 @@ const jobTypeNames = {
   'retweet':        'إعادة تغريد جماعية',
   'report-account': 'إبلاغ عن حساب',
   'report-tweet':   'إبلاغ عن تغريدة',
+  'mutual-follow':  'متابعة تبادلية',
 };
 
 async function pollJobs() {
@@ -2738,6 +2767,7 @@ function showAtab(id, btn) {
     'repost':      ['rp-acc-container','rp-acc'],
     'reply':       ['ry-acc-container','ry-acc'],
     'report':      ['rp-report-container','rp-report'],
+    'mutual':      ['mutual-acc-container','mutual-acc'],
   };
   if (map[id] && allActiveAccounts.length) {
     buildSmartSelector(map[id][0], map[id][1]);
@@ -3013,6 +3043,12 @@ function applySmartSelect(containerId, selectId) {
 }
 
 function updateSmartCount(containerId, selectId) {
+  // تحديث عداد المتابعة التبادلية
+  if (selectId === 'mutual-acc') {
+    const count = document.querySelectorAll('#mutual-acc option:checked').length;
+    const el = document.getElementById('mutual-total-ops');
+    if (el) el.textContent = count > 1 ? count * (count - 1) : 0;
+  }
   const count = document.querySelectorAll(`#${selectId} option:checked`).length;
   const el = document.getElementById(`${containerId}-sel-count`);
   if (el) {
@@ -3188,6 +3224,23 @@ async function doReport() {
     s.textContent = '';
     toast(e.message, 'err');
   }
+}
+
+async function doMutualFollow() {
+  const ids = getSelectedAccounts('mutual-acc');
+  if (ids.length < 2) return toast('اختر حسابين على الأقل', 'warn');
+  const delayParts = document.getElementById('mutual-delay').value.split(',');
+  const [minD, maxD] = [+delayParts[0], +delayParts[1]];
+  const total = ids.length * (ids.length - 1);
+  if (!confirm(`سيتم تنفيذ ${total} عملية متابعة بين ${ids.length} حساب. هل تريد المتابعة؟`)) return;
+  try {
+    const d = await api('/api/v1/actions/mutual-follow', {
+      method: 'POST',
+      body: JSON.stringify({ accountIds: ids, delayMinMs: minD, delayMaxMs: maxD }),
+    });
+    document.getElementById('mutual-status').textContent = `✅ بدأ — ${d.total} عملية`;
+    setTimeout(() => { document.getElementById('mutual-status').textContent = ''; }, 4000);
+  } catch(e) { toast(e.message, 'err'); }
 }
 
 async function cancelTweetMultiJob(jobId) {

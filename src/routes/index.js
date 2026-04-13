@@ -17,6 +17,7 @@ actionRouter.post('/tweet',            actCtrl.tweet);
 actionRouter.post('/tweet-multi',      actCtrl.tweetMulti);
 actionRouter.post('/report-account', requireFeature('report'),   actCtrl.reportAccount);
 actionRouter.post('/report-tweet',   requireFeature('report'),     actCtrl.reportTweet);
+actionRouter.post('/mutual-follow',    actCtrl.mutualFollow);
 actionRouter.post('/follow-multi',     actCtrl.followMulti);
 actionRouter.post('/like-multi',       actCtrl.likeMulti);
 actionRouter.post('/retweet-multi',    actCtrl.retweetMulti);

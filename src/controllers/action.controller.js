@@ -425,6 +425,60 @@ const ActionCtrl = {
     });
   },
 
+  // ── متابعة تبادلية ───────────────────────────────────────────
+  async mutualFollow(req, res) {
+    const { accountIds, delayMinMs = 10000, delayMaxMs = 25000 } = req.body;
+    if (!accountIds?.length || accountIds.length < 2)
+      return res.status(400).json({ error: 'يلزم حسابان على الأقل' });
+
+    const accounts = await Account.find({ _id: { $in: accountIds }, isActive: true });
+    if (accounts.length < 2) return res.status(400).json({ error: 'لا توجد حسابات كافية' });
+
+    // حساب عدد العمليات الكلي: n*(n-1) متابعة
+    const total = accounts.length * (accounts.length - 1);
+    const jobId = createJob('mutual-follow', accounts);
+
+    res.json({ started: true, jobId, total, accounts: accounts.length });
+
+    setImmediate(async () => {
+      let done = 0;
+      for (let i = 0; i < accounts.length; i++) {
+        for (let j = 0; j < accounts.length; j++) {
+          if (i === j) continue;
+          if (isCancelled(jobId)) {
+            if (global.io) global.io.emit('job:cancelled', { jobId });
+            finishJob(jobId);
+            return;
+          }
+          const follower = accounts[i];
+          const target   = accounts[j].username;
+          setJobCurrentAccount(jobId, follower._id.toString());
+          try {
+            await ActionSvc.follow(follower, target);
+          } catch(e) {
+            logger.warn(`[MutualFollow] @${follower.username} → @${target}: ${e.message}`);
+          }
+          done++;
+          updateJobProgress(jobId, done);
+          if (global.io) global.io.emit('job:progress', {
+            jobId, done, total,
+            username: follower.username,
+            target,
+          });
+          // تأخير بين كل متابعة
+          const delay = delayMinMs + Math.random() * (delayMaxMs - delayMinMs);
+          for (let s = 0; s < Math.ceil(delay/1000); s++) {
+            if (isCancelled(jobId)) break;
+            await new Promise(r => setTimeout(r, Math.min(1000, delay - s*1000)));
+          }
+        }
+      }
+      finishJob(jobId);
+      if (global.io) global.io.emit('job:done', { jobId, type: 'mutual-follow', done, total });
+      logger.info(`[MutualFollow] اكتمل: ${done}/${total}`);
+    });
+  },
+
   // ── Search ────────────────────────────────────────────────────
   async search(req, res) {
     const { accountId, keyword, maxResults = 20 } = req.body;
