@@ -61,36 +61,14 @@ const AuthSvc = {
     const state = await this._classify(account, ctx);
     if (state === 'active') return ctx;
 
-    logger.info(`[Auth] @${account.username} — state: ${state}, login required`);
-
-    if (!creds.password) {
-      // حدّث حالة الحساب في قاعدة البيانات
-      const statusMap = { expired: 'يحتاج_مصادقة', checkpoint: 'نقطة_تحقق', suspended: 'موقوف', unknown: 'غير_نشط' };
-      account.status        = statusMap[state] || 'يحتاج_مصادقة';
-      account.lastCheckedAt = new Date();
-      await account.save().catch(() => {});
-      logger.warn(`[Auth] @${account.username} — status updated: ${account.status}`);
-      throw new Error(`@${account.username}: no password and session is invalid (state: ${state})`);
-    }
-
-    logger.info(`[Auth] @${account.username} — waiting for login slot...`);
-    await acquireLoginLock();
-    logger.info(`[Auth] @${account.username} — login slot acquired`);
-    try {
-      await this._login(account, ctx, creds);
-    } catch(loginErr) {
-      releaseLoginLock();
-      logger.error(`[Auth] Login error @${account.username}: ${loginErr.message}`);
-      // حدّث الحالة وتخطَّ
-      account.status        = 'يحتاج_مصادقة';
-      account.statusNote    = loginErr.message;
-      account.lastCheckedAt = new Date();
-      await account.save().catch(() => {});
-      await Browser.closeContext(account._id.toString()).catch(() => {});
-      throw new Error(`SKIP:@${account.username} — ${account.status}`);
-    }
-    releaseLoginLock();
-    logger.info(`[Auth] @${account.username} — login slot released`);
+    // حدّث الحالة وتخطَّ فوراً — لا تحاول login أثناء العمليات
+    const statusMap = { expired: 'يحتاج_مصادقة', checkpoint: 'نقطة_تحقق', suspended: 'موقوف', unknown: 'يحتاج_مصادقة' };
+    account.status        = statusMap[state] || 'يحتاج_مصادقة';
+    account.lastCheckedAt = new Date();
+    await account.save().catch(() => {});
+    await Browser.closeContext(account._id.toString()).catch(() => {});
+    logger.warn(`[Auth] @${account.username} — تخطي: ${account.status}`);
+    throw new Error(`SKIP:@${account.username} — ${account.status}`);
 
     const state2 = await this._classify(account, ctx);
     await log(account._id, 'auth', 'login_attempt', state2 === 'active' ? 'success' : 'failure', { state: state2 });
