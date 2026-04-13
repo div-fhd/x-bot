@@ -872,6 +872,11 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
       <svg class="nav-ico" viewBox="0 0 16 16" fill="none"><path d="M8 2v8M5 7l3 3 3-3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 12h12" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
       استيراد جماعي
     </button>
+    <button class="nav-btn" onclick="nav('proxies',this)">
+      <svg class="nav-ico" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.4"/><path d="M8 1.5C8 1.5 5 4 5 8s3 6.5 3 6.5M8 1.5C8 1.5 11 4 11 8s-3 6.5-3 6.5M1.5 8h13" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+      البروكسيات
+      <span id="nb-proxies" style="margin-right:auto;font-size:10px;font-weight:700;padding:1px 7px;border-radius:20px;background:rgba(139,111,255,.12);color:var(--pur);font-family:var(--m)">0</span>
+    </button>
 
     <div class="nav-sec">التحكم</div>
     <button class="nav-btn" onclick="nav('actions',this)">
@@ -1044,7 +1049,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
     <div class="card">
       <div class="tbl-wrap">
       <table class="tbl">
-        <thead><tr><th style="width:32px"></th><th>المستخدم</th><th>الدور</th><th>الحالة</th><th>آخر نشاط</th><th>اليوم</th><th style="width:50px">رئيسي</th><th>إجراءات</th></tr></thead>
+        <thead><tr><th style="width:32px"></th><th>المستخدم</th><th>الدور</th><th>الحالة</th><th>آخر نشاط</th><th>بروكسي</th><th>اليوم</th><th style="width:50px">رئيسي</th><th>إجراءات</th></tr></thead>
         <tbody id="acc-tbody">
           <tr><td colspan="7" style="text-align:center;padding:30px;color:var(--t2)">جارٍ التحميل…</td></tr>
         </tbody>
@@ -1055,6 +1060,34 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
         <span id="acc-pager" style="flex:1;text-align:center;font-size:11.5px;color:var(--t2);font-family:var(--m)">—</span>
         <button class="btn btn-sm" onclick="accPage++;loadAccounts()">التالي ←</button>
       </div>
+    </div>
+  </div>
+
+  <!-- ════════════ البروكسيات ════════════ -->
+  <div class="panel" id="p-proxies">
+    <div style="display:flex;gap:10px;margin-bottom:16px;align-items:center;flex-wrap:wrap">
+      <button class="btn btn-p btn-sm" onclick="openProxyModal()">+ إضافة بروكسي</button>
+      <button class="btn btn-sm" onclick="openAssignModal()">⚡ تعيين جماعي</button>
+      <button class="btn btn-sm" onclick="autoDistribute()">🔀 توزيع تلقائي</button>
+      <button class="btn btn-sm" onclick="loadProxies()">↻ تحديث</button>
+    </div>
+
+    <!-- قائمة البروكسيات -->
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-h"><span class="card-title">البروكسيات المضافة</span></div>
+      <table class="tbl" id="proxies-table">
+        <thead><tr><th>البروكسي</th><th>الحسابات</th><th>الحالة</th><th>إجراءات</th></tr></thead>
+        <tbody id="proxies-tbody"><tr><td colspan="4" style="text-align:center;padding:20px;color:var(--t2)">لا توجد بروكسيات</td></tr></tbody>
+      </table>
+    </div>
+
+    <!-- حسابات بدون بروكسي -->
+    <div class="card">
+      <div class="card-h">
+        <span class="card-title">حسابات بدون بروكسي</span>
+        <span id="no-proxy-count" style="font-size:11px;color:var(--t2)"></span>
+      </div>
+      <div id="no-proxy-list" style="padding:10px 16px;font-size:12px;color:var(--t2)">جارٍ التحميل…</div>
     </div>
   </div>
 
@@ -1734,6 +1767,65 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 </div><!-- /app -->
 
 <!-- modal تعديل الحساب الكامل -->
+<!-- ── Modal إضافة/تعديل بروكسي ── -->
+<div id="proxy-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:999;align-items:center;justify-content:center;padding:20px">
+  <div style="background:var(--s2);border:1px solid var(--bd2);border-radius:14px;padding:24px;width:100%;max-width:460px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
+      <span style="font-size:15px;font-weight:600" id="proxy-modal-title">إضافة بروكسي</span>
+      <button onclick="closeProxyModal()" style="background:none;border:none;color:var(--t2);cursor:pointer;font-size:20px;line-height:1">×</button>
+    </div>
+    <div class="field" style="margin-bottom:12px">
+      <label>اسم البروكسي</label>
+      <input id="proxy-name" type="text" placeholder="مثال: SOAX-SA-1">
+    </div>
+    <div class="field" style="margin-bottom:6px">
+      <label>رابط البروكسي</label>
+      <input id="proxy-url" type="text" placeholder="http://user:pass@host:port" style="direction:ltr;font-family:var(--m);font-size:12px">
+    </div>
+    <div style="font-size:11px;color:var(--t2);margin-bottom:18px">مثال: http://package-xxx:password@proxy.soax.com:5000</div>
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button class="btn" onclick="closeProxyModal()">إلغاء</button>
+      <button class="btn btn-p" onclick="saveProxy()">💾 حفظ</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Modal تعيين بروكسي جماعي ── -->
+<div id="assign-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:999;align-items:center;justify-content:center;padding:20px">
+  <div style="background:var(--s2);border:1px solid var(--bd2);border-radius:14px;padding:24px;width:100%;max-width:540px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
+      <span style="font-size:15px;font-weight:600">تعيين بروكسي على حسابات</span>
+      <button onclick="closeAssignModal()" style="background:none;border:none;color:var(--t2);cursor:pointer;font-size:20px;line-height:1">×</button>
+    </div>
+    <div class="form-grid" style="margin-bottom:14px">
+      <div class="field">
+        <label>البروكسي</label>
+        <select id="assign-proxy-sel"></select>
+      </div>
+      <div class="field">
+        <label>تصفية</label>
+        <select id="assign-filter" onchange="loadAssignAccounts()">
+          <option value="all">كل الحسابات</option>
+          <option value="no-proxy">بدون بروكسي</option>
+          <option value="active">النشطة فقط</option>
+        </select>
+      </div>
+    </div>
+    <div class="field" style="margin-bottom:10px">
+      <label>الحسابات <span id="assign-count" style="color:var(--blu2)"></span></label>
+      <select id="assign-accounts-sel" multiple style="height:160px;font-family:var(--m);font-size:12px"></select>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:14px">
+      <button class="btn btn-sm" onclick="selectAllAssign()">تحديد الكل</button>
+      <button class="btn btn-sm" onclick="deselectAllAssign()">إلغاء الكل</button>
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button class="btn" onclick="closeAssignModal()">إلغاء</button>
+      <button class="btn btn-p" onclick="doAssignProxy()">⚡ تعيين</button>
+    </div>
+  </div>
+</div>
+
 <div id="edit-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:999;align-items:center;justify-content:center;overflow-y:auto;padding:20px">
   <div style="background:var(--s2);border:1px solid var(--bd2);border-radius:14px;padding:24px;width:520px;max-width:95vw;margin:auto">
     <div style="font-size:15px;font-weight:600;margin-bottom:18px;display:flex;align-items:center;justify-content:space-between">
@@ -2006,7 +2098,7 @@ function logout() {
 /* ═══════════════════════════════════════════════════════════════
    التنقل
 ═══════════════════════════════════════════════════════════════ */
-const titles = { overview:'نظرة عامة', jobs:'العمليات النشطة', accounts:'الحسابات', import:'استيراد جماعي', actions:'إجراءات يدوية', content:'المحتوى', schedule:'الجدولة', ai:'اقتراحات الذكاء الاصطناعي', risks:'المخاطر', profiles:'البروفايلات', audit:'سجل النشاط' };
+const titles = { overview:'نظرة عامة', jobs:'العمليات النشطة', proxies:'البروكسيات', accounts:'الحسابات', import:'استيراد جماعي', actions:'إجراءات يدوية', content:'المحتوى', schedule:'الجدولة', ai:'اقتراحات الذكاء الاصطناعي', risks:'المخاطر', profiles:'البروفايلات', audit:'سجل النشاط' };
 
 function nav(id, btn) {
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('on'));
@@ -2021,6 +2113,7 @@ function nav(id, btn) {
   if (id === 'accounts') { accPage = 1; _showPrimaryOnly = false; loadAccounts(); }
   if (id === 'risks')    loadRisks();
   if (id === 'jobs')     loadJobs();
+  if (id === 'proxies')  loadProxies();
   if (id === 'audit')    { auditPage = 1; loadAudit(); }
   if (id === 'content')  loadContent();
   if (id === 'schedule') { loadSchedules(); fillAccountSelects('sc-acc'); }
@@ -2204,6 +2297,158 @@ function applyPermissions(p) {
   if (p.maxAccounts) window._maxAccounts = p.maxAccounts;
 }
 
+// ══════════════════════════════════════════════════
+// ── البروكسيات ─────────────────────────────────────
+// ══════════════════════════════════════════════════
+
+let editingProxyId = null;
+
+function openProxyModal(id, name, url) {
+  editingProxyId = id || null;
+  document.getElementById('proxy-modal-title').textContent = id ? 'تعديل بروكسي' : 'إضافة بروكسي';
+  document.getElementById('proxy-name').value = name || '';
+  document.getElementById('proxy-url').value  = url  || '';
+  const m = document.getElementById('proxy-modal');
+  m.style.display = 'flex';
+}
+function closeProxyModal() { document.getElementById('proxy-modal').style.display = 'none'; }
+function closeAssignModal() { document.getElementById('assign-modal').style.display = 'none'; }
+
+async function saveProxy() {
+  const name = document.getElementById('proxy-name').value.trim();
+  const url  = document.getElementById('proxy-url').value.trim();
+  if (!name || !url) return toast('الاسم والرابط مطلوبان', 'warn');
+  try {
+    if (editingProxyId) {
+      await api(`/api/v1/proxies/${editingProxyId}`, { method:'PATCH', body: JSON.stringify({ name, url }) });
+      toast('✅ تم التحديث', 'ok');
+    } else {
+      await api('/api/v1/proxies', { method:'POST', body: JSON.stringify({ name, url }) });
+      toast('✅ تم الإضافة', 'ok');
+    }
+    closeProxyModal();
+    loadProxies();
+  } catch(e) { toast(e.message, 'err'); }
+}
+
+async function loadProxies() {
+  try {
+    const d = await api('/api/v1/proxies');
+    const proxies = d.proxies || [];
+    const nb = document.getElementById('nb-proxies');
+    if (nb) nb.textContent = proxies.length;
+
+    // جدول البروكسيات
+    const tbody = document.getElementById('proxies-tbody');
+    if (tbody) {
+      tbody.innerHTML = proxies.length ? proxies.map(p => `
+        <tr>
+          <td>
+            <div style="font-weight:600">${p.name}</div>
+            <div style="font-family:var(--m);font-size:10.5px;color:var(--t2);word-break:break-all">${maskProxy(p.url)}</div>
+          </td>
+          <td><span style="font-family:var(--m);color:var(--blu2);font-weight:600">${p.accountCount || 0}</span></td>
+          <td><span class="pill p-g">نشط</span></td>
+          <td>
+            <div style="display:flex;gap:5px">
+              <button class="btn btn-sm" onclick="openProxyModal('${p._id}','${p.name}','${p.url}')">تعديل</button>
+              <button class="btn btn-sm btn-r" onclick="deleteProxy('${p._id}')">حذف</button>
+            </div>
+          </td>
+        </tr>`).join('') : '<tr><td colspan="4" style="text-align:center;padding:20px;color:var(--t2)">لا توجد بروكسيات مضافة</td></tr>';
+    }
+
+    // حسابات بدون بروكسي
+    const allAcc = await api('/api/v1/accounts?limit=500');
+    const noProxy = (allAcc.accounts || []).filter(a => !a.network?.proxyUrl);
+    const noProxyEl = document.getElementById('no-proxy-list');
+    const noProxyCount = document.getElementById('no-proxy-count');
+    if (noProxyCount) noProxyCount.textContent = `(${noProxy.length} حساب)`;
+    if (noProxyEl) {
+      noProxyEl.innerHTML = noProxy.length
+        ? noProxy.map(a => `<span style="display:inline-flex;align-items:center;gap:5px;margin:3px;background:var(--s3);border:1px solid var(--bd);border-radius:6px;padding:3px 9px;font-family:var(--m);font-size:11px">@${a.username}</span>`).join('')
+        : '<div style="color:var(--grn)">✓ كل الحسابات عندها بروكسي</div>';
+    }
+  } catch(e) { toast(e.message, 'err'); }
+}
+
+function maskProxy(url) {
+  try {
+    const u = new URL(url);
+    return `${u.protocol}//**:**@${u.host}`;
+  } catch { return url.slice(0,30) + '…'; }
+}
+
+async function deleteProxy(id) {
+  if (!confirm('حذف هذا البروكسي؟ سيتم إزالته من جميع الحسابات.')) return;
+  try {
+    await api(`/api/v1/proxies/${id}`, { method:'DELETE' });
+    toast('✅ تم الحذف', 'ok');
+    loadProxies();
+  } catch(e) { toast(e.message, 'err'); }
+}
+
+async function openAssignModal() {
+  try {
+    const pd = await api('/api/v1/proxies');
+    const proxies = pd.proxies || [];
+    if (!proxies.length) return toast('أضف بروكسي أولاً', 'warn');
+
+    const sel = document.getElementById('assign-proxy-sel');
+    sel.innerHTML = proxies.map(p => `<option value="${p._id}">${p.name}</option>`).join('');
+
+    await loadAssignAccounts();
+    document.getElementById('assign-modal').style.display = 'flex';
+  } catch(e) { toast(e.message, 'err'); }
+}
+
+async function loadAssignAccounts() {
+  const filter = document.getElementById('assign-filter').value;
+  const allAcc = await api('/api/v1/accounts?limit=500');
+  let accounts = allAcc.accounts || [];
+  if (filter === 'no-proxy') accounts = accounts.filter(a => !a.proxy);
+  if (filter === 'active')   accounts = accounts.filter(a => a.status === 'نشط');
+  const sel = document.getElementById('assign-accounts-sel');
+  sel.innerHTML = accounts.map(a => `<option value="${a._id}">@${a.username} ${a.network?.proxyUrl ? '🔗' : ''}</option>`).join('');
+  document.getElementById('assign-count').textContent = `(${accounts.length})`;
+}
+
+document.getElementById('assign-filter')?.addEventListener('change', loadAssignAccounts);
+
+function selectAllAssign() {
+  [...document.getElementById('assign-accounts-sel').options].forEach(o => o.selected = true);
+}
+function deselectAllAssign() {
+  [...document.getElementById('assign-accounts-sel').options].forEach(o => o.selected = false);
+}
+
+async function doAssignProxy() {
+  const proxyId   = document.getElementById('assign-proxy-sel').value;
+  const sel       = document.getElementById('assign-accounts-sel');
+  const accountIds = [...sel.selectedOptions].map(o => o.value);
+  if (!accountIds.length) return toast('اختر حسابات', 'warn');
+  try {
+    const d = await api('/api/v1/proxies/assign', {
+      method: 'POST',
+      body: JSON.stringify({ proxyId, accountIds }),
+    });
+    toast(`✅ تم تعيين البروكسي على ${d.updated} حساب`, 'ok');
+    document.getElementById('assign-modal').classList.remove('on');
+    loadProxies();
+  } catch(e) { toast(e.message, 'err'); }
+}
+
+async function autoDistribute() {
+  const pd = await api('/api/v1/proxies').catch(() => ({ proxies: [] }));
+  if (!pd.proxies?.length) return toast('أضف بروكسيات أولاً', 'warn');
+  if (!confirm(`توزيع ${pd.proxies.length} بروكسي تلقائياً على كل الحسابات؟`)) return;
+  try {
+    const d = await api('/api/v1/proxies/auto-distribute', { method: 'POST' });
+    toast(`✅ تم التوزيع على ${d.updated} حساب`, 'ok');
+    loadProxies();
+  } catch(e) { toast(e.message, 'err'); }
+}
+
 function refreshCurrent() {
   // إعادة تطبيق الصلاحيات
   const savedPerms = localStorage.getItem('xops_permissions');
@@ -2215,6 +2460,7 @@ function refreshCurrent() {
     else if (currentPanel === 'audit') loadAudit();
     else if (currentPanel === 'risks') loadRisks();
     else if (currentPanel === 'jobs') loadJobs();
+    else if (currentPanel === 'proxies') loadProxies();
     else if (currentPanel === 'content') loadContent();
     else if (currentPanel === 'schedule') loadSchedules();
     else if (currentPanel === 'profiles') {
@@ -2353,6 +2599,11 @@ async function loadAccounts() {
           <td style="color:var(--t2)">${a.niche||'—'}</td>
           <td>${statusBadge(a.status)}</td>
           <td style="font-family:var(--m);font-size:11px;color:var(--t2)">${a.lastActiveAt?new Date(a.lastActiveAt).toLocaleTimeString('ar-SA'):'—'}</td>
+          <td title="${a.network?.proxyUrl||''}">
+            ${a.network?.proxyUrl
+              ? '<span style="color:var(--grn);font-size:12px" title="'+a.network.proxyUrl+'">🔗</span>'
+              : '<span style="color:var(--t3);font-size:11px">—</span>'}
+          </td>
           <td style="font-family:var(--m)">${(a.todayCounters?.posts||0)}/${a.dailyCaps?.post||10}</td>
           <td style="text-align:center">
             ${a.isPrimary ? '<span style="color:var(--amb);font-size:14px" title="حساب رئيسي">★</span>' : '<span style="color:var(--t3);font-size:14px">☆</span>'}

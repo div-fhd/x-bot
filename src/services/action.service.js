@@ -409,23 +409,34 @@ const ActionSvc = {
     if (!account.canDo('follow')) throw new Error(`@${account.username}: daily follow cap reached`);
     const page = await this._readyPage(account);
     try {
-      await page.goto(`https://x.com/${targetHandle.replace('@','')}`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
-      await sleep(1000, 1500);
+      const cleanHandle = targetHandle.replace(/^@+/, '');
+      await page.goto(`https://x.com/${cleanHandle}`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+      await sleep(2000, 3000);
       await this._checkNotRedirected(page, account);
-      // تجاوز تحذير "This account is temporarily restricted"
-      const warningBtn = page.locator('button:has-text("Yes, view profile"), a:has-text("Yes, view profile")').first();
-      if (await warningBtn.count().catch(() => 0)) {
-        await warningBtn.click();
-        await sleep(1500, 2000);
-      }
-      await sleep(1500, 2000);
 
-      // تحقق من صفحة Cloudflare أو account/access
+      // تحقق من Cloudflare
       const currentUrl = page.url();
       if (currentUrl.includes('/account/access') || currentUrl.includes('Just a moment')) {
-        throw new Error(`@${account.username}: Cloudflare checkpoint — الحساب يحتاج تحقق`);
+        account.status = 'نقطة_تحقق';
+        account.lastCheckedAt = new Date();
+        await account.save().catch(() => {});
+        throw new Error(`SKIP:@${account.username} — نقطة_تحقق`);
       }
 
+      // تجاوز تحذير "This account is temporarily restricted"
+      const warningBtn = await page.$('button:has-text("Yes, view profile")').catch(() => null);
+      if (warningBtn) {
+        await warningBtn.click();
+        await sleep(2000, 3000);
+      }
+
+      // انتظر تحميل المحتوى — X.com SPA تحتاج وقت بعد domcontentloaded
+      await sleep(2000, 3000);
+      // انتظر حتى يظهر عنصر في الصفحة
+      await page.waitForSelector('[data-testid="UserName"], [data-testid="userActions"]', { timeout: 15000 }).catch(() => {});
+      await sleep(1000, 1500);
+
+      logger.info(`[Follow] @${account.username} — searching for follow button on ${targetHandle}`);
       // البحث عن زر المتابعة
       const clicked = await page.evaluate(() => {
         // الطريقة 1: data-testid ينتهي بـ "-follow"
@@ -455,8 +466,18 @@ const ActionSvc = {
         return null;
       });
 
+      logger.info(`[Follow] @${account.username} — clicked: ${clicked}`);
       if (clicked === 'already') return { success: true, alreadyFollowing: true };
-      if (!clicked) throw new Error('لم يتم إيجاد زر المتابعة');
+      if (!clicked) {
+        // تشخيص — ماذا يوجد في الصفحة
+        const pageInfo = await page.evaluate(() => ({
+          url: location.href,
+          hasProtected: !!document.querySelector('[data-testid="UserDescription"]'),
+          btns: [...document.querySelectorAll('button')].slice(0,5).map(b => b.textContent.trim()),
+        })).catch(() => ({}));
+        logger.warn(`[Follow] page info: ${JSON.stringify(pageInfo)}`);
+        throw new Error('لم يتم إيجاد زر المتابعة');
+      }
 
       logger.info(`[Action] Follow btn clicked via: ${clicked} @${targetHandle}`);
       // انتظر تأكيد المتابعة
@@ -474,9 +495,13 @@ const ActionSvc = {
       await log(account._id, 'engage', 'follow', 'success', { target: targetHandle });
       return { success: true };
     } catch (e) {
+      logger.error(`[Follow] @${account.username} → @${targetHandle} ERROR: ${e.message}`);
       await log(account._id, 'engage', 'follow_failed', 'failure', { target: targetHandle, error: e.message });
       throw e;
-    } finally { await page.close().catch(() => {}); }
+    } finally {
+      logger.info(`[Follow] @${account.username} — closing page`);
+      await page.close().catch(() => {});
+    }
   },
 
     // ── Engagement campaign ───────────────────────────────────────
@@ -743,10 +768,11 @@ const ActionSvc = {
   // ── Helpers ───────────────────────────────────────────────────
   async _checkNotRedirected(page, account) {
     const url = page.url();
-    if (url.includes('/i/flow/login') || url.includes('/account/access')) {
+    if (url.includes('/i/flow/login') || url.includes('/account/access') || url.includes('/i/flow/password_reset')) {
       account.status = 'يحتاج_مصادقة';
       account.lastCheckedAt = new Date();
       await account.save().catch(() => {});
+      logger.warn(`[Action] @${account.username} — redirected to login, skipping`);
       throw new Error(`SKIP:@${account.username} — يحتاج_مصادقة`);
     }
   },
@@ -755,19 +781,7 @@ const ActionSvc = {
     await AuthSvc.ensureSession(account);
     const page = await Browser.getPage(account);
 
-    // كتشف صفحة verification أو login أثناء العملية
-    page.on('load', async () => {
-      try {
-        const url = page.url();
-        if (url.includes('/i/flow/login') || url.includes('/account/access') || url.includes('/i/flow/password_reset')) {
-          logger.warn(`[Action] @${account.username} — تم توجيهه لصفحة تسجيل الدخول: ${url}`);
-          account.status = 'يحتاج_مصادقة';
-          account.lastCheckedAt = new Date();
-          await account.save().catch(() => {});
-          await page.close().catch(() => {});
-        }
-      } catch {}
-    });
+    // لا نغلق الصفحة تلقائياً — _checkNotRedirected يتولى الأمر
 
     // أغلق popup الكوكيز بعد أي تنقل
     page.on('load', async () => {

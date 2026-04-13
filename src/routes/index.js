@@ -61,4 +61,16 @@ dashRouter.get ('/risks',               dshCtrl.risks);
 dashRouter.post('/risks/:id/resolve',   dshCtrl.resolveRisk);
 dashRouter.get ('/audit-log',           dshCtrl.auditLog);
 
-module.exports = { actionRouter, contentRouter, dashRouter };
+// ── Proxy routes ─────────────────────────────────────────────
+const proxyCtrl = require('../controllers/proxy.controller');
+const proxyRouter = require('express').Router();
+proxyRouter.use(authMiddleware);
+proxyRouter.get   ('/',                proxyCtrl.list);
+proxyRouter.post  ('/',                proxyCtrl.create);
+proxyRouter.patch ('/:id',             proxyCtrl.update);
+proxyRouter.delete('/:id',             proxyCtrl.remove);
+proxyRouter.post  ('/assign',          proxyCtrl.assign);
+proxyRouter.post  ('/auto-distribute', proxyCtrl.autoDistribute);
+proxyRouter.post  ('/remove-from-accounts', proxyCtrl.removeFromAccounts);
+
+module.exports = { actionRouter, contentRouter, dashRouter, proxyRouter };

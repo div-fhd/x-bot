@@ -20,7 +20,7 @@ const { errorHandler, authMiddleware } = require('./src/middleware/index');
 
 const authRoutes    = require('./src/routes/auth.routes');
 const accRoutes     = require('./src/routes/account.routes');
-const { actionRouter, contentRouter, dashRouter } = require('./src/routes/index');
+const { actionRouter, contentRouter, dashRouter, proxyRouter } = require('./src/routes/index');
 
 const app    = express();
 const server = http.createServer(app);
@@ -51,6 +51,7 @@ app.use(`${API}/auth`,      authRoutes);
 app.use(`${API}/accounts`,  accRoutes);
 app.use(`${API}/actions`,   actionRouter);
 app.use(`${API}/content`,   contentRouter);
+app.use(`${API}/proxies`,   proxyRouter);
 app.use(`${API}/dashboard`, dashRouter);
 
 // ── SPA fallback ─────────────────────────────────────────────
@@ -223,14 +224,14 @@ async function start() {
   await connectRedis().catch(() => {}); // Redis is optional
 
   server.listen(cfg.port, () => {
-    // logger.info(`[Server] Running at http://localhost:${cfg.port}`);
-    // logger.info(`[Server] Dashboard: http://localhost:${cfg.port}`);
-    // logger.info(`[Server] Health:    http://localhost:${cfg.port}/health`);
-    // logger.info('');
-    // logger.info('[Setup] First run? Register admin:');
-    // logger.info(`  curl -X POST http://localhost:${cfg.port}/api/v1/auth/register \\`);
-    // logger.info(`    -H "Content-Type: application/json" \\`);
-    // logger.info(`    -d '{"email":"admin@example.com","password":"YourPass123!"}'`);
+    logger.info(`[Server] Running at http://localhost:${cfg.port}`);
+    logger.info(`[Server] Dashboard: http://localhost:${cfg.port}`);
+    logger.info(`[Server] Health:    http://localhost:${cfg.port}/health`);
+    logger.info('');
+    logger.info('[Setup] First run? Register admin:');
+    logger.info(`  curl -X POST http://localhost:${cfg.port}/api/v1/auth/register \\`);
+    logger.info(`    -H "Content-Type: application/json" \\`);
+    logger.info(`    -d '{"email":"admin@example.com","password":"YourPass123!"}'`);
     logger.info('');
   });
 }
