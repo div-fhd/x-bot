@@ -78,17 +78,30 @@ const AuthSvc = {
     logger.info(`[Auth] @${account.username} — login slot acquired`);
     try {
       await this._login(account, ctx, creds);
-    } finally {
+    } catch(loginErr) {
       releaseLoginLock();
-      logger.info(`[Auth] @${account.username} — login slot released`);
+      logger.error(`[Auth] Login error @${account.username}: ${loginErr.message}`);
+      // حدّث الحالة وتخطَّ
+      account.status        = 'يحتاج_مصادقة';
+      account.statusNote    = loginErr.message;
+      account.lastCheckedAt = new Date();
+      await account.save().catch(() => {});
+      await Browser.closeContext(account._id.toString()).catch(() => {});
+      throw new Error(`SKIP:@${account.username} — ${account.status}`);
     }
+    releaseLoginLock();
+    logger.info(`[Auth] @${account.username} — login slot released`);
 
     const state2 = await this._classify(account, ctx);
     await log(account._id, 'auth', 'login_attempt', state2 === 'active' ? 'success' : 'failure', { state: state2 });
 
     if (state2 !== 'active') {
+      const statusMap = { expired:'يحتاج_مصادقة', checkpoint:'نقطة_تحقق', suspended:'موقوف', unknown:'غير_نشط' };
+      account.status        = statusMap[state2] || 'يحتاج_مصادقة';
+      account.lastCheckedAt = new Date();
+      await account.save().catch(() => {});
       await Browser.closeContext(account._id.toString());
-      throw new Error(`Login failed: @${account.username} (state: ${state2})`);
+      throw new Error(`SKIP:@${account.username} — ${account.status}`);
     }
 
     await Browser.persistSession(account);
@@ -252,12 +265,19 @@ const AuthSvc = {
           await shot('03_after_email_verify');
         }
       } else if (midState === 'unusual_activity') {
-        await shot('err_unusual_activity');
-        throw new Error(`X flagged unusual activity for @${account.username} — manual verification required`);
+        account.status = 'نقطة_تحقق';
+        account.lastCheckedAt = new Date();
+        await account.save().catch(() => {});
+        throw new Error(`SKIP:@${account.username} — نقطة_تحقق`);
+      } else if (midState === 'suspended') {
+        account.status = 'موقوف';
+        account.lastCheckedAt = new Date();
+        await account.save().catch(() => {});
+        throw new Error(`SKIP:@${account.username} — موقوف`);
       } else if (midState === 'password') {
         // Already at password — nothing to do
       }
-      // 'unknown' — fall through and try to find password field anyway
+      // unknown — fall through
 
       // ── Step 3: Password ──────────────────────────────────────
       const passSel = 'input[type="password"], input[name="password"]';
@@ -275,9 +295,10 @@ const AuthSvc = {
 
       if (!passInput) {
         await shot('err_no_password_field');
-        const url  = page.url();
-        const body = await page.locator('body').textContent().catch(() => '').then(t => t.slice(0, 200));
-        throw new Error(`Password field not found after 4 attempts — URL: ${url} | Page: ${body}`);
+        account.status = 'يحتاج_مصادقة';
+        account.lastCheckedAt = new Date();
+        await account.save().catch(() => {});
+        throw new Error(`SKIP:@${account.username} — يحتاج_مصادقة`);
       }
 
       await passInput.click();
@@ -329,28 +350,45 @@ const AuthSvc = {
 
   // ── Detect what appeared after entering username ──────────────
   async _detectMidScreen(page) {
-    // Small extra wait
-    await sleep(500, 800);
+    await sleep(1500, 2500);
 
     const url = page.url();
 
-    // Password field visible right away — clean normal flow
-    const hasPassword = await page.locator('input[type="password"]').count().catch(() => 0);
-    if (hasPassword > 0) return 'password';
+    // Cloudflare / account access
+    if (url.includes('/account/access') || url.includes('challenge')) return 'unusual_activity';
 
-    // Verify email/phone input
-    const hasVerify = await page.locator('input[data-testid="ocfEnterTextTextInput"]').count().catch(() => 0);
-    if (hasVerify > 0) return 'email_phone';
+    // انتظر أي input يظهر
+    await page.waitForSelector('input', { timeout: 8000 }).catch(() => {});
 
-    // Unusual activity / blocked
-    if (url.includes('/account/access') || url.includes('/challenge')) return 'unusual_activity';
+    const state = await page.evaluate(() => {
+      // password field
+      if (document.querySelector('input[type="password"], input[name="password"]'))
+        return 'password';
 
-    const bodyText = await page.locator('body').textContent().catch(() => '');
-    if (bodyText.toLowerCase().includes('unusual') || bodyText.toLowerCase().includes('verify your identity')) {
-      return 'unusual_activity';
-    }
+      // email/phone challenge
+      const ocf = document.querySelector('input[data-testid="ocfEnterTextTextInput"]');
+      if (ocf) return 'email_phone';
 
-    return 'unknown';
+      // any text input visible
+      const inputs = [...document.querySelectorAll('input[type="text"], input:not([type])')];
+      const vis = inputs.find(i => i.offsetParent !== null);
+      if (vis) {
+        const ph = (vis.placeholder || '').toLowerCase();
+        if (ph.includes('phone') || ph.includes('email') || ph.includes('username'))
+          return 'email_phone';
+        return 'unknown_input';
+      }
+
+      const txt = document.body.innerText.toLowerCase();
+      if (txt.includes('unusual') || txt.includes('verify your identity') || txt.includes('confirm your identity'))
+        return 'unusual_activity';
+      if (txt.includes('suspended') || txt.includes('locked'))
+        return 'suspended';
+
+      return 'unknown';
+    }).catch(() => 'unknown');
+
+    return state;
   },
 
   // ── التحقق من صلاحية auth_token عبر API ─────────────────────

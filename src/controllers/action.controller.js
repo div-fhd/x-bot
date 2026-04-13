@@ -187,7 +187,7 @@ const ActionCtrl = {
           if (global.io) global.io.emit('tweet:multi:progress', { username: account.username, done: i+1, total: accounts.length, success: true, tweetId: r.tweetId });
         } catch (e) {
           logger.error(`[TweetMulti] @${account.username}: ${e.message}`);
-          if (global.io) global.io.emit('tweet:multi:progress', { username: account.username, done: i+1, total: accounts.length, success: false, error: e.message });
+          if (global.io) global.io.emit('tweet:multi:progress', { username: account.username, done: i+1, total: accounts.length, success: false, error: e.message.replace('SKIP:','') });
         }
         updateJobProgress(jobId, i + 1);
         const eta = getJobETA(jobId);

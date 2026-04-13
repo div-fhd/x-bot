@@ -411,6 +411,7 @@ const ActionSvc = {
     try {
       await page.goto(`https://x.com/${targetHandle.replace('@','')}`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
       await sleep(1000, 1500);
+      await this._checkNotRedirected(page, account);
       // تجاوز تحذير "This account is temporarily restricted"
       const warningBtn = page.locator('button:has-text("Yes, view profile"), a:has-text("Yes, view profile")').first();
       if (await warningBtn.count().catch(() => 0)) {
@@ -740,9 +741,33 @@ const ActionSvc = {
   },
 
   // ── Helpers ───────────────────────────────────────────────────
+  async _checkNotRedirected(page, account) {
+    const url = page.url();
+    if (url.includes('/i/flow/login') || url.includes('/account/access')) {
+      account.status = 'يحتاج_مصادقة';
+      account.lastCheckedAt = new Date();
+      await account.save().catch(() => {});
+      throw new Error(`SKIP:@${account.username} — يحتاج_مصادقة`);
+    }
+  },
+
   async _readyPage(account) {
     await AuthSvc.ensureSession(account);
     const page = await Browser.getPage(account);
+
+    // كتشف صفحة verification أو login أثناء العملية
+    page.on('load', async () => {
+      try {
+        const url = page.url();
+        if (url.includes('/i/flow/login') || url.includes('/account/access') || url.includes('/i/flow/password_reset')) {
+          logger.warn(`[Action] @${account.username} — تم توجيهه لصفحة تسجيل الدخول: ${url}`);
+          account.status = 'يحتاج_مصادقة';
+          account.lastCheckedAt = new Date();
+          await account.save().catch(() => {});
+          await page.close().catch(() => {});
+        }
+      } catch {}
+    });
 
     // أغلق popup الكوكيز بعد أي تنقل
     page.on('load', async () => {
