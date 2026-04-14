@@ -135,7 +135,8 @@ const AuthSvc = {
   async _classify(account, ctx) {
     const page = await ctx.newPage();
     try {
-      await page.goto(X_HOME, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+      await sleep(1000, 2000);
+      await page.goto(X_HOME, { waitUntil: 'commit', timeout: 60_000 });
       await sleep(2000, 3000);
       // عرض الـ IP — فقط إذا LOG_IP=true في .env
       if (process.env.LOG_IP === 'true') {
@@ -145,7 +146,7 @@ const AuthSvc = {
           const ip = await ipPage.evaluate(() => document.body.innerText.trim()).catch(() => '?');
           const parsed = JSON.parse(ip).ip || ip;
           const hasProxy = !!account.network?.proxyUrl;
-          // logger.info(`[IP] @${account.username} — ${parsed} | proxy: ${hasProxy ? '✅' : '❌ بدون بروكسي'}`);
+          logger.info(`[IP] @${account.username} — ${parsed} | proxy: ${hasProxy ? '✅' : '❌ بدون بروكسي'}`);
           await ipPage.close().catch(() => {});
         } catch {}
       } else {
