@@ -136,23 +136,16 @@ const AuthSvc = {
     const page = await ctx.newPage();
     try {
       await sleep(1000, 2000);
-      await page.goto(X_HOME, { waitUntil: 'commit', timeout: 60_000 });
+      await page.goto(X_HOME, { waitUntil: 'domcontentloaded', timeout: 60_000 }).catch(async (e) => {
+        // لو timeout — تحقق من الـ URL الحالي قبل ما نرمي خطأ
+        const url = page.url();
+        if (url && url !== 'about:blank' && !url.includes('x.com/home')) throw e;
+        // الصفحة بدأت تحمل — تابع
+      });
       await sleep(2000, 3000);
-      // عرض الـ IP — فقط إذا LOG_IP=true في .env
-      if (process.env.LOG_IP === 'true') {
-        try {
-          const ipPage = await ctx.newPage();
-          await ipPage.goto('https://api.ipify.org?format=json', { waitUntil: 'domcontentloaded', timeout: 10000 });
-          const ip = await ipPage.evaluate(() => document.body.innerText.trim()).catch(() => '?');
-          const parsed = JSON.parse(ip).ip || ip;
-          const hasProxy = !!account.network?.proxyUrl;
-          logger.info(`[IP] @${account.username} — ${parsed} | proxy: ${hasProxy ? '✅' : '❌ بدون بروكسي'}`);
-          await ipPage.close().catch(() => {});
-        } catch {}
-      } else {
-        const hasProxy = !!account.network?.proxyUrl;
-        logger.info(`[IP] @${account.username} — proxy: ${hasProxy ? '✅ ' + account.network.proxyUrl.split('@')[1] : '❌ بدون بروكسي'}`);
-      }
+      // عرض حالة البروكسي فقط بدون فتح صفحة
+      const hasProxy = !!account.network?.proxyUrl;
+      logger.info(`[IP] @${account.username} — proxy: ${hasProxy ? '✅ ' + (account.network.proxyUrl.split('@')[1]||'') : '❌ بدون بروكسي'}`);
 
       // أغلق cookie popup إذا ظهر
       await page.evaluate(() => {

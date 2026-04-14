@@ -50,6 +50,17 @@ async function ensureBrowser() {
       '--no-first-run',
       '--disable-gpu',
       '--window-size=1280,800',
+      '--disable-infobars',
+      '--disable-extensions',
+      '--disable-plugins-discovery',
+      '--no-default-browser-check',
+      '--password-store=basic',
+      '--use-mock-keychain',
+      '--disable-background-timer-throttling',
+      '--disable-backgrounding-occluded-windows',
+      '--disable-renderer-backgrounding',
+      '--metrics-recording-only',
+      '--no-report-upload',
     ],
   });
   BROWSER.on('disconnected', () => {
@@ -147,12 +158,23 @@ async function getContext(account) {
         viewport:    { width: 1280, height: 800 },
         colorScheme: 'light',
         ...(storageState ? { storageState } : {}),
-        ...(net.proxyUrl ? { proxy: { server: net.proxyUrl } } : {}),
+        ...(net.proxyUrl ? (() => {
+          try {
+            const pu = new URL(net.proxyUrl);
+            const proxyOpts = { server: `${pu.protocol}//${pu.host}` };
+            if (pu.username) proxyOpts.username = decodeURIComponent(pu.username);
+            if (pu.password) proxyOpts.password = decodeURIComponent(pu.password);
+            return { proxy: proxyOpts };
+          } catch { return { proxy: { server: net.proxyUrl } }; }
+        })() : {}),
       });
 
-      // Stealth patches
+      // Stealth patches — شاملة
       await ctx.addInitScript(() => {
+        // 1. إخفاء webdriver
         Object.defineProperty(navigator, 'webdriver', { get: () => undefined, configurable: true });
+
+        // 2. plugins واقعية
         const fakePlugins = [
           { name: 'Chrome PDF Plugin',  filename: 'internal-pdf-viewer', description: 'Portable Document Format' },
           { name: 'Chrome PDF Viewer',  filename: 'mhjfbmdgcfjbbpaeojofohoefgiehjai', description: '' },
@@ -162,30 +184,62 @@ async function getContext(account) {
           get: () => Object.assign(fakePlugins, { item: i => fakePlugins[i], namedItem: n => fakePlugins.find(p=>p.name===n)||null, length: fakePlugins.length }),
           configurable: true,
         });
+
+        // 3. خصائص أساسية
         Object.defineProperty(navigator, 'mimeTypes',           { get: () => ({ length: 4 }), configurable: true });
         Object.defineProperty(navigator, 'languages',           { get: () => ['en-US','en'], configurable: true });
         Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => 8, configurable: true });
         Object.defineProperty(navigator, 'deviceMemory',        { get: () => 8, configurable: true });
         Object.defineProperty(navigator, 'platform',            { get: () => 'Win32', configurable: true });
+        Object.defineProperty(navigator, 'maxTouchPoints',      { get: () => 0, configurable: true });
+        Object.defineProperty(navigator, 'vendor',              { get: () => 'Google Inc.', configurable: true });
+        Object.defineProperty(navigator, 'appVersion',          { get: () => '5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36', configurable: true });
+
+        // 4. chrome object
         if (!window.chrome) {
           window.chrome = {
-            runtime: { id: undefined, connect: ()=>{}, sendMessage: ()=>{}, onMessage:{ addListener:()=>{} } },
-            loadTimes: () => ({ firstPaintTime:0, requestTime: Date.now()/1000 }),
-            csi: () => ({ startE: Date.now(), onloadT: Date.now(), pageT: 1000 }),
-            app: { isInstalled: false },
+            runtime: { id: undefined, connect: ()=>{}, sendMessage: ()=>{}, onMessage:{ addListener:()=>{} }, onConnect:{ addListener:()=>{} } },
+            loadTimes: () => ({ firstPaintTime:0, requestTime: Date.now()/1000, finishDocumentLoadTime: Date.now()/1000 }),
+            csi: () => ({ startE: Date.now(), onloadT: Date.now(), pageT: 1000, tran: 15 }),
+            app: { isInstalled: false, getIsInstalled: ()=>false, InstallState:{ DISABLED:'disabled' } },
           };
         }
-        delete window.__playwright;
-        delete window.__pwInitScripts;
-        delete window._playwrightPortForwardingConnectorMap;
+
+        // 5. حذف علامات Playwright
+        const pwKeys = ['__playwright', '__pwInitScripts', '_playwrightPortForwardingConnectorMap', '__pw_manual_drag_and_drop'];
+        pwKeys.forEach(k => { try { delete window[k]; } catch {} });
+
+        // 6. إخفاء أي property تبدأ بـ __playwright
+        try {
+          const handler = { get(t,p) { if (typeof p === 'string' && p.startsWith('__playwright')) return undefined; return Reflect.get(t,p); } };
+          window = new Proxy(window, handler);
+        } catch {}
+
+        // 7. Permissions طبيعية
         try {
           const orig = Permissions.prototype.query;
           Permissions.prototype.query = function(p) {
-            if (['notifications','clipboard-read','clipboard-write','microphone','camera'].includes(p?.name)) {
+            if (['notifications','clipboard-read','clipboard-write','microphone','camera','geolocation'].includes(p?.name)) {
               return Promise.resolve({ state:'prompt', onchange:null });
             }
             return orig.call(this, p);
           };
+        } catch {}
+
+        // 8. إخفاء automation في WebGL
+        try {
+          const getParam = WebGLRenderingContext.prototype.getParameter;
+          WebGLRenderingContext.prototype.getParameter = function(p) {
+            if (p === 37445) return 'Intel Inc.';
+            if (p === 37446) return 'Intel Iris OpenGL Engine';
+            return getParam.call(this, p);
+          };
+        } catch {}
+
+        // 9. screen واقعي
+        try {
+          Object.defineProperty(screen, 'colorDepth', { get: () => 24, configurable: true });
+          Object.defineProperty(screen, 'pixelDepth',  { get: () => 24, configurable: true });
         } catch {}
       });
 
