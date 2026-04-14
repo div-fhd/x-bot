@@ -101,10 +101,24 @@ const AccountCtrl = {
           network: { proxyUrl: row.proxy_url || null, timezone: defaultTimezone || 'America/New_York' },
         });
 
-        // الفحص التلقائي معطّل — استخدم زر "فحص المحدد" يدوياً
-        // if (stagger !== 'manual') { ... }
-
         results.created.push(row.username);
+
+        // الفحص التلقائي
+        if (stagger !== 'manual') {
+          const delayMs = stagger === 'safe' ? 120_000 : 30_000;
+          setImmediate(async () => {
+            try {
+              const acc = await Account.findOne({ username: row.username });
+              if (!acc) return;
+              const AuthSvc = require('../services/auth.service');
+              await AuthSvc.checkHealth(acc);
+              logger.info(`[Import] فحص @${row.username} ✓`);
+            } catch(e) {
+              logger.warn(`[Import] فحص @${row.username}: ${e.message}`);
+            }
+          });
+          if (i < valid.length - 1) await new Promise(r => setTimeout(r, delayMs));
+        }
       } catch (e) {
         results.errors.push({ username: row.username, error: e.message });
       }

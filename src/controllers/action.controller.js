@@ -188,10 +188,11 @@ const ActionCtrl = {
         } catch (e) {
           logger.error(`[TweetMulti] @${account.username}: ${e.message}`);
           if (global.io) global.io.emit('tweet:multi:progress', { username: account.username, done: i+1, total: accounts.length, success: false, error: e.message.replace('SKIP:','') });
+          if (global.io) global.io.emit('job:progress', { jobId, type: 'tweet-multi', username: account.username, done: i+1, total: accounts.length, success: false, error: e.message.replace('SKIP:','') });
         }
         updateJobProgress(jobId, i + 1);
         const eta = getJobETA(jobId);
-        if (global.io) global.io.emit('job:progress', { jobId, done: i+1, total: accounts.length, eta });
+        if (global.io) global.io.emit('job:progress', { jobId, type: 'tweet-multi', username: account.username, done: i+1, total: accounts.length, eta, success: true });
 
         if (i < accounts.length - 1) {
           const delay = delayMinMs + Math.random() * (delayMaxMs - delayMinMs);
@@ -203,6 +204,8 @@ const ActionCtrl = {
           }
         }
       }
+      // أغلق كل contexts بعد انتهاء النشر
+      for (const acc of accounts) { require('../services/browser.service').closeContext(acc._id.toString()).catch(() => {}); }
       finishJob(jobId);
       if (global.io) global.io.emit('tweet:multi:done', { total: accounts.length, jobId });
       logger.info(`[TweetMulti] Completed for ${accounts.length} accounts`);
@@ -222,20 +225,31 @@ const ActionCtrl = {
     setImmediate(async () => {
       let done = 0;
       for (let i = 0; i < accounts.length; i++) {
-        if (isCancelled(jobId)) break;
+        if (isCancelled(jobId)) { if (global.io) global.io.emit('job:cancelled', { jobId }); break; }
         const account = accounts[i];
+        setJobCurrentAccount(jobId, account._id.toString());
         try {
           await ActionSvc.reportAccount(account, targetHandle, reason);
-          updateJobProgress(jobId, ++done);
-          if (global.io) global.io.emit('report:progress', { done, total: accounts.length, username: account.username, success: true });
+          done++;
+          updateJobProgress(jobId, done);
+          if (global.io) global.io.emit('job:progress', { jobId, type: 'report-account', done, total: accounts.length, username: account.username, success: true });
         } catch (e) {
           logger.warn(`[Report] @${account.username}: ${e.message}`);
-          if (global.io) global.io.emit('report:progress', { done: ++done, total: accounts.length, username: account.username, error: e.message });
+          done++;
+          updateJobProgress(jobId, done);
+          if (global.io) global.io.emit('job:progress', { jobId, type: 'report-account', done, total: accounts.length, username: account.username, success: false });
+          if (e.message.startsWith('SKIP:')) continue;
         }
-        if (i < accounts.length - 1) await new Promise(r => setTimeout(r, 15000 + Math.random() * 10000));
+        if (i < accounts.length - 1) {
+          const delay = 15000 + Math.random() * 10000;
+          for (let s = 0; s < Math.ceil(delay/1000); s++) {
+            if (isCancelled(jobId)) break;
+            await new Promise(r => setTimeout(r, Math.min(1000, delay - s*1000)));
+          }
+        }
       }
       finishJob(jobId);
-      if (global.io) global.io.emit('report:done', { total: accounts.length, done });
+      if (global.io) global.io.emit('job:done', { jobId, type: 'report-account', done });
     });
   },
 
@@ -251,19 +265,31 @@ const ActionCtrl = {
     setImmediate(async () => {
       let done = 0;
       for (let i = 0; i < accounts.length; i++) {
-        if (isCancelled(jobId)) break;
+        if (isCancelled(jobId)) { if (global.io) global.io.emit('job:cancelled', { jobId }); break; }
         const account = accounts[i];
+        setJobCurrentAccount(jobId, account._id.toString());
         try {
           await ActionSvc.reportTweet(account, tweetUrl, reason);
-          if (global.io) global.io.emit('report:progress', { done: ++done, total: accounts.length, username: account.username, success: true });
+          done++;
+          updateJobProgress(jobId, done);
+          if (global.io) global.io.emit('job:progress', { jobId, type: 'report-tweet', done, total: accounts.length, username: account.username, success: true });
         } catch (e) {
           logger.warn(`[Report] @${account.username}: ${e.message}`);
-          if (global.io) global.io.emit('report:progress', { done: ++done, total: accounts.length, username: account.username, error: e.message });
+          done++;
+          updateJobProgress(jobId, done);
+          if (global.io) global.io.emit('job:progress', { jobId, type: 'report-tweet', done, total: accounts.length, username: account.username, success: false });
+          if (e.message.startsWith('SKIP:')) continue;
         }
-        if (i < accounts.length - 1) await new Promise(r => setTimeout(r, 15000 + Math.random() * 10000));
+        if (i < accounts.length - 1) {
+          const delay = 15000 + Math.random() * 10000;
+          for (let s = 0; s < Math.ceil(delay/1000); s++) {
+            if (isCancelled(jobId)) break;
+            await new Promise(r => setTimeout(r, Math.min(1000, delay - s*1000)));
+          }
+        }
       }
       finishJob(jobId);
-      if (global.io) global.io.emit('report:done', { total: accounts.length, done });
+      if (global.io) global.io.emit('job:done', { jobId, type: 'report-tweet', done });
     });
   },
 
@@ -345,9 +371,10 @@ const ActionCtrl = {
         setJobCurrentAccount(jobId, accounts[i]._id.toString());
         try {
           await ActionSvc.follow(accounts[i], targetHandle);
-          if (global.io) global.io.emit('job:progress', { jobId, done: i+1, total: accounts.length, username: accounts[i].username, success: true });
+          if (global.io) global.io.emit('job:progress', { jobId, type: 'follow', done: i+1, total: accounts.length, username: accounts[i].username, success: true });
         } catch(e) {
-          if (global.io) global.io.emit('job:progress', { jobId, done: i+1, total: accounts.length, username: accounts[i].username, success: false });
+          if (global.io) global.io.emit('job:progress', { jobId, type: 'follow', done: i+1, total: accounts.length, username: accounts[i].username, success: false, error: e.message });
+          if (e.message.startsWith('SKIP:')) { updateJobProgress(jobId, i+1); continue; }
         }
         updateJobProgress(jobId, i+1);
         if (i < accounts.length - 1) {
@@ -357,6 +384,12 @@ const ActionCtrl = {
             await new Promise(r => setTimeout(r, Math.min(1000, delay - s*1000)));
           }
         }
+      }
+      // احفظ الجلسات ثم أغلق الـ contexts
+      const Browser = require('../services/browser.service');
+      for (const acc of accounts) {
+        await Browser.persistSession(acc).catch(() => {});
+        await Browser.closeContext(acc._id.toString()).catch(() => {});
       }
       finishJob(jobId);
       if (global.io) global.io.emit('job:done', { jobId, type: 'follow' });
@@ -376,9 +409,10 @@ const ActionCtrl = {
         if (isCancelled(jobId)) { if (global.io) global.io.emit('job:cancelled', { jobId }); break; }
         try {
           await ActionSvc.like(accounts[i], tweetId);
-          if (global.io) global.io.emit('job:progress', { jobId, done: i+1, total: accounts.length, username: accounts[i].username, success: true });
+          if (global.io) global.io.emit('job:progress', { jobId, type: 'like', done: i+1, total: accounts.length, username: accounts[i].username, success: true });
         } catch(e) {
-          if (global.io) global.io.emit('job:progress', { jobId, done: i+1, total: accounts.length, username: accounts[i].username, success: false });
+          if (global.io) global.io.emit('job:progress', { jobId, type: 'like', done: i+1, total: accounts.length, username: accounts[i].username, success: false, error: e.message });
+          if (e.message.startsWith('SKIP:')) { updateJobProgress(jobId, i+1); continue; }
         }
         updateJobProgress(jobId, i+1);
         if (i < accounts.length - 1) {
@@ -388,6 +422,12 @@ const ActionCtrl = {
             await new Promise(r => setTimeout(r, Math.min(1000, delay - s*1000)));
           }
         }
+      }
+      // احفظ الجلسات ثم أغلق الـ contexts
+      const Browser = require('../services/browser.service');
+      for (const acc of accounts) {
+        await Browser.persistSession(acc).catch(() => {});
+        await Browser.closeContext(acc._id.toString()).catch(() => {});
       }
       finishJob(jobId);
       if (global.io) global.io.emit('job:done', { jobId, type: 'like' });
@@ -407,9 +447,10 @@ const ActionCtrl = {
         if (isCancelled(jobId)) { if (global.io) global.io.emit('job:cancelled', { jobId }); break; }
         try {
           await ActionSvc.retweet(accounts[i], tweetId);
-          if (global.io) global.io.emit('job:progress', { jobId, done: i+1, total: accounts.length, username: accounts[i].username, success: true });
+          if (global.io) global.io.emit('job:progress', { jobId, type: 'retweet', done: i+1, total: accounts.length, username: accounts[i].username, success: true });
         } catch(e) {
-          if (global.io) global.io.emit('job:progress', { jobId, done: i+1, total: accounts.length, username: accounts[i].username, success: false });
+          if (global.io) global.io.emit('job:progress', { jobId, done: i+1, total: accounts.length, username: accounts[i].username, success: false, error: e.message });
+          if (e.message.startsWith('SKIP:')) { updateJobProgress(jobId, i+1); continue; }
         }
         updateJobProgress(jobId, i+1);
         if (i < accounts.length - 1) {
@@ -419,6 +460,12 @@ const ActionCtrl = {
             await new Promise(r => setTimeout(r, Math.min(1000, delay - s*1000)));
           }
         }
+      }
+      // احفظ الجلسات ثم أغلق الـ contexts
+      const Browser = require('../services/browser.service');
+      for (const acc of accounts) {
+        await Browser.persistSession(acc).catch(() => {});
+        await Browser.closeContext(acc._id.toString()).catch(() => {});
       }
       finishJob(jobId);
       if (global.io) global.io.emit('job:done', { jobId, type: 'retweet' });
@@ -461,7 +508,7 @@ const ActionCtrl = {
           done++;
           updateJobProgress(jobId, done);
           if (global.io) global.io.emit('job:progress', {
-            jobId, done, total,
+            jobId, type: 'mutual-follow', done, total,
             username: follower.username,
             target,
           });
@@ -472,6 +519,12 @@ const ActionCtrl = {
             await new Promise(r => setTimeout(r, Math.min(1000, delay - s*1000)));
           }
         }
+      }
+      // احفظ الجلسات ثم أغلق الـ contexts
+      const Browser = require('../services/browser.service');
+      for (const acc of accounts) {
+        await Browser.persistSession(acc).catch(() => {});
+        await Browser.closeContext(acc._id.toString()).catch(() => {});
       }
       finishJob(jobId);
       if (global.io) global.io.emit('job:done', { jobId, type: 'mutual-follow', done, total });

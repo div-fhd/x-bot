@@ -228,10 +228,10 @@ async function start() {
     logger.info(`[Server] Dashboard: http://localhost:${cfg.port}`);
     logger.info(`[Server] Health:    http://localhost:${cfg.port}/health`);
     logger.info('');
-    logger.info('[Setup] First run? Register admin:');
-    logger.info(`  curl -X POST http://localhost:${cfg.port}/api/v1/auth/register \\`);
-    logger.info(`    -H "Content-Type: application/json" \\`);
-    logger.info(`    -d '{"email":"admin@example.com","password":"YourPass123!"}'`);
+    // logger.info('[Setup] First run? Register admin:');
+    // logger.info(`  curl -X POST http://localhost:${cfg.port}/api/v1/auth/register \\`);
+    // logger.info(`    -H "Content-Type: application/json" \\`);
+    // logger.info(`    -d '{"email":"admin@example.com","password":"YourPass123!"}'`);
     logger.info('');
   });
 }

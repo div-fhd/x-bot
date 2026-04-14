@@ -113,12 +113,17 @@ async function getContext(account) {
       }
     }
 
-    // Concurrency limit
+    // Concurrency limit — انتظر حتى يتحرر slot
     let waited = 0;
     while (SEM >= cfg.browser.limit) {
-      await sleep(500, 800);
-      waited += 600;
-      if (waited > 60_000) throw new Error('Browser pool full — too many concurrent contexts');
+      await sleep(1000, 1500);
+      waited += 1200;
+      // بعد 5 دقائق — أعد حساب SEM من الـ POOL الفعلي
+      if (waited > 300_000) {
+        SEM = POOL.size;
+        waited = 0;
+        logger.warn(`[Browser] SEM reset to actual pool size: ${SEM}`);
+      }
     }
     SEM++;
 
@@ -142,15 +147,7 @@ async function getContext(account) {
         viewport:    { width: 1280, height: 800 },
         colorScheme: 'light',
         ...(storageState ? { storageState } : {}),
-        ...(net.proxyUrl ? (() => {
-          try {
-            const u = new URL(net.proxyUrl);
-            const proxyConfig = { server: `${u.protocol}//${u.hostname}:${u.port}` };
-            if (u.username) proxyConfig.username = decodeURIComponent(u.username);
-            if (u.password) proxyConfig.password = decodeURIComponent(u.password);
-            return { proxy: proxyConfig };
-          } catch { return { proxy: { server: net.proxyUrl } }; }
-        })() : {}),
+        ...(net.proxyUrl ? { proxy: { server: net.proxyUrl } } : {}),
       });
 
       // Stealth patches

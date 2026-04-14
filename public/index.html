@@ -744,6 +744,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .prog-wrap { background: var(--s3); border: 1px solid var(--bd); border-radius: var(--radius); padding: 16px; }
 .prog-row { display: flex; align-items: center; gap: 10px; margin-bottom: 9px; padding-bottom: 9px; border-bottom: 1px solid var(--bd); }
 .prog-row:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
+.live-log { max-height: 180px; overflow-y: auto; margin-top: 10px; padding: 10px; background: var(--s3); border-radius: 8px; font-size: 11.5px; font-family: var(--m); display: none; }
+.live-log .log-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; border-bottom: 1px solid var(--bd); }
+.live-log .log-row:last-child { border-bottom: none; }
 .prog-handle { font-family: var(--m); font-size: 11.5px; color: var(--t1); width: 130px; flex-shrink: 0; }
 .prog-bar-w { flex: 1; height: 4px; background: var(--s5); border-radius: 3px; overflow: hidden; }
 .prog-bar-f { height: 100%; border-radius: 3px; background: var(--blu); transition: width .4s; }
@@ -1152,8 +1155,10 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
         <label>الفحص عند الاستيراد</label>
         <select id="bulk-stagger">
           <option value="manual" selected>بلا فحص — موصى به</option>
+          <option value="staggered">فحص تلقائي — 30 ثانية بين كل حساب</option>
+          <option value="safe">فحص تلقائي آمن — دقيقتين بين كل حساب</option>
         </select>
-        <div style="font-size:11px;color:var(--amb);margin-top:5px">⚠️ الفحص التلقائي معطّل لحماية الحسابات من الحظر — افحص يدوياً بعد الاستيراد</div>
+        <div style="font-size:11px;color:var(--amb);margin-top:5px">⚠️ الفحص التلقائي يطيل وقت الاستيراد — موصى باليدوي بعد الاستيراد</div>
       </div>
       <div class="field" style="grid-column:1/-1">
         <label style="display:flex;align-items:center;gap:8px;cursor:pointer;text-transform:none;letter-spacing:0;font-size:12.5px;font-weight:500">
@@ -1328,6 +1333,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
           <button class="btn btn-p" onclick="doFollowMulti()">متابعة</button>
           <span id="fl-status" style="font-size:12px;color:var(--t2)"></span>
         </div>
+        <div id="fl-log" class="live-log"></div>
+        <div style="display:none">
+        </div>
       </div>
     </div>
 
@@ -1356,6 +1364,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
           <button class="btn btn-p" onclick="doLikeMulti()">إعجاب</button>
           <span id="lk-status" style="font-size:12px;color:var(--t2)"></span>
         </div>
+        <div id="lk-log" class="live-log"></div>
+        <div style="display:none">
+        </div>
       </div>
     </div>
 
@@ -1381,6 +1392,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
         <div style="display:flex;gap:10px;align-items:center">
           <button class="btn btn-p" onclick="doRepostMulti()">إعادة تغريد</button>
           <span id="rp-status" style="font-size:12px;color:var(--t2)"></span>
+        </div>
+        <div id="rp-log" class="live-log"></div>
+        <div style="display:none">
         </div>
       </div>
     </div>
@@ -1432,6 +1446,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
           <button class="btn btn-p" onclick="doReplyMulti()">إرسال الرد</button>
           <span id="ry-status" style="font-size:12px;color:var(--t2)"></span>
         </div>
+        <div id="ry-log" class="live-log"></div>
+        <div style="display:none">
+        </div>
       </div>
     </div>
 
@@ -1458,6 +1475,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
         <div style="display:flex;gap:10px;align-items:center">
           <button class="btn btn-p" onclick="doMutualFollow()">🔄 بدء المتابعة التبادلية</button>
           <span id="mutual-status" style="font-size:12px;color:var(--t2)"></span>
+        </div>
+        <div id="mutual-log" class="live-log"></div>
+        <div style="display:none">
         </div>
       </div>
     </div>
@@ -1496,6 +1516,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
         <div style="display:flex;gap:10px;align-items:center;margin-top:8px">
           <button class="btn btn-r" onclick="doReport()">🚨 إبلاغ الآن</button>
           <span id="report-status" style="font-size:12px;color:var(--t2)"></span>
+        </div>
+        <div id="report-log" class="live-log"></div>
+        <div style="display:none">
         </div>
         <div id="report-progress" style="display:none;margin-top:12px;padding:10px;background:var(--s3);border-radius:8px;font-size:12px;font-family:var(--m);max-height:150px;overflow-y:auto"></div>
       </div>
@@ -1968,8 +1991,17 @@ function init() {
       }
     });
     socket.on('tweet:multi:progress', d => {
-      const prog = document.getElementById('tm-progress');
-      if (prog) prog.innerHTML += `<div>${d.success ? '✅' : '❌'} @${d.username} (${d.done}/${d.total})</div>`;
+      const el = document.getElementById('tm-progress');
+      if (!el) return;
+      el.style.display = 'block';
+      const ok  = d.success !== false;
+      const err = d.error ? ` — ${d.error}` : '';
+      el.innerHTML += `<div style="display:flex;align-items:center;gap:8px;padding:3px 0;border-bottom:1px solid var(--bd)">
+        <span style="color:${ok?'var(--grn)':'var(--red)'}">${ok?'✅':'❌'}</span>
+        <span style="color:var(--t1)">@${d.username}</span>
+        <span style="color:var(--t2);font-size:11px">${d.done}/${d.total}${err}</span>
+      </div>`;
+      el.scrollTop = el.scrollHeight;
     });
     socket.on('report:progress', d => {
       const prog = document.getElementById('report-progress');
@@ -1993,6 +2025,52 @@ function init() {
     });
     socket.on('job:progress', d => {
       if (currentPanel === 'jobs') loadJobs();
+      if (!d.username) return;
+
+      // نفس نمط النشر الجماعي — الـ log والـ status
+      const logMap = {
+        'tweet-multi':    'tm-progress',
+        'follow':         'fl-log',
+        'like':           'lk-log',
+        'retweet':        'rp-log',
+        'mutual-follow':  'mutual-log',
+        'report-account': 'report-log',
+        'report-tweet':   'report-log',
+      };
+      const statMap = {
+        'tweet-multi':    'tm-status',
+        'follow':         'fl-status',
+        'like':           'lk-status',
+        'retweet':        'rp-status',
+        'mutual-follow':  'mutual-status',
+        'report-account': 'report-status',
+        'report-tweet':   'report-status',
+      };
+
+      const logId  = logMap[d.type];
+      const statId = statMap[d.type];
+      const ok     = d.success !== false;
+
+      // تحديث الـ log
+      if (logId) {
+        const el = document.getElementById(logId);
+        if (el) {
+          el.style.display = 'block';
+          const err = d.error ? ` — ${d.error}` : '';
+          el.innerHTML += `<div style="display:flex;align-items:center;gap:8px;padding:3px 0;border-bottom:1px solid var(--bd)">
+            <span style="color:${ok?'var(--grn)':'var(--red)'}">${ok?'✅':'❌'}</span>
+            <span style="color:var(--t1)">@${d.username}</span>
+            <span style="color:var(--t2);font-size:11px">${d.done}/${d.total}${err}</span>
+          </div>`;
+          el.scrollTop = el.scrollHeight;
+        }
+      }
+
+      // تحديث الـ status
+      if (statId) {
+        const el = document.getElementById(statId);
+        if (el) el.textContent = `${d.done}/${d.total}`;
+      }
     });
     socket.on('job:cancelled', d => {
       toast(`⏹ أُوقف النشر (${d.done} حساب تم)`, 'ok');
@@ -2447,6 +2525,37 @@ async function autoDistribute() {
     toast(`✅ تم التوزيع على ${d.updated} حساب`, 'ok');
     loadProxies();
   } catch(e) { toast(e.message, 'err'); }
+}
+
+// ── Live log مشترك لكل العمليات ──────────────────────────────
+const jobLogMap = {
+  'follow':         'fl-log',
+  'like':           'lk-log',
+  'retweet':        'rp-log',
+  'mutual-follow':  'mutual-log',
+  'report-account': 'report-log',
+  'report-tweet':   'report-log',
+  'tweet-multi':    'tm-progress',
+};
+
+function appendJobLog(logId, username, done, total, success, error) {
+  const el = document.getElementById(logId);
+  if (!el) return;
+  el.style.display = 'block';
+  const icon   = success ? '✅' : '❌';
+  const color  = success ? 'var(--grn)' : 'var(--red)';
+  const errTxt = error ? ` — ${error}` : '';
+  el.innerHTML += `<div class="log-row">
+    <span style="color:${color}">${icon}</span>
+    <span style="color:var(--t1)">@${username}</span>
+    <span style="color:var(--t2)">${done}/${total}${errTxt}</span>
+  </div>`;
+  el.scrollTop = el.scrollHeight;
+}
+
+function clearJobLog(logId) {
+  const el = document.getElementById(logId);
+  if (el) { el.innerHTML = ''; el.style.display = 'none'; }
 }
 
 function refreshCurrent() {
@@ -3093,7 +3202,8 @@ async function doFollowMulti() {
       method: 'POST',
       body: JSON.stringify({ accountIds: ids, targetHandle: target, delayMinMs: minD, delayMaxMs: maxD }),
     });
-    document.getElementById('fl-status').textContent = `✅ بدأ على ${d.total} حساب`;
+    clearJobLog('fl-log');
+    document.getElementById('fl-status').textContent = `جارٍ على ${d.total} حساب…`;
     setTimeout(() => { document.getElementById('fl-status').textContent = ''; }, 3000);
   } catch(e) { toast(e.message, 'err'); }
 }
@@ -3110,7 +3220,8 @@ async function doLikeMulti() {
       method: 'POST',
       body: JSON.stringify({ accountIds: ids, tweetId, delayMinMs: minD, delayMaxMs: maxD }),
     });
-    document.getElementById('lk-status').textContent = `✅ بدأ على ${d.total} حساب`;
+    clearJobLog('lk-log');
+    document.getElementById('lk-status').textContent = `جارٍ على ${d.total} حساب…`;
     setTimeout(() => { document.getElementById('lk-status').textContent = ''; }, 3000);
   } catch(e) { toast(e.message, 'err'); }
 }
@@ -3130,7 +3241,8 @@ async function doRepostMulti() {
       method: 'POST',
       body: JSON.stringify({ accountIds: ids, tweetId, delayMinMs: minD, delayMaxMs: maxD }),
     });
-    document.getElementById('rp-status').textContent = `✅ بدأ على ${d.total} حساب`;
+    clearJobLog('rp-log');
+    document.getElementById('rp-status').textContent = `جارٍ على ${d.total} حساب…`;
     setTimeout(() => { document.getElementById('rp-status').textContent = ''; }, 3000);
   } catch(e) { toast(e.message, 'err'); }
 }
@@ -3411,7 +3523,7 @@ async function doTweetMulti() {
     });
     s.textContent = `✅ بدأ النشر على ${d.total || ids.length} حساب`;
     prog.innerHTML = `<div style="color:var(--grn)">جارٍ النشر في الخلفية…
-      <button onclick="cancelTweetMultiJob(${d.jobId})" style="margin-right:10px;font-size:11px;color:var(--red);background:rgba(240,72,90,.1);border:1px solid rgba(240,72,90,.2);border-radius:5px;padding:2px 8px;cursor:pointer">⏹ إيقاف</button>
+      
     </div>`;
   } catch(e) {
     s.textContent = '';
@@ -3489,7 +3601,8 @@ async function doMutualFollow() {
       method: 'POST',
       body: JSON.stringify({ accountIds: ids, delayMinMs: minD, delayMaxMs: maxD }),
     });
-    document.getElementById('mutual-status').textContent = `✅ بدأ — ${d.total} عملية`;
+    clearJobLog('mutual-log');
+    document.getElementById('mutual-status').textContent = `جارٍ — ${d.total} عملية…`;
     setTimeout(() => { document.getElementById('mutual-status').textContent = ''; }, 4000);
   } catch(e) { toast(e.message, 'err'); }
 }

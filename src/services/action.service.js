@@ -222,7 +222,7 @@ const ActionSvc = {
   },
 
     // ── Reply ─────────────────────────────────────────────────────
-  async reply(account, tweetId, text) {
+  async reply(account, tweetId, text, mediaLocalPaths = []) {
     if (!account.canDo('reply')) throw new Error(`@${account.username}: daily reply cap reached`);
     const page = await this._readyPage(account);
     try {
@@ -252,6 +252,15 @@ const ActionSvc = {
       // اكتب مباشرة على الـ locator بدل page
       await replyBox.type(text, { delay: 40 });
       await sleep(800, 1200);
+
+      // رفع الصور إذا وجدت
+      if (mediaLocalPaths?.length) {
+        const fileInput = await page.$('input[type="file"][accept*="image"]').catch(() => null);
+        if (fileInput) {
+          await fileInput.setInputFiles(mediaLocalPaths);
+          await sleep(2000, 3000);
+        }
+      }
 
       // انتظر زر الإرسال ثم اضغطه
       const replySubmit = page.locator('[data-testid="tweetButtonInline"]').first();
@@ -780,6 +789,10 @@ const ActionSvc = {
   async _readyPage(account) {
     await AuthSvc.ensureSession(account);
     const page = await Browser.getPage(account);
+
+    // عرض الـ IP
+    const hasProxy = !!account.network?.proxyUrl;
+    // logger.info(`[IP] @${account.username} — proxy: ${hasProxy ? '✅ ' + (account.network.proxyUrl.split('@')[1] || '') : '❌ بدون بروكسي'}`);
 
     // لا نغلق الصفحة تلقائياً — _checkNotRedirected يتولى الأمر
 

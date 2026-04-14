@@ -6,7 +6,6 @@ const AccountSchema = new mongoose.Schema({
   username:  { type: String, required: true, unique: true, trim: true, index: true },
   label:     { type: String },
   niche:     { type: String },
-  isPrimary: { type: Boolean, default: false },
   tags:      [String],
   ownedBy:   { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
 
@@ -110,6 +109,6 @@ AccountSchema.methods.bump = async function (action) {
 };
 
 AccountSchema.index({ status: 1, isActive: 1 });
-AccountSchema.index({ role: 1 });
+// AccountSchema.index({ role: 1 }); — مدمج في تعريف الـ field
 
 module.exports = mongoose.model('Account', AccountSchema);

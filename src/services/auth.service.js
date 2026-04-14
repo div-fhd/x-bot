@@ -118,11 +118,14 @@ const AuthSvc = {
       await account.save();
       await log(account._id, 'session', 'health_check', 'success', { state, method: 'browser' });
       logger.info(`[Auth] Health check @${account.username}: ${state} → ${account.status}`);
+      // أغلق الـ context بعد الفحص فوراً لتحرير الذاكرة
+      await Browser.closeContext(account._id.toString()).catch(() => {});
       return { state, status: account.status };
     } catch (e) {
       account.status     = 'غير_نشط';
       account.statusNote = e.message;
       await account.save().catch(() => {});
+      await Browser.closeContext(account._id.toString()).catch(() => {});
       logger.warn(`[Auth] Health check failed @${account.username}: ${e.message}`);
       return { state: 'error', error: e.message };
     }
@@ -134,6 +137,21 @@ const AuthSvc = {
     try {
       await page.goto(X_HOME, { waitUntil: 'domcontentloaded', timeout: 60_000 });
       await sleep(2000, 3000);
+      // عرض الـ IP — فقط إذا LOG_IP=true في .env
+      if (process.env.LOG_IP === 'true') {
+        try {
+          const ipPage = await ctx.newPage();
+          await ipPage.goto('https://api.ipify.org?format=json', { waitUntil: 'domcontentloaded', timeout: 10000 });
+          const ip = await ipPage.evaluate(() => document.body.innerText.trim()).catch(() => '?');
+          const parsed = JSON.parse(ip).ip || ip;
+          const hasProxy = !!account.network?.proxyUrl;
+          // logger.info(`[IP] @${account.username} — ${parsed} | proxy: ${hasProxy ? '✅' : '❌ بدون بروكسي'}`);
+          await ipPage.close().catch(() => {});
+        } catch {}
+      } else {
+        const hasProxy = !!account.network?.proxyUrl;
+        logger.info(`[IP] @${account.username} — proxy: ${hasProxy ? '✅ ' + account.network.proxyUrl.split('@')[1] : '❌ بدون بروكسي'}`);
+      }
 
       // أغلق cookie popup إذا ظهر
       await page.evaluate(() => {
@@ -177,7 +195,7 @@ const AuthSvc = {
   // ── Full login flow ───────────────────────────────────────────
   async _login(account, ctx, creds) {
     const page = await ctx.newPage();
-    const shot = async (name) => page.screenshot({ path: `${DEBUG_DIR}/${name}.png`, fullPage: false }).catch(() => {});
+    const shot = async (name) => process.env.DEBUG_SCREENSHOTS === 'true' ? page.screenshot({ path: `${DEBUG_DIR}/${name}.png`, fullPage: false }).catch(() => {}) : Promise.resolve();
 
     try {
       logger.info(`[Auth] Starting login: @${account.username}`);
