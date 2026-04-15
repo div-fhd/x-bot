@@ -232,27 +232,45 @@ const AccountCtrl = {
 
   // ── رفع الصور ──────────────────────────────────────────────────
   async bulkCheck(req, res) {
+    // منع تشغيل أكثر من bulk-check في نفس الوقت
+    if (global._bulkCheckRunning) return res.json({ started: false, message: 'فحص جارٍ بالفعل' });
+    global._bulkCheckRunning = true;
+
     const { accountIds } = req.body;
     const query = accountIds?.length
       ? { _id: { $in: accountIds }, isActive: true }
       : { isActive: true };
     const accounts = await Account.find(query);
-    if (!accounts.length) return res.json({ total: 0 });
+    if (!accounts.length) { global._bulkCheckRunning = false; return res.json({ total: 0 }); }
     res.json({ started: true, total: accounts.length });
     setImmediate(async () => {
       let done = 0;
-      for (const account of accounts) {
-        try {
-          await AuthSvc.checkHealth(account);
-        } catch(e) {
-          logger.warn(`[BulkCheck] @${account.username}: ${e.message}`);
+      const batchSize = req.body.batchSize || 1; // عدد الحسابات بالتوازي
+
+      // قسّم الحسابات إلى مجموعات
+      for (let i = 0; i < accounts.length; i += batchSize) {
+        const batch = accounts.slice(i, i + batchSize);
+
+        // شغّل المجموعة بالتوازي
+        await Promise.allSettled(batch.map(async account => {
+          try {
+            await AuthSvc.checkHealth(account);
+          } catch(e) {
+            logger.warn(`[BulkCheck] @${account.username}: ${e.message}`);
+          }
+          done++;
+          if (global.io) global.io.emit('account:check:progress', {
+            done, total: accounts.length, username: account.username, status: account.status,
+          });
+        }));
+
+        // تأخير بين المجموعات
+        if (i + batchSize < accounts.length) {
+          await new Promise(r => setTimeout(r, 2000));
         }
-        done++;
-        if (global.io) global.io.emit('account:check:progress', {
-          done, total: accounts.length, username: account.username, status: account.status,
-        });
-        if (done < accounts.length) await new Promise(r => setTimeout(r, 5000));
       }
+
+      global._bulkCheckRunning = false;
       if (global.io) global.io.emit('account:check:done', { total: accounts.length });
       logger.info(`[BulkCheck] اكتمل: ${done}/${accounts.length}`);
     });

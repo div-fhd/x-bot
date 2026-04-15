@@ -59,6 +59,16 @@ function getActiveJobs() {
   return [...activeJobs.values()];
 }
 
+// ── batch parallel helper ────────────────────────────────────
+async function runInBatches(items, batchSize, jobId, fn) {
+  for (let i = 0; i < items.length; i += batchSize) {
+    if (isCancelled(jobId)) break;
+    const batch = items.slice(i, i + batchSize);
+    await Promise.allSettled(batch.map(fn));
+    if (i + batchSize < items.length) await new Promise(r => setTimeout(r, 800));
+  }
+}
+
 const ActionCtrl = {
 
   // ── Single tweet ──────────────────────────────────────────────
@@ -118,7 +128,7 @@ const ActionCtrl = {
   },
 
   async tweetMulti(req, res) {
-    const { accountIds, text, mode = 'ai', varyText = false, manualTexts = [], delayMinMs = 8000, delayMaxMs = 25000, topic, hashtags, mediaPaths = [], imageOrder = 'same' } = req.body;
+    const { accountIds, text, mode = 'ai', varyText = false, manualTexts = [], delayMinMs = 8000, delayMaxMs = 25000, topic, hashtags, mediaPaths = [], imageOrder = 'same', batchSize = 1 } = req.body;
     const actualTopic = topic || text;
     if (!accountIds?.length) return res.status(400).json({ error: 'accountIds[] required' });
     if (mode === 'ai' && !actualTopic) return res.status(400).json({ error: 'topic required for AI mode' });
@@ -359,30 +369,39 @@ const ActionCtrl = {
 
   // ── Follow Multi ──────────────────────────────────────────────
   async followMulti(req, res) {
-    const { accountIds, targetHandle, delayMinMs = 20000, delayMaxMs = 40000 } = req.body;
+    const { accountIds, targetHandle, delayMinMs = 20000, delayMaxMs = 40000, batchSize = 1 } = req.body;
     if (!accountIds?.length || !targetHandle) return res.status(400).json({ error: 'accountIds[] and targetHandle required' });
     const accounts = await Account.find({ _id: { $in: accountIds }, isActive: true });
     if (!accounts.length) return res.status(400).json({ error: 'No active accounts' });
     const jobId = createJob('follow', accounts);
     res.json({ started: true, jobId, total: accounts.length });
     setImmediate(async () => {
-      for (let i = 0; i < accounts.length; i++) {
+      let done = 0;
+      for (let bi = 0; bi < accounts.length; bi += batchSize) {
         if (isCancelled(jobId)) { if (global.io) global.io.emit('job:cancelled', { jobId }); break; }
-        setJobCurrentAccount(jobId, accounts[i]._id.toString());
-        try {
-          await ActionSvc.follow(accounts[i], targetHandle);
-          if (global.io) global.io.emit('job:progress', { jobId, type: 'follow', done: i+1, total: accounts.length, username: accounts[i].username, success: true });
-        } catch(e) {
-          if (global.io) global.io.emit('job:progress', { jobId, type: 'follow', done: i+1, total: accounts.length, username: accounts[i].username, success: false, error: e.message });
-          if (e.message.startsWith('SKIP:')) { updateJobProgress(jobId, i+1); continue; }
-        }
-        updateJobProgress(jobId, i+1);
-        if (i < accounts.length - 1) {
+        const batch = accounts.slice(bi, bi + batchSize);
+        await Promise.allSettled(batch.map(async (account) => {
+          setJobCurrentAccount(jobId, account._id.toString());
+          try {
+            await ActionSvc.follow(account, targetHandle);
+            done++;
+            updateJobProgress(jobId, done);
+            if (global.io) global.io.emit('job:progress', { jobId, type: 'follow', done, total: accounts.length, username: account.username, success: true });
+          } catch(e) {
+            done++;
+            updateJobProgress(jobId, done);
+            if (global.io) global.io.emit('job:progress', { jobId, type: 'follow', done, total: accounts.length, username: account.username, success: false, error: e.message });
+          }
+        }));
+        // تأخير بين المجموعات
+        if (batchSize === 1 && bi + 1 < accounts.length) {
           const delay = delayMinMs + Math.random() * (delayMaxMs - delayMinMs);
           for (let s = 0; s < Math.ceil(delay/1000); s++) {
             if (isCancelled(jobId)) break;
             await new Promise(r => setTimeout(r, Math.min(1000, delay - s*1000)));
           }
+        } else if (bi + batchSize < accounts.length) {
+          await new Promise(r => setTimeout(r, 2000));
         }
       }
       // احفظ الجلسات ثم أغلق الـ contexts
@@ -398,29 +417,38 @@ const ActionCtrl = {
 
   // ── Like Multi ────────────────────────────────────────────────
   async likeMulti(req, res) {
-    const { accountIds, tweetId, delayMinMs = 15000, delayMaxMs = 30000 } = req.body;
+    const { accountIds, tweetId, delayMinMs = 15000, delayMaxMs = 30000, batchSize = 1 } = req.body;
     if (!accountIds?.length || !tweetId) return res.status(400).json({ error: 'accountIds[] and tweetId required' });
     const accounts = await Account.find({ _id: { $in: accountIds }, isActive: true });
     if (!accounts.length) return res.status(400).json({ error: 'No active accounts' });
     const jobId = createJob('like', accounts);
     res.json({ started: true, jobId, total: accounts.length });
     setImmediate(async () => {
-      for (let i = 0; i < accounts.length; i++) {
+      let done = 0;
+      for (let bi = 0; bi < accounts.length; bi += batchSize) {
         if (isCancelled(jobId)) { if (global.io) global.io.emit('job:cancelled', { jobId }); break; }
-        try {
-          await ActionSvc.like(accounts[i], tweetId);
-          if (global.io) global.io.emit('job:progress', { jobId, type: 'like', done: i+1, total: accounts.length, username: accounts[i].username, success: true });
-        } catch(e) {
-          if (global.io) global.io.emit('job:progress', { jobId, type: 'like', done: i+1, total: accounts.length, username: accounts[i].username, success: false, error: e.message });
-          if (e.message.startsWith('SKIP:')) { updateJobProgress(jobId, i+1); continue; }
-        }
-        updateJobProgress(jobId, i+1);
-        if (i < accounts.length - 1) {
+        const batch = accounts.slice(bi, bi + batchSize);
+        await Promise.allSettled(batch.map(async (account) => {
+          setJobCurrentAccount(jobId, account._id.toString());
+          try {
+            await ActionSvc.like(account, tweetId);
+            done++;
+            updateJobProgress(jobId, done);
+            if (global.io) global.io.emit('job:progress', { jobId, type: 'like', done, total: accounts.length, username: account.username, success: true });
+          } catch(e) {
+            done++;
+            updateJobProgress(jobId, done);
+            if (global.io) global.io.emit('job:progress', { jobId, type: 'like', done, total: accounts.length, username: account.username, success: false, error: e.message });
+          }
+        }));
+        if (batchSize === 1 && bi + 1 < accounts.length) {
           const delay = delayMinMs + Math.random() * (delayMaxMs - delayMinMs);
           for (let s = 0; s < Math.ceil(delay/1000); s++) {
             if (isCancelled(jobId)) break;
             await new Promise(r => setTimeout(r, Math.min(1000, delay - s*1000)));
           }
+        } else if (bi + batchSize < accounts.length) {
+          await new Promise(r => setTimeout(r, 2000));
         }
       }
       // احفظ الجلسات ثم أغلق الـ contexts
@@ -436,29 +464,38 @@ const ActionCtrl = {
 
   // ── Retweet Multi ─────────────────────────────────────────────
   async retweetMulti(req, res) {
-    const { accountIds, tweetId, delayMinMs = 15000, delayMaxMs = 30000 } = req.body;
+    const { accountIds, tweetId, delayMinMs = 15000, delayMaxMs = 30000, batchSize = 1 } = req.body;
     if (!accountIds?.length || !tweetId) return res.status(400).json({ error: 'accountIds[] and tweetId required' });
     const accounts = await Account.find({ _id: { $in: accountIds }, isActive: true });
     if (!accounts.length) return res.status(400).json({ error: 'No active accounts' });
     const jobId = createJob('retweet', accounts);
     res.json({ started: true, jobId, total: accounts.length });
     setImmediate(async () => {
-      for (let i = 0; i < accounts.length; i++) {
+      let done = 0;
+      for (let bi = 0; bi < accounts.length; bi += batchSize) {
         if (isCancelled(jobId)) { if (global.io) global.io.emit('job:cancelled', { jobId }); break; }
-        try {
-          await ActionSvc.retweet(accounts[i], tweetId);
-          if (global.io) global.io.emit('job:progress', { jobId, type: 'retweet', done: i+1, total: accounts.length, username: accounts[i].username, success: true });
-        } catch(e) {
-          if (global.io) global.io.emit('job:progress', { jobId, done: i+1, total: accounts.length, username: accounts[i].username, success: false, error: e.message });
-          if (e.message.startsWith('SKIP:')) { updateJobProgress(jobId, i+1); continue; }
-        }
-        updateJobProgress(jobId, i+1);
-        if (i < accounts.length - 1) {
+        const batch = accounts.slice(bi, bi + batchSize);
+        await Promise.allSettled(batch.map(async (account) => {
+          setJobCurrentAccount(jobId, account._id.toString());
+          try {
+            await ActionSvc.retweet(account, tweetId);
+            done++;
+            updateJobProgress(jobId, done);
+            if (global.io) global.io.emit('job:progress', { jobId, type: 'retweet', done, total: accounts.length, username: account.username, success: true });
+          } catch(e) {
+            done++;
+            updateJobProgress(jobId, done);
+            if (global.io) global.io.emit('job:progress', { jobId, type: 'retweet', done, total: accounts.length, username: account.username, success: false, error: e.message });
+          }
+        }));
+        if (batchSize === 1 && bi + 1 < accounts.length) {
           const delay = delayMinMs + Math.random() * (delayMaxMs - delayMinMs);
           for (let s = 0; s < Math.ceil(delay/1000); s++) {
             if (isCancelled(jobId)) break;
             await new Promise(r => setTimeout(r, Math.min(1000, delay - s*1000)));
           }
+        } else if (bi + batchSize < accounts.length) {
+          await new Promise(r => setTimeout(r, 2000));
         }
       }
       // احفظ الجلسات ثم أغلق الـ contexts

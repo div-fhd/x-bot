@@ -1029,6 +1029,12 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
       </select>
       <div class="tb-sep"></div>
       <button class="btn btn-sm" onclick="togglePrimaryFilter(this)" style="border-color:rgba(245,166,35,.35);color:var(--amb)">★ الرئيسية</button>
+      <span style="font-size:11px;color:var(--t2);white-space:nowrap">نمط التشغيل:</span>
+      <select id="bulk-check-batch" style="font-size:11px;padding:3px 6px;border-radius:6px;background:var(--s3);border:1px solid var(--bd2);color:var(--t1)">
+        <option value="1">1 تسلسلي</option>
+        <option value="3" selected>3 متوازي</option>
+        <option value="5">5 متوازي</option>
+      </select>
       <button class="btn btn-sm" id="bulk-check-btn" onclick="doBulkCheckSelected()" style="border-color:rgba(168,130,255,.35);color:var(--pur)">🔍 فحص المحدد</button>
       <button class="btn btn-sm btn-r" onclick="deleteSelectedAccounts()">🗑 حذف المحدد</button>
     </div>
@@ -1303,6 +1309,12 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 
         <div id="tm-acc-container"></div>
         <div style="display:flex;gap:10px;align-items:center">
+          <span style="font-size:11px;color:var(--t2);white-space:nowrap">نمط التشغيل:</span>
+          <select class="batch-size-sel" style="font-size:11px;padding:3px 6px;border-radius:6px;background:var(--s3);border:1px solid var(--bd2);color:var(--t1)">
+              <option value="1">1 تسلسلي</option>
+              <option value="3" selected>3 متوازي</option>
+              <option value="5">5 متوازي</option>
+            </select>
           <button class="btn btn-p" onclick="doTweetMulti()">🚀 نشر الآن</button>
           <span id="tm-status" style="font-size:12px;color:var(--t2)"></span>
         </div>
@@ -1330,6 +1342,12 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
           </div>
         </div>
         <div style="display:flex;gap:10px;align-items:center">
+          <span style="font-size:11px;color:var(--t2);white-space:nowrap">نمط التشغيل:</span>
+          <select class="batch-size-sel" style="font-size:11px;padding:3px 6px;border-radius:6px;background:var(--s3);border:1px solid var(--bd2);color:var(--t1)">
+              <option value="1">1 تسلسلي</option>
+              <option value="3" selected>3 متوازي</option>
+              <option value="5">5 متوازي</option>
+            </select>
           <button class="btn btn-p" onclick="doFollowMulti()">متابعة</button>
           <span id="fl-status" style="font-size:12px;color:var(--t2)"></span>
         </div>
@@ -1361,6 +1379,12 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
           </div>
         </div>
         <div style="display:flex;gap:10px;align-items:center">
+          <span style="font-size:11px;color:var(--t2);white-space:nowrap">نمط التشغيل:</span>
+          <select class="batch-size-sel" style="font-size:11px;padding:3px 6px;border-radius:6px;background:var(--s3);border:1px solid var(--bd2);color:var(--t1)">
+              <option value="1">1 تسلسلي</option>
+              <option value="3" selected>3 متوازي</option>
+              <option value="5">5 متوازي</option>
+            </select>
           <button class="btn btn-p" onclick="doLikeMulti()">إعجاب</button>
           <span id="lk-status" style="font-size:12px;color:var(--t2)"></span>
         </div>
@@ -1390,6 +1414,12 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
           </div>
         </div>
         <div style="display:flex;gap:10px;align-items:center">
+          <span style="font-size:11px;color:var(--t2);white-space:nowrap">نمط التشغيل:</span>
+          <select class="batch-size-sel" style="font-size:11px;padding:3px 6px;border-radius:6px;background:var(--s3);border:1px solid var(--bd2);color:var(--t1)">
+              <option value="1">1 تسلسلي</option>
+              <option value="3" selected>3 متوازي</option>
+              <option value="5">5 متوازي</option>
+            </select>
           <button class="btn btn-p" onclick="doRepostMulti()">إعادة تغريد</button>
           <span id="rp-status" style="font-size:12px;color:var(--t2)"></span>
         </div>
@@ -1443,6 +1473,12 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
           </div>
         </div>
         <div style="display:flex;gap:10px;align-items:center">
+          <span style="font-size:11px;color:var(--t2);white-space:nowrap">نمط التشغيل:</span>
+          <select class="batch-size-sel" style="font-size:11px;padding:3px 6px;border-radius:6px;background:var(--s3);border:1px solid var(--bd2);color:var(--t1)">
+              <option value="1">1 تسلسلي</option>
+              <option value="3" selected>3 متوازي</option>
+              <option value="5">5 متوازي</option>
+            </select>
           <button class="btn btn-p" onclick="doReplyMulti()">إرسال الرد</button>
           <span id="ry-status" style="font-size:12px;color:var(--t2)"></span>
         </div>
@@ -1473,6 +1509,12 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
           </div>
         </div>
         <div style="display:flex;gap:10px;align-items:center">
+          <span style="font-size:11px;color:var(--t2);white-space:nowrap">نمط التشغيل:</span>
+          <select class="batch-size-sel" style="font-size:11px;padding:3px 6px;border-radius:6px;background:var(--s3);border:1px solid var(--bd2);color:var(--t1)">
+              <option value="1">1 تسلسلي</option>
+              <option value="3" selected>3 متوازي</option>
+              <option value="5">5 متوازي</option>
+            </select>
           <button class="btn btn-p" onclick="doMutualFollow()">🔄 بدء المتابعة التبادلية</button>
           <span id="mutual-status" style="font-size:12px;color:var(--t2)"></span>
         </div>
@@ -1514,6 +1556,12 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
         </div>
         <div id="rp-report-container"></div>
         <div style="display:flex;gap:10px;align-items:center;margin-top:8px">
+          <span style="font-size:11px;color:var(--t2);white-space:nowrap">نمط التشغيل:</span>
+          <select class="batch-size-sel" style="font-size:11px;padding:3px 6px;border-radius:6px;background:var(--s3);border:1px solid var(--bd2);color:var(--t1)">
+              <option value="1">1 تسلسلي</option>
+              <option value="3" selected>3 متوازي</option>
+              <option value="5">5 متوازي</option>
+            </select>
           <button class="btn btn-r" onclick="doReport()">🚨 إبلاغ الآن</button>
           <span id="report-status" style="font-size:12px;color:var(--t2)"></span>
         </div>
@@ -2921,14 +2969,13 @@ async function doBulkCheckSelected() {
   try {
     const d = await api('/api/v1/accounts/bulk-check', {
       method: 'POST',
-      body: JSON.stringify({ accountIds: ids }),
+      body: JSON.stringify({ accountIds: ids, batchSize: +document.getElementById('bulk-check-batch').value }),
     });
     document.getElementById('bulk-check-counter').textContent = `0/${d.total}`;
   } catch(e) { toast(e.message, 'err'); btn.disabled = false; prog.style.display = 'none'; }
 }
 
-// حذف المحدد نهائياً
-async function deleteSelectedAccounts() {
+async function deleteSelectedHard() {
   const ids = [...document.querySelectorAll('.acc-cb:checked')].map(c => c.dataset.id);
   if (!ids.length) return toast('لم تحدد أي حساب', 'warn');
   if (!confirm(`⚠️ حذف ${ids.length} حساب نهائياً من قاعدة البيانات؟\nلا يمكن التراجع عن هذا الإجراء.`)) return;
@@ -3200,7 +3247,7 @@ async function doFollowMulti() {
   try {
     const d = await api('/api/v1/actions/follow-multi', {
       method: 'POST',
-      body: JSON.stringify({ accountIds: ids, targetHandle: target, delayMinMs: minD, delayMaxMs: maxD }),
+      body: JSON.stringify({ accountIds: ids, batchSize: +(document.querySelector('#at-follow .batch-size-sel')?.value||1), targetHandle: target, delayMinMs: minD, delayMaxMs: maxD }),
     });
     clearJobLog('fl-log');
     document.getElementById('fl-status').textContent = `جارٍ على ${d.total} حساب…`;
@@ -3218,7 +3265,7 @@ async function doLikeMulti() {
   try {
     const d = await api('/api/v1/actions/like-multi', {
       method: 'POST',
-      body: JSON.stringify({ accountIds: ids, tweetId, delayMinMs: minD, delayMaxMs: maxD }),
+      body: JSON.stringify({ accountIds: ids, batchSize: +(document.querySelector('#at-like .batch-size-sel')?.value||1), tweetId, delayMinMs: minD, delayMaxMs: maxD }),
     });
     clearJobLog('lk-log');
     document.getElementById('lk-status').textContent = `جارٍ على ${d.total} حساب…`;
@@ -3239,7 +3286,7 @@ async function doRepostMulti() {
   try {
     const d = await api('/api/v1/actions/retweet-multi', {
       method: 'POST',
-      body: JSON.stringify({ accountIds: ids, tweetId, delayMinMs: minD, delayMaxMs: maxD }),
+      body: JSON.stringify({ accountIds: ids, batchSize: +(document.querySelector('#at-repost .batch-size-sel')?.value||1), tweetId, delayMinMs: minD, delayMaxMs: maxD }),
     });
     clearJobLog('rp-log');
     document.getElementById('rp-status').textContent = `جارٍ على ${d.total} حساب…`;
@@ -3509,6 +3556,7 @@ async function doTweetMulti() {
       method: 'POST',
       body: JSON.stringify({
         accountIds:   ids,
+        batchSize:    +(document.querySelector('#at-tweet-multi .batch-size-sel')?.value || 1),
         mode,
         text:         mode === 'same' ? sameText : topic,
         topic:        topic,
@@ -3577,8 +3625,8 @@ async function doReport() {
   try {
     const endpoint = type === 'account' ? '/api/v1/actions/report-account' : '/api/v1/actions/report-tweet';
     const body = type === 'account'
-      ? { accountIds: ids, targetHandle: target, reason }
-      : { accountIds: ids, tweetUrl: target, reason };
+      ? { accountIds: ids, batchSize: +(document.querySelector('#at-report .batch-size-sel')?.value || 1), targetHandle: target, reason }
+      : { accountIds: ids, batchSize: +(document.querySelector('#at-report .batch-size-sel')?.value || 1), tweetUrl: target, reason };
 
     const d = await api(endpoint, { method: 'POST', body: JSON.stringify(body) });
     s.textContent = `✅ بدأ الإبلاغ من ${d.total} حساب`;
@@ -3599,7 +3647,7 @@ async function doMutualFollow() {
   try {
     const d = await api('/api/v1/actions/mutual-follow', {
       method: 'POST',
-      body: JSON.stringify({ accountIds: ids, delayMinMs: minD, delayMaxMs: maxD }),
+      body: JSON.stringify({ accountIds: ids, batchSize: +(document.querySelector('#at-mutual .batch-size-sel')?.value || 1), delayMinMs: minD, delayMaxMs: maxD }),
     });
     clearJobLog('mutual-log');
     document.getElementById('mutual-status').textContent = `جارٍ — ${d.total} عملية…`;
