@@ -404,10 +404,9 @@ const ActionCtrl = {
           await new Promise(r => setTimeout(r, 2000));
         }
       }
-      // احفظ الجلسات ثم أغلق الـ contexts
+      // أغلق الـ contexts لتحرير SEM
       const Browser = require('../services/browser.service');
       for (const acc of accounts) {
-        await Browser.persistSession(acc).catch(() => {});
         await Browser.closeContext(acc._id.toString()).catch(() => {});
       }
       finishJob(jobId);
@@ -451,10 +450,9 @@ const ActionCtrl = {
           await new Promise(r => setTimeout(r, 2000));
         }
       }
-      // احفظ الجلسات ثم أغلق الـ contexts
+      // أغلق الـ contexts لتحرير SEM
       const Browser = require('../services/browser.service');
       for (const acc of accounts) {
-        await Browser.persistSession(acc).catch(() => {});
         await Browser.closeContext(acc._id.toString()).catch(() => {});
       }
       finishJob(jobId);
@@ -498,10 +496,9 @@ const ActionCtrl = {
           await new Promise(r => setTimeout(r, 2000));
         }
       }
-      // احفظ الجلسات ثم أغلق الـ contexts
+      // أغلق الـ contexts لتحرير SEM
       const Browser = require('../services/browser.service');
       for (const acc of accounts) {
-        await Browser.persistSession(acc).catch(() => {});
         await Browser.closeContext(acc._id.toString()).catch(() => {});
       }
       finishJob(jobId);
@@ -557,10 +554,9 @@ const ActionCtrl = {
           }
         }
       }
-      // احفظ الجلسات ثم أغلق الـ contexts
+      // أغلق الـ contexts لتحرير SEM
       const Browser = require('../services/browser.service');
       for (const acc of accounts) {
-        await Browser.persistSession(acc).catch(() => {});
         await Browser.closeContext(acc._id.toString()).catch(() => {});
       }
       finishJob(jobId);

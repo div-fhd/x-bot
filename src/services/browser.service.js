@@ -309,10 +309,15 @@ async function closeContext(id) {
   const e = POOL.get(id);
   if (!e) return;
   clearTimeout(e.timer);
-  await e.ctx.close().catch(() => {});
+  // حرّر الـ slot أولاً — قبل ctx.close() حتى لو hang
   POOL.delete(id);
   SEM = Math.max(0, SEM - 1);
   logger.info(`[Browser] Context closed: ${id}`);
+  // أغلق الـ context بـ timeout 8 ثواني حتى لا يتجمد العملية
+  await Promise.race([
+    e.ctx.close(),
+    new Promise(r => setTimeout(r, 8000)),
+  ]).catch(() => {});
 }
 
 // ── shutdown ──────────────────────────────────────────────────
