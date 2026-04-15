@@ -58,39 +58,28 @@ const AuthSvc = {
 
     // الخطوة 1: تجاوز API verify — غير موثوق على السيرفر
 
-    const state = await this._classify(account, ctx);
-    if (state === 'active') return ctx;
+    let state = await this._classify(account, ctx);
 
-    // حدّث الحالة وتخطَّ فوراً — لا تحاول login أثناء العمليات
-    const statusMap = { expired: 'يحتاج_مصادقة', checkpoint: 'نقطة_تحقق', suspended: 'موقوف', unknown: 'يحتاج_مصادقة' };
-    account.status        = statusMap[state] || 'يحتاج_مصادقة';
-    account.lastCheckedAt = new Date();
-    await account.save().catch(() => {});
-    await Browser.closeContext(account._id.toString()).catch(() => {});
-    logger.warn(`[Auth] @${account.username} — تخطي: ${account.status}`);
-    throw new Error(`SKIP:@${account.username} — ${account.status}`);
-
-    const state2 = await this._classify(account, ctx);
-    await log(account._id, 'auth', 'login_attempt', state2 === 'active' ? 'success' : 'failure', { state: state2 });
-
-    if (state2 !== 'active') {
-      const statusMap = { expired:'يحتاج_مصادقة', checkpoint:'نقطة_تحقق', suspended:'موقوف', unknown:'غير_نشط' };
-      account.status        = statusMap[state2] || 'يحتاج_مصادقة';
-      account.lastCheckedAt = new Date();
-      await account.save().catch(() => {});
-      await Browser.closeContext(account._id.toString());
-      throw new Error(`SKIP:@${account.username} — ${account.status}`);
+    // unknown = خطأ مؤقت (بطء شبكة، timeout) — نعيد المحاولة مرة واحدة
+    if (state === 'unknown') {
+      logger.info(`[Auth] @${account.username} — unknown state، إعادة المحاولة...`);
+      await sleep(3000, 5000);
+      state = await this._classify(account, ctx);
     }
 
-    await Browser.persistSession(account);
+    if (state === 'active') return ctx;
 
-    // Close and reopen context so the new cookies are loaded from saved session
-    // This ensures any subsequent getPage() calls get fresh authenticated cookies
-    const id = account._id.toString();
-    await Browser.closeContext(id);
-    const freshCtx = await Browser.getContext(account);
-    logger.info(`[Auth] @${account.username} — session saved, context refreshed ✓`);
-    return freshCtx;
+    // حالة محددة — لا تحاول login أثناء العمليات، تخطَّ فوراً
+    // unknown بعد الـ retry = مشكلة مؤقتة، لا نغير حالة الحساب في DB
+    const statusMap = { expired: 'يحتاج_مصادقة', checkpoint: 'نقطة_تحقق', suspended: 'موقوف' };
+    if (statusMap[state]) {
+      account.status        = statusMap[state];
+      account.lastCheckedAt = new Date();
+      await account.save().catch(() => {});
+    }
+    await Browser.closeContext(account._id.toString()).catch(() => {});
+    logger.warn(`[Auth] @${account.username} — تخطي: ${state}`);
+    throw new Error(`SKIP:@${account.username} — ${state}`);
   },
 
   // ── Health check ─────────────────────────────────────────────
@@ -142,7 +131,7 @@ const AuthSvc = {
         if (url && url !== 'about:blank' && !url.includes('x.com/home')) throw e;
         // الصفحة بدأت تحمل — تابع
       });
-      await sleep(2000, 3000);
+      await sleep(3000, 5000);  // X.com SPA تحتاج وقت أطول بعد domcontentloaded
       // عرض حالة البروكسي فقط بدون فتح صفحة
       const hasProxy = !!account.network?.proxyUrl;
       logger.info(`[IP] @${account.username} — proxy: ${hasProxy ? '✅ ' + (account.network.proxyUrl.split('@')[1]||'') : '❌ بدون بروكسي'}`);
@@ -177,7 +166,8 @@ const AuthSvc = {
       const url2 = page.url();
       if (url2.includes('/login') || url2.includes('/i/flow')) return 'expired';
 
-      return 'expired';
+      // لم تحمل الصفحة في الوقت المحدد — قد يكون بطء شبكة مؤقت، ليس بالضرورة expired
+      return 'unknown';
     } catch (e) {
       logger.warn(`[Auth] classify error @${account.username}: ${e.message}`);
       return 'unknown';

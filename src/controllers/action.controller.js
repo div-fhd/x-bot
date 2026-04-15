@@ -38,7 +38,7 @@ function cancelJob(id) {
   if (!job) return false;
   job.cancelled = true;
   // أغلق browser context الحساب الحالي فوراً
-  const Browser = require('./src/services/browser.service');
+  const Browser = require('../services/browser.service');
   if (job.currentAccountId) {
     Browser.closeContext(job.currentAccountId).catch(() => {});
   }
@@ -67,6 +67,62 @@ async function runInBatches(items, batchSize, jobId, fn) {
     await Promise.allSettled(batch.map(fn));
     if (i + batchSize < items.length) await new Promise(r => setTimeout(r, 800));
   }
+}
+
+// ── helper مشترك لعمليات follow/like/retweet الجماعية ───────
+// يضمن إغلاق contexts بعد كل دفعة لتحرير SEM قبل الدفعة التالية
+async function runMultiOp({ accounts, batchSize, delayMinMs, delayMaxMs, jobId, type, fn }) {
+  const Browser = require('../services/browser.service');
+  let done = 0;
+
+  for (let bi = 0; bi < accounts.length; bi += batchSize) {
+    if (isCancelled(jobId)) {
+      if (global.io) global.io.emit('job:cancelled', { jobId });
+      break;
+    }
+
+    const batch = accounts.slice(bi, bi + batchSize);
+
+    await Promise.allSettled(batch.map(async (account) => {
+      setJobCurrentAccount(jobId, account._id.toString());
+      try {
+        await fn(account);
+        done++;
+        updateJobProgress(jobId, done);
+        if (global.io) global.io.emit('job:progress', {
+          jobId, type, done, total: accounts.length,
+          username: account.username, success: true,
+        });
+      } catch (e) {
+        done++;
+        updateJobProgress(jobId, done);
+        if (global.io) global.io.emit('job:progress', {
+          jobId, type, done, total: accounts.length,
+          username: account.username, success: false, error: e.message,
+        });
+      }
+    }));
+
+    // اغلق contexts الدفعة الحالية لتحرير SEM قبل الدفعة التالية
+    await Promise.all(batch.map(acc => Browser.closeContext(acc._id.toString()).catch(() => {})));
+
+    // تاخير بين الدفعات مع دعم الالغاء - يستخدم delayMin/Max بغض النظر عن batchSize
+    if (bi + batchSize < accounts.length && !isCancelled(jobId)) {
+      const delay = delayMinMs + Math.random() * (delayMaxMs - delayMinMs);
+      for (let s = 0; s < Math.ceil(delay / 1000); s++) {
+        if (isCancelled(jobId)) break;
+        await new Promise(r => setTimeout(r, Math.min(1000, delay - s * 1000)));
+      }
+    }
+  }
+
+  // safety net - اغلق اي context ما اتغلقش
+  for (const acc of accounts) {
+    await Browser.closeContext(acc._id.toString()).catch(() => {});
+  }
+
+  finishJob(jobId);
+  if (global.io) global.io.emit('job:done', { jobId, type });
 }
 
 const ActionCtrl = {
@@ -193,7 +249,6 @@ const ActionCtrl = {
             publishedAt: new Date(), tweetId: r.tweetId, tweetUrl: r.tweetUrl,
           });
           // احفظ الجلسة بعد النشر الناجح عشان الحساب التالي يستفيد منها
-          await require('../services/browser.service').persistSession(account).catch(() => {});
           if (global.io) global.io.emit('tweet:multi:progress', { username: account.username, done: i+1, total: accounts.length, success: true, tweetId: r.tweetId });
         } catch (e) {
           logger.error(`[TweetMulti] @${account.username}: ${e.message}`);
@@ -203,6 +258,9 @@ const ActionCtrl = {
         updateJobProgress(jobId, i + 1);
         const eta = getJobETA(jobId);
         if (global.io) global.io.emit('job:progress', { jobId, type: 'tweet-multi', username: account.username, done: i+1, total: accounts.length, eta, success: true });
+
+        // اغلق context الحساب الحالي قبل الانتقال للتالي لتحرير SEM
+        await require('../services/browser.service').closeContext(account._id.toString()).catch(() => {});
 
         if (i < accounts.length - 1) {
           const delay = delayMinMs + Math.random() * (delayMaxMs - delayMinMs);
@@ -233,6 +291,7 @@ const ActionCtrl = {
     res.json({ started: true, jobId, total: accounts.length });
 
     setImmediate(async () => {
+      const Browser = require('../services/browser.service');
       let done = 0;
       for (let i = 0; i < accounts.length; i++) {
         if (isCancelled(jobId)) { if (global.io) global.io.emit('job:cancelled', { jobId }); break; }
@@ -248,8 +307,13 @@ const ActionCtrl = {
           done++;
           updateJobProgress(jobId, done);
           if (global.io) global.io.emit('job:progress', { jobId, type: 'report-account', done, total: accounts.length, username: account.username, success: false });
-          if (e.message.startsWith('SKIP:')) continue;
+          if (e.message.startsWith('SKIP:')) {
+            await Browser.closeContext(account._id.toString()).catch(() => {});
+            continue;
+          }
         }
+        // اغلق context الحساب الحالي قبل الانتقال للتالي
+        await Browser.closeContext(account._id.toString()).catch(() => {});
         if (i < accounts.length - 1) {
           const delay = 15000 + Math.random() * 10000;
           for (let s = 0; s < Math.ceil(delay/1000); s++) {
@@ -263,7 +327,7 @@ const ActionCtrl = {
     });
   },
 
-  async reportTweet(req, res) {
+    async reportTweet(req, res) {
     const { accountIds, tweetUrl, reason = 'spam' } = req.body;
     if (!accountIds?.length || !tweetUrl) return res.status(400).json({ error: 'accountIds[] and tweetUrl required' });
     const accounts = await Account.find({ _id: { $in: accountIds }, isActive: true });
@@ -273,6 +337,7 @@ const ActionCtrl = {
     res.json({ started: true, jobId, total: accounts.length });
 
     setImmediate(async () => {
+      const Browser = require('../services/browser.service');
       let done = 0;
       for (let i = 0; i < accounts.length; i++) {
         if (isCancelled(jobId)) { if (global.io) global.io.emit('job:cancelled', { jobId }); break; }
@@ -288,8 +353,13 @@ const ActionCtrl = {
           done++;
           updateJobProgress(jobId, done);
           if (global.io) global.io.emit('job:progress', { jobId, type: 'report-tweet', done, total: accounts.length, username: account.username, success: false });
-          if (e.message.startsWith('SKIP:')) continue;
+          if (e.message.startsWith('SKIP:')) {
+            await Browser.closeContext(account._id.toString()).catch(() => {});
+            continue;
+          }
         }
+        // اغلق context الحساب الحالي قبل الانتقال للتالي
+        await Browser.closeContext(account._id.toString()).catch(() => {});
         if (i < accounts.length - 1) {
           const delay = 15000 + Math.random() * 10000;
           for (let s = 0; s < Math.ceil(delay/1000); s++) {
@@ -303,7 +373,7 @@ const ActionCtrl = {
     });
   },
 
-  async follow(req, res) {
+    async follow(req, res) {
     const { accountId, targetHandle } = req.body;
     if (!accountId || !targetHandle) return res.status(400).json({ error: 'accountId and targetHandle required' });
     const account = await Account.findById(accountId);
@@ -375,46 +445,13 @@ const ActionCtrl = {
     if (!accounts.length) return res.status(400).json({ error: 'No active accounts' });
     const jobId = createJob('follow', accounts);
     res.json({ started: true, jobId, total: accounts.length });
-    setImmediate(async () => {
-      let done = 0;
-      for (let bi = 0; bi < accounts.length; bi += batchSize) {
-        if (isCancelled(jobId)) { if (global.io) global.io.emit('job:cancelled', { jobId }); break; }
-        const batch = accounts.slice(bi, bi + batchSize);
-        await Promise.allSettled(batch.map(async (account) => {
-          setJobCurrentAccount(jobId, account._id.toString());
-          try {
-            await ActionSvc.follow(account, targetHandle);
-            done++;
-            updateJobProgress(jobId, done);
-            if (global.io) global.io.emit('job:progress', { jobId, type: 'follow', done, total: accounts.length, username: account.username, success: true });
-          } catch(e) {
-            done++;
-            updateJobProgress(jobId, done);
-            if (global.io) global.io.emit('job:progress', { jobId, type: 'follow', done, total: accounts.length, username: account.username, success: false, error: e.message });
-          }
-        }));
-        // تأخير بين المجموعات
-        if (batchSize === 1 && bi + 1 < accounts.length) {
-          const delay = delayMinMs + Math.random() * (delayMaxMs - delayMinMs);
-          for (let s = 0; s < Math.ceil(delay/1000); s++) {
-            if (isCancelled(jobId)) break;
-            await new Promise(r => setTimeout(r, Math.min(1000, delay - s*1000)));
-          }
-        } else if (bi + batchSize < accounts.length) {
-          await new Promise(r => setTimeout(r, 2000));
-        }
-      }
-      // أغلق الـ contexts لتحرير SEM
-      const Browser = require('../services/browser.service');
-      for (const acc of accounts) {
-        await Browser.closeContext(acc._id.toString()).catch(() => {});
-      }
-      finishJob(jobId);
-      if (global.io) global.io.emit('job:done', { jobId, type: 'follow' });
-    });
+    setImmediate(() => runMultiOp({
+      accounts, batchSize, delayMinMs, delayMaxMs, jobId, type: 'follow',
+      fn: (account) => ActionSvc.follow(account, targetHandle),
+    }));
   },
 
-  // ── Like Multi ────────────────────────────────────────────────
+    // ── Like Multi ────────────────────────────────────────────
   async likeMulti(req, res) {
     const { accountIds, tweetId, delayMinMs = 15000, delayMaxMs = 30000, batchSize = 1 } = req.body;
     if (!accountIds?.length || !tweetId) return res.status(400).json({ error: 'accountIds[] and tweetId required' });
@@ -422,45 +459,13 @@ const ActionCtrl = {
     if (!accounts.length) return res.status(400).json({ error: 'No active accounts' });
     const jobId = createJob('like', accounts);
     res.json({ started: true, jobId, total: accounts.length });
-    setImmediate(async () => {
-      let done = 0;
-      for (let bi = 0; bi < accounts.length; bi += batchSize) {
-        if (isCancelled(jobId)) { if (global.io) global.io.emit('job:cancelled', { jobId }); break; }
-        const batch = accounts.slice(bi, bi + batchSize);
-        await Promise.allSettled(batch.map(async (account) => {
-          setJobCurrentAccount(jobId, account._id.toString());
-          try {
-            await ActionSvc.like(account, tweetId);
-            done++;
-            updateJobProgress(jobId, done);
-            if (global.io) global.io.emit('job:progress', { jobId, type: 'like', done, total: accounts.length, username: account.username, success: true });
-          } catch(e) {
-            done++;
-            updateJobProgress(jobId, done);
-            if (global.io) global.io.emit('job:progress', { jobId, type: 'like', done, total: accounts.length, username: account.username, success: false, error: e.message });
-          }
-        }));
-        if (batchSize === 1 && bi + 1 < accounts.length) {
-          const delay = delayMinMs + Math.random() * (delayMaxMs - delayMinMs);
-          for (let s = 0; s < Math.ceil(delay/1000); s++) {
-            if (isCancelled(jobId)) break;
-            await new Promise(r => setTimeout(r, Math.min(1000, delay - s*1000)));
-          }
-        } else if (bi + batchSize < accounts.length) {
-          await new Promise(r => setTimeout(r, 2000));
-        }
-      }
-      // أغلق الـ contexts لتحرير SEM
-      const Browser = require('../services/browser.service');
-      for (const acc of accounts) {
-        await Browser.closeContext(acc._id.toString()).catch(() => {});
-      }
-      finishJob(jobId);
-      if (global.io) global.io.emit('job:done', { jobId, type: 'like' });
-    });
+    setImmediate(() => runMultiOp({
+      accounts, batchSize, delayMinMs, delayMaxMs, jobId, type: 'like',
+      fn: (account) => ActionSvc.like(account, tweetId),
+    }));
   },
 
-  // ── Retweet Multi ─────────────────────────────────────────────
+    // ── Retweet Multi ───────────────────────────────────────────
   async retweetMulti(req, res) {
     const { accountIds, tweetId, delayMinMs = 15000, delayMaxMs = 30000, batchSize = 1 } = req.body;
     if (!accountIds?.length || !tweetId) return res.status(400).json({ error: 'accountIds[] and tweetId required' });
@@ -468,47 +473,15 @@ const ActionCtrl = {
     if (!accounts.length) return res.status(400).json({ error: 'No active accounts' });
     const jobId = createJob('retweet', accounts);
     res.json({ started: true, jobId, total: accounts.length });
-    setImmediate(async () => {
-      let done = 0;
-      for (let bi = 0; bi < accounts.length; bi += batchSize) {
-        if (isCancelled(jobId)) { if (global.io) global.io.emit('job:cancelled', { jobId }); break; }
-        const batch = accounts.slice(bi, bi + batchSize);
-        await Promise.allSettled(batch.map(async (account) => {
-          setJobCurrentAccount(jobId, account._id.toString());
-          try {
-            await ActionSvc.retweet(account, tweetId);
-            done++;
-            updateJobProgress(jobId, done);
-            if (global.io) global.io.emit('job:progress', { jobId, type: 'retweet', done, total: accounts.length, username: account.username, success: true });
-          } catch(e) {
-            done++;
-            updateJobProgress(jobId, done);
-            if (global.io) global.io.emit('job:progress', { jobId, type: 'retweet', done, total: accounts.length, username: account.username, success: false, error: e.message });
-          }
-        }));
-        if (batchSize === 1 && bi + 1 < accounts.length) {
-          const delay = delayMinMs + Math.random() * (delayMaxMs - delayMinMs);
-          for (let s = 0; s < Math.ceil(delay/1000); s++) {
-            if (isCancelled(jobId)) break;
-            await new Promise(r => setTimeout(r, Math.min(1000, delay - s*1000)));
-          }
-        } else if (bi + batchSize < accounts.length) {
-          await new Promise(r => setTimeout(r, 2000));
-        }
-      }
-      // أغلق الـ contexts لتحرير SEM
-      const Browser = require('../services/browser.service');
-      for (const acc of accounts) {
-        await Browser.closeContext(acc._id.toString()).catch(() => {});
-      }
-      finishJob(jobId);
-      if (global.io) global.io.emit('job:done', { jobId, type: 'retweet' });
-    });
+    setImmediate(() => runMultiOp({
+      accounts, batchSize, delayMinMs, delayMaxMs, jobId, type: 'retweet',
+      fn: (account) => ActionSvc.retweet(account, tweetId),
+    }));
   },
 
-  // ── متابعة تبادلية ───────────────────────────────────────────
+    // ── متابعة تبادلية ───────────────────────────────────────────
   async mutualFollow(req, res) {
-    const { accountIds, delayMinMs = 10000, delayMaxMs = 25000 } = req.body;
+    const { accountIds, delayMinMs = 10000, delayMaxMs = 25000, batchSize = 1 } = req.body;
     if (!accountIds?.length || accountIds.length < 2)
       return res.status(400).json({ error: 'يلزم حسابان على الأقل' });
 
@@ -522,38 +495,66 @@ const ActionCtrl = {
     res.json({ started: true, jobId, total, accounts: accounts.length });
 
     setImmediate(async () => {
+      // بناء قائمة كل الأزواج (follower → target) مسبقاً
+      // كل حساب يتابع جميع الآخرين — نجمّع "صفوف" الحساب الواحد معاً
+      // حتى لا يُفتح context واحد بأكثر من صفحة في نفس الوقت
+      const rows = accounts.map(follower => ({
+        follower,
+        targets: accounts.filter(a => a._id.toString() !== follower._id.toString()),
+      }));
+
       let done = 0;
-      for (let i = 0; i < accounts.length; i++) {
-        for (let j = 0; j < accounts.length; j++) {
-          if (i === j) continue;
-          if (isCancelled(jobId)) {
-            if (global.io) global.io.emit('job:cancelled', { jobId });
-            finishJob(jobId);
-            return;
-          }
-          const follower = accounts[i];
-          const target   = accounts[j].username;
+
+      // batchSize يعني: كم حساب يتابع بالتوازي في نفس اللحظة
+      // كل حساب يتابع الآخرين تسلسلياً داخل نفسه
+      for (let bi = 0; bi < rows.length; bi += batchSize) {
+        if (isCancelled(jobId)) {
+          if (global.io) global.io.emit('job:cancelled', { jobId });
+          finishJob(jobId);
+          return;
+        }
+
+        const batch = rows.slice(bi, bi + batchSize);
+
+        // تشغيل mBatchSize حسابات بالتوازي، كل منها يتابع الآخرين تسلسلياً
+        await Promise.allSettled(batch.map(async ({ follower, targets }) => {
           setJobCurrentAccount(jobId, follower._id.toString());
-          try {
-            await ActionSvc.follow(follower, target);
-          } catch(e) {
-            logger.warn(`[MutualFollow] @${follower.username} → @${target}: ${e.message}`);
-          }
-          done++;
-          updateJobProgress(jobId, done);
-          if (global.io) global.io.emit('job:progress', {
-            jobId, type: 'mutual-follow', done, total,
-            username: follower.username,
-            target,
-          });
-          // تأخير بين كل متابعة
-          const delay = delayMinMs + Math.random() * (delayMaxMs - delayMinMs);
-          for (let s = 0; s < Math.ceil(delay/1000); s++) {
+
+          for (const targetAcc of targets) {
             if (isCancelled(jobId)) break;
-            await new Promise(r => setTimeout(r, Math.min(1000, delay - s*1000)));
+
+            const target = targetAcc.username;
+            try {
+              await ActionSvc.follow(follower, target);
+            } catch (e) {
+              logger.warn(`[MutualFollow] @${follower.username} → @${target}: ${e.message}`);
+            }
+
+            done++;
+            updateJobProgress(jobId, done);
+            if (global.io) global.io.emit('job:progress', {
+              jobId, type: 'mutual-follow', done, total,
+              username: follower.username,
+              target,
+            });
+
+            // تأخير بين كل متابعة داخل نفس الحساب
+            if (targetAcc !== targets[targets.length - 1]) {
+              const delay = delayMinMs + Math.random() * (delayMaxMs - delayMinMs);
+              for (let s = 0; s < Math.ceil(delay / 1000); s++) {
+                if (isCancelled(jobId)) break;
+                await new Promise(r => setTimeout(r, Math.min(1000, delay - s * 1000)));
+              }
+            }
           }
+        }));
+
+        // تأخير بين مجموعات الـ batchSize (ما عدا الأخيرة)
+        if (bi + batchSize < rows.length && !isCancelled(jobId)) {
+          await new Promise(r => setTimeout(r, 2000));
         }
       }
+
       // أغلق الـ contexts لتحرير SEM
       const Browser = require('../services/browser.service');
       for (const acc of accounts) {

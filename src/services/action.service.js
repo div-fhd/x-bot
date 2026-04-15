@@ -204,14 +204,23 @@ const ActionSvc = {
     const page = await this._readyPage(account);
     try {
       await page.goto(`https://x.com/i/status/${tweetId}`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
-      await page.waitForSelector('[data-testid="tweet"]', { timeout: 60_000 });
-      await sleep(1000, 1500);
+
+      // انتظر زر الريتويت أو unretweet مباشرة — نفس نهج like
+      await page.waitForSelector('[data-testid="retweet"], [data-testid="unretweet"]', { timeout: 60_000 });
+      await sleep(800, 1200);
+
       const already = await page.locator('[data-testid="unretweet"]').count().catch(() => 0);
       if (already > 0) return { success: true, alreadyRetweeted: true };
-      await page.evaluate(() => { document.querySelector('[data-testid="retweet"]')?.click(); });
-      await sleep(800, 1200);
-      await page.evaluate(() => { document.querySelector('[data-testid="retweetConfirm"]')?.click(); });
+
+      // اضغط زر الريتويت عبر locator
+      await page.locator('[data-testid="retweet"]').first().evaluate(el => el.click());
+
+      // انتظر dialog التأكيد قبل الضغط
+      await page.waitForSelector('[data-testid="retweetConfirm"]', { timeout: 10_000 });
+      await sleep(400, 700);
+      await page.locator('[data-testid="retweetConfirm"]').first().evaluate(el => el.click());
       await sleep(1000, 1800);
+
       await account.bump('repost');
       await log(account._id, 'engage', 'retweet', 'success', { tweetId });
       return { success: true };

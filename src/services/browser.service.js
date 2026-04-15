@@ -309,6 +309,16 @@ async function closeContext(id) {
   const e = POOL.get(id);
   if (!e) return;
   clearTimeout(e.timer);
+
+  // احفظ الجلسة قبل الإغلاق — يمنع race condition مع page.on('close') handler
+  // (الـ handler يجيب ctx reference ثم يحاول storageState بعد ما نُغلق الـ context)
+  try {
+    const state = await e.ctx.storageState();
+    await Vault.saveSession(id, state);
+  } catch {
+    // الـ context ممكن يكون انتهت صلاحيته (يحتاج_مصادقة) — نتجاهل
+  }
+
   // حرّر الـ slot أولاً — قبل ctx.close() حتى لو hang
   POOL.delete(id);
   SEM = Math.max(0, SEM - 1);
