@@ -72,5 +72,7 @@ proxyRouter.delete('/:id',             proxyCtrl.remove);
 proxyRouter.post  ('/assign',          proxyCtrl.assign);
 proxyRouter.post  ('/auto-distribute', proxyCtrl.autoDistribute);
 proxyRouter.post  ('/remove-from-accounts', proxyCtrl.removeFromAccounts);
+proxyRouter.post  ('/:id/check',            proxyCtrl.checkProxy);
+proxyRouter.post  ('/:id/check',           proxyCtrl.checkProxy);
 
 module.exports = { actionRouter, contentRouter, dashRouter, proxyRouter };

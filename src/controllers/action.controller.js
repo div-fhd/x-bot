@@ -232,39 +232,47 @@ const ActionCtrl = {
         } catch { return actualTopic; }
       };
 
-      for (let i = 0; i < accounts.length; i++) {
+      const TMBrowser = require('../services/browser.service');
+      let done = 0;
+
+      for (let bi = 0; bi < accounts.length; bi += batchSize) {
         if (isCancelled(jobId)) {
-          logger.info(`[TweetMulti] job ${jobId} cancelled at ${i}/${accounts.length}`);
-          if (global.io) global.io.emit('job:cancelled', { jobId, type: 'tweet-multi', done: i });
+          logger.info(`[TweetMulti] job ${jobId} cancelled at ${bi}/${accounts.length}`);
+          if (global.io) global.io.emit('job:cancelled', { jobId, type: 'tweet-multi', done: bi });
           break;
         }
-        const account = accounts[i];
-        setJobCurrentAccount(jobId, account._id.toString());
-        try {
-          const t = await textFn(account, i);
-          const mediaLocalPaths = getMedia(i);
-          const r = await ActionSvc.tweet(account, { text: t, mediaLocalPaths });
-          await Content.create({
-            account: account._id, text: t, status: 'منشور',
-            publishedAt: new Date(), tweetId: r.tweetId, tweetUrl: r.tweetUrl,
-          });
-          // احفظ الجلسة بعد النشر الناجح عشان الحساب التالي يستفيد منها
-          if (global.io) global.io.emit('tweet:multi:progress', { username: account.username, done: i+1, total: accounts.length, success: true, tweetId: r.tweetId });
-        } catch (e) {
-          logger.error(`[TweetMulti] @${account.username}: ${e.message}`);
-          if (global.io) global.io.emit('tweet:multi:progress', { username: account.username, done: i+1, total: accounts.length, success: false, error: e.message.replace('SKIP:','') });
-          if (global.io) global.io.emit('job:progress', { jobId, type: 'tweet-multi', username: account.username, done: i+1, total: accounts.length, success: false, error: e.message.replace('SKIP:','') });
-        }
-        updateJobProgress(jobId, i + 1);
-        const eta = getJobETA(jobId);
-        if (global.io) global.io.emit('job:progress', { jobId, type: 'tweet-multi', username: account.username, done: i+1, total: accounts.length, eta, success: true });
 
-        // اغلق context الحساب الحالي قبل الانتقال للتالي لتحرير SEM
-        await require('../services/browser.service').closeContext(account._id.toString()).catch(() => {});
+        const batch = accounts.slice(bi, bi + batchSize);
 
-        if (i < accounts.length - 1) {
+        await Promise.allSettled(batch.map(async (account, localIdx) => {
+          const i = bi + localIdx;
+          setJobCurrentAccount(jobId, account._id.toString());
+          try {
+            const t = await textFn(account, i);
+            const mediaLocalPaths = getMedia(i);
+            const r = await ActionSvc.tweet(account, { text: t, mediaLocalPaths });
+            await Content.create({
+              account: account._id, text: t, status: 'منشور',
+              publishedAt: new Date(), tweetId: r.tweetId, tweetUrl: r.tweetUrl,
+            });
+            done++;
+            updateJobProgress(jobId, done);
+            if (global.io) global.io.emit('tweet:multi:progress', { username: account.username, done, total: accounts.length, success: true, tweetId: r.tweetId });
+            if (global.io) global.io.emit('job:progress', { jobId, type: 'tweet-multi', username: account.username, done, total: accounts.length, eta: getJobETA(jobId), success: true });
+          } catch (e) {
+            done++;
+            updateJobProgress(jobId, done);
+            logger.error(`[TweetMulti] @${account.username}: ${e.message}`);
+            if (global.io) global.io.emit('tweet:multi:progress', { username: account.username, done, total: accounts.length, success: false, error: e.message.replace('SKIP:','') });
+            if (global.io) global.io.emit('job:progress', { jobId, type: 'tweet-multi', username: account.username, done, total: accounts.length, success: false, error: e.message.replace('SKIP:','') });
+          }
+        }));
+
+        // اغلق contexts الدفعة الحالية لتحرير SEM قبل الدفعة التالية
+        await Promise.all(batch.map(acc => TMBrowser.closeContext(acc._id.toString()).catch(() => {})));
+
+        if (bi + batchSize < accounts.length && !isCancelled(jobId)) {
           const delay = delayMinMs + Math.random() * (delayMaxMs - delayMinMs);
-          // انتظر مع فحص الإلغاء كل ثانية
           const steps = Math.ceil(delay / 1000);
           for (let s = 0; s < steps; s++) {
             if (isCancelled(jobId)) break;
@@ -272,8 +280,9 @@ const ActionCtrl = {
           }
         }
       }
-      // أغلق كل contexts بعد انتهاء النشر
-      for (const acc of accounts) { require('../services/browser.service').closeContext(acc._id.toString()).catch(() => {}); }
+
+      // safety net
+      for (const acc of accounts) { TMBrowser.closeContext(acc._id.toString()).catch(() => {}); }
       finishJob(jobId);
       if (global.io) global.io.emit('tweet:multi:done', { total: accounts.length, jobId });
       logger.info(`[TweetMulti] Completed for ${accounts.length} accounts`);
@@ -549,13 +558,17 @@ const ActionCtrl = {
           }
         }));
 
+        // اغلق contexts الـ batch الحالي لتحرير SEM قبل الدفعة التالية
+        const MFBrowser = require('../services/browser.service');
+        await Promise.all(batch.map(({ follower }) => MFBrowser.closeContext(follower._id.toString()).catch(() => {})));
+
         // تأخير بين مجموعات الـ batchSize (ما عدا الأخيرة)
         if (bi + batchSize < rows.length && !isCancelled(jobId)) {
           await new Promise(r => setTimeout(r, 2000));
         }
       }
 
-      // أغلق الـ contexts لتحرير SEM
+      // safety net
       const Browser = require('../services/browser.service');
       for (const acc of accounts) {
         await Browser.closeContext(acc._id.toString()).catch(() => {});

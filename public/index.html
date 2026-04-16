@@ -1030,11 +1030,13 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
       <div class="tb-sep"></div>
       <button class="btn btn-sm" onclick="togglePrimaryFilter(this)" style="border-color:rgba(245,166,35,.35);color:var(--amb)">★ الرئيسية</button>
       <span style="font-size:11px;color:var(--t2);white-space:nowrap">نمط التشغيل:</span>
+      <label style="font-size:11px;color:var(--t2);margin-bottom:2px;display:block">نمط التشغيل</label>
       <select id="bulk-check-batch" style="font-size:11px;padding:3px 6px;border-radius:6px;background:var(--s3);border:1px solid var(--bd2);color:var(--t1)">
-        <option value="1">1 تسلسلي</option>
-        <option value="3" selected>3 متوازي</option>
-        <option value="5">5 متوازي</option>
-      </select>
+            <option value="1">1 — تسلسلي</option>
+            <option value="3" selected>3 — متوازي</option>
+            <option value="5">5 — متوازي</option>
+            <option value="10">10 — متوازي</option>
+          </select>
       <button class="btn btn-sm" id="bulk-check-btn" onclick="doBulkCheckSelected()" style="border-color:rgba(168,130,255,.35);color:var(--pur)">🔍 فحص المحدد</button>
       <button class="btn btn-sm btn-r" onclick="deleteSelectedAccounts()">🗑 حذف المحدد</button>
     </div>
@@ -1311,11 +1313,13 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
         <br>
         <div style="display:flex;gap:10px;align-items:center">
           <span style="font-size:11px;color:var(--t2);white-space:nowrap">نمط التشغيل:</span>
+          <label style="font-size:11px;color:var(--t2);margin-bottom:2px;display:block">نمط التشغيل</label>
           <select class="batch-size-sel" style="font-size:11px;padding:3px 6px;border-radius:6px;background:var(--s3);border:1px solid var(--bd2);color:var(--t1)">
-              <option value="1">1 تسلسلي</option>
-              <option value="3" selected>3 متوازي</option>
-              <option value="5">5 متوازي</option>
-            </select>
+            <option value="1">1 — تسلسلي</option>
+            <option value="3" selected>3 — متوازي</option>
+            <option value="5">5 — متوازي</option>
+            <option value="10">10 — متوازي</option>
+          </select>
           <button class="btn btn-p" onclick="doTweetMulti()">🚀 نشر الآن</button>
           <span id="tm-status" style="font-size:12px;color:var(--t2)"></span>
         </div>
@@ -1344,11 +1348,13 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
         </div>
         <div style="display:flex;gap:10px;align-items:center">
           <span style="font-size:11px;color:var(--t2);white-space:nowrap">نمط التشغيل:</span>
+          <label style="font-size:11px;color:var(--t2);margin-bottom:2px;display:block">نمط التشغيل</label>
           <select class="batch-size-sel" style="font-size:11px;padding:3px 6px;border-radius:6px;background:var(--s3);border:1px solid var(--bd2);color:var(--t1)">
-              <option value="1">1 تسلسلي</option>
-              <option value="3" selected>3 متوازي</option>
-              <option value="5">5 متوازي</option>
-            </select>
+            <option value="1">1 — تسلسلي</option>
+            <option value="3" selected>3 — متوازي</option>
+            <option value="5">5 — متوازي</option>
+            <option value="10">10 — متوازي</option>
+          </select>
           <button class="btn btn-p" onclick="doFollowMulti()">متابعة</button>
           <span id="fl-status" style="font-size:12px;color:var(--t2)"></span>
         </div>
@@ -1381,11 +1387,13 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
         </div>
         <div style="display:flex;gap:10px;align-items:center">
           <span style="font-size:11px;color:var(--t2);white-space:nowrap">نمط التشغيل:</span>
+          <label style="font-size:11px;color:var(--t2);margin-bottom:2px;display:block">نمط التشغيل</label>
           <select class="batch-size-sel" style="font-size:11px;padding:3px 6px;border-radius:6px;background:var(--s3);border:1px solid var(--bd2);color:var(--t1)">
-              <option value="1">1 تسلسلي</option>
-              <option value="3" selected>3 متوازي</option>
-              <option value="5">5 متوازي</option>
-            </select>
+            <option value="1">1 — تسلسلي</option>
+            <option value="3" selected>3 — متوازي</option>
+            <option value="5">5 — متوازي</option>
+            <option value="10">10 — متوازي</option>
+          </select>
           <button class="btn btn-p" onclick="doLikeMulti()">إعجاب</button>
           <span id="lk-status" style="font-size:12px;color:var(--t2)"></span>
         </div>
@@ -1416,11 +1424,13 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
         </div>
         <div style="display:flex;gap:10px;align-items:center">
           <span style="font-size:11px;color:var(--t2);white-space:nowrap">نمط التشغيل:</span>
+          <label style="font-size:11px;color:var(--t2);margin-bottom:2px;display:block">نمط التشغيل</label>
           <select class="batch-size-sel" style="font-size:11px;padding:3px 6px;border-radius:6px;background:var(--s3);border:1px solid var(--bd2);color:var(--t1)">
-              <option value="1">1 تسلسلي</option>
-              <option value="3" selected>3 متوازي</option>
-              <option value="5">5 متوازي</option>
-            </select>
+            <option value="1">1 — تسلسلي</option>
+            <option value="3" selected>3 — متوازي</option>
+            <option value="5">5 — متوازي</option>
+            <option value="10">10 — متوازي</option>
+          </select>
           <button class="btn btn-p" onclick="doRepostMulti()">إعادة تغريد</button>
           <span id="rp-status" style="font-size:12px;color:var(--t2)"></span>
         </div>
@@ -1475,11 +1485,13 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
         </div>
         <div style="display:flex;gap:10px;align-items:center">
           <span style="font-size:11px;color:var(--t2);white-space:nowrap">نمط التشغيل:</span>
+          <label style="font-size:11px;color:var(--t2);margin-bottom:2px;display:block">نمط التشغيل</label>
           <select class="batch-size-sel" style="font-size:11px;padding:3px 6px;border-radius:6px;background:var(--s3);border:1px solid var(--bd2);color:var(--t1)">
-              <option value="1">1 تسلسلي</option>
-              <option value="3" selected>3 متوازي</option>
-              <option value="5">5 متوازي</option>
-            </select>
+            <option value="1">1 — تسلسلي</option>
+            <option value="3" selected>3 — متوازي</option>
+            <option value="5">5 — متوازي</option>
+            <option value="10">10 — متوازي</option>
+          </select>
           <button class="btn btn-p" onclick="doReplyMulti()">إرسال الرد</button>
           <span id="ry-status" style="font-size:12px;color:var(--t2)"></span>
         </div>
@@ -1511,11 +1523,13 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
         </div>
         <div style="display:flex;gap:10px;align-items:center">
           <span style="font-size:11px;color:var(--t2);white-space:nowrap">نمط التشغيل:</span>
+          <label style="font-size:11px;color:var(--t2);margin-bottom:2px;display:block">نمط التشغيل</label>
           <select class="batch-size-sel" style="font-size:11px;padding:3px 6px;border-radius:6px;background:var(--s3);border:1px solid var(--bd2);color:var(--t1)">
-              <option value="1">1 تسلسلي</option>
-              <option value="3" selected>3 متوازي</option>
-              <option value="5">5 متوازي</option>
-            </select>
+            <option value="1">1 — تسلسلي</option>
+            <option value="3" selected>3 — متوازي</option>
+            <option value="5">5 — متوازي</option>
+            <option value="10">10 — متوازي</option>
+          </select>
           <button class="btn btn-p" onclick="doMutualFollow()">🔄 بدء المتابعة التبادلية</button>
           <span id="mutual-status" style="font-size:12px;color:var(--t2)"></span>
         </div>
@@ -1558,11 +1572,13 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
         <div id="rp-report-container"></div>
         <div style="display:flex;gap:10px;align-items:center;margin-top:8px">
           <span style="font-size:11px;color:var(--t2);white-space:nowrap">نمط التشغيل:</span>
+          <label style="font-size:11px;color:var(--t2);margin-bottom:2px;display:block">نمط التشغيل</label>
           <select class="batch-size-sel" style="font-size:11px;padding:3px 6px;border-radius:6px;background:var(--s3);border:1px solid var(--bd2);color:var(--t1)">
-              <option value="1">1 تسلسلي</option>
-              <option value="3" selected>3 متوازي</option>
-              <option value="5">5 متوازي</option>
-            </select>
+            <option value="1">1 — تسلسلي</option>
+            <option value="3" selected>3 — متوازي</option>
+            <option value="5">5 — متوازي</option>
+            <option value="10">10 — متوازي</option>
+          </select>
           <button class="btn btn-r" onclick="doReport()">🚨 إبلاغ الآن</button>
           <span id="report-status" style="font-size:12px;color:var(--t2)"></span>
         </div>
@@ -1699,12 +1715,15 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
           <span class="notice-ico">ℹ</span>
           <span>يجلب من X: الاسم، البيو، عدد المتابعين والمتابَعين — يُحدّث قاعدة البيانات</span>
         </div>
-        <div class="field" style="margin-bottom:10px">
-          <label>الحسابات <small style="color:var(--t2)">(Ctrl+Click متعدد — فارغ = كل النشطين)</small></label>
-          <select id="prof-sync-acc" multiple style="height:110px;font-family:var(--m)"></select>
-        </div>
-        <div style="display:flex;gap:10px;align-items:center">
-          <button class="btn" onclick="selectAllAccounts('prof-sync-acc')">تحديد الكل</button>
+        <div id="prof-sync-container" style="margin-bottom:10px"></div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <label style="font-size:11px;color:var(--t2);margin-bottom:3px;display:block">نمط التشغيل</label>
+          <select id="prof-sync-batch" style="height:32px;font-size:12px;padding:0 8px;border-radius:6px;background:var(--s3);border:1px solid var(--bd2);color:var(--t1)">
+            <option value="1">1 — تسلسلي</option>
+            <option value="3" selected>3 — متوازي</option>
+            <option value="5">5 — متوازي</option>
+            <option value="10">10 — متوازي</option>
+          </select>
           <button class="btn btn-p" onclick="doSyncProfiles()">🔄 مزامنة الآن</button>
           <span id="prof-sync-status" style="font-size:12px;color:var(--t2)"></span>
         </div>
@@ -1772,12 +1791,15 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
           </select>
           <div style="font-size:11.5px;color:var(--t2);margin-top:4px">إذا رفعت صورة واحدة فقط تُطبَّق على كل الحسابات</div>
         </div>
-        <div class="field" style="margin-bottom:10px">
-          <label>الحسابات المستهدفة <small style="color:var(--t2)">(Ctrl+Click لاختيار متعدد)</small></label>
-          <select id="prof-upd-acc" multiple style="height:110px;font-family:var(--m)"></select>
-        </div>
-        <div style="display:flex;gap:10px;align-items:center">
-          <button class="btn" onclick="selectAllAccounts('prof-upd-acc')">تحديد الكل</button>
+        <div id="prof-upd-container" style="margin-bottom:10px"></div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <label style="font-size:11px;color:var(--t2);margin-bottom:3px;display:block">نمط التشغيل</label>
+          <select id="prof-upd-batch" style="height:32px;font-size:12px;padding:0 8px;border-radius:6px;background:var(--s3);border:1px solid var(--bd2);color:var(--t1)">
+            <option value="1">1 — تسلسلي</option>
+            <option value="3" selected>3 — متوازي</option>
+            <option value="5">5 — متوازي</option>
+            <option value="10">10 — متوازي</option>
+          </select>
           <button class="btn btn-p" onclick="doUpdateProfiles()">💾 تحديث الآن</button>
           <span id="prof-upd-status" style="font-size:12px;color:var(--t2)"></span>
         </div>
@@ -2076,7 +2098,7 @@ function init() {
       if (currentPanel === 'jobs') loadJobs();
       if (!d.username) return;
 
-      // نفس نمط النشر الجماعي — الـ log والـ status
+      // نفس نمط التشغيل الجماعي — الـ log والـ status
       const logMap = {
         'tweet-multi':    'tm-progress',
         'follow':         'fl-log',
@@ -2247,7 +2269,7 @@ function nav(id, btn) {
   if (id === 'ai')       fillAccountSelects('ai-acc');
   if (id === 'actions') {
     fillAllActionSelects();
-    // بناء الـ smart selectors
+    // بناء الـ smart selectors للإجراءات فقط
     setTimeout(() => {
       buildSmartSelector('tm-acc-container', 'tm-accounts');
       buildSmartSelector('fl-acc-container', 'fl-acc');
@@ -2257,10 +2279,14 @@ function nav(id, btn) {
     }, 100);
   }
   if (id === 'profiles') {
+    const _buildProfileSelectors = () => {
+      buildSmartSelector('prof-sync-container', 'prof-sync-acc');
+      buildSmartSelector('prof-upd-container',  'prof-upd-acc');
+    };
     if (allActiveAccounts.length) {
-      fillAccountMultiSelects('prof-sync-acc','prof-upd-acc');
+      setTimeout(_buildProfileSelectors, 50);
     } else {
-      loadActiveAccounts().then(() => fillAccountMultiSelects('prof-sync-acc','prof-upd-acc'));
+      loadActiveAccounts().then(() => setTimeout(_buildProfileSelectors, 50));
     }
   }
 }
@@ -2478,6 +2504,7 @@ async function loadProxies() {
           <td><span class="pill p-g">نشط</span></td>
           <td>
             <div style="display:flex;gap:5px">
+              <button class="btn btn-sm" onclick="checkProxy('${p._id}',this)" id="proxy-check-${p._id}">فحص</button>
               <button class="btn btn-sm" onclick="openProxyModal('${p._id}','${p.name}','${p.url}')">تعديل</button>
               <button class="btn btn-sm btn-r" onclick="deleteProxy('${p._id}')">حذف</button>
             </div>
@@ -2513,6 +2540,36 @@ async function deleteProxy(id) {
     toast('✅ تم الحذف', 'ok');
     loadProxies();
   } catch(e) { toast(e.message, 'err'); }
+}
+
+async function checkProxy(id, btn) {
+  const orig = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '…';
+  btn.style.color = '';
+  try {
+    const d = await api(`/api/v1/proxies/${id}/check`, { method: 'POST' });
+    if (d.ok) {
+      btn.textContent = '✅ ' + d.ip;
+      btn.style.color = 'var(--grn)';
+      toast('✅ البروكسي يعمل — IP: ' + d.ip, 'ok');
+    } else {
+      btn.textContent = '❌';
+      btn.style.color = 'var(--red)';
+      btn.title = d.error;
+      toast('❌ البروكسي لا يعمل: ' + d.error, 'err');
+    }
+  } catch(e) {
+    btn.textContent = '❌';
+    btn.style.color = 'var(--red)';
+    toast('❌ خطأ: ' + e.message, 'err');
+  }
+  setTimeout(() => {
+    btn.disabled = false;
+    btn.textContent = orig;
+    btn.style.color = '';
+    btn.title = '';
+  }, 10000);
 }
 
 async function openAssignModal() {
@@ -2805,7 +2862,7 @@ function fillAllActionSelects() {
   // single selects
   fillAccountSelects('tw-acc','sr-acc');
   // multi selects
-  fillAccountMultiSelects('tm-accounts','fl-acc','lk-acc','rp-acc','ry-acc','prof-sync-acc','prof-upd-acc');
+  fillAccountMultiSelects('tm-accounts','fl-acc','lk-acc','rp-acc','ry-acc');
 }
 
 function fillAccountMultiSelects(...ids) {
@@ -3041,6 +3098,21 @@ async function deleteAccount(id, username) {
   } catch(e) { toast(e.message, 'err'); }
 }
 
+
+async function deleteSelectedAccounts() {
+  const ids = getSelectedAccountIds();
+  if (!ids.length) return toast('اختر حسابات أولاً', 'warn');
+  if (!confirm(`⚠️ حذف ${ids.length} حساب نهائياً من قاعدة البيانات؟\nلا يمكن التراجع عن هذا الإجراء.`)) return;
+  let deleted = 0, failed = 0;
+  for (const id of ids) {
+    try {
+      await api(`/api/v1/accounts/${id}?hard=true`, { method:'DELETE' });
+      deleted++;
+    } catch { failed++; }
+  }
+  toast(`🗑 حُذف ${deleted} حساب${failed ? ' — فشل ' + failed : ''}`, deleted ? 'ok' : 'err');
+  loadAccounts(); loadActiveAccounts();
+}
 /* ═══════════════════════════════════════════════════════════════
    الاستيراد الجماعي
 ═══════════════════════════════════════════════════════════════ */
@@ -3179,6 +3251,10 @@ function showAtab(id, btn) {
   };
   if (map[id] && allActiveAccounts.length) {
     buildSmartSelector(map[id][0], map[id][1]);
+    if (id === 'profiles') {
+      buildSmartSelector('prof-sync-container', 'prof-sync-acc');
+      buildSmartSelector('prof-upd-container', 'prof-upd-acc');
+    }
   }
 }
 
@@ -3674,7 +3750,7 @@ async function doSyncProfiles() {
   try {
     const d = await api('/api/v1/accounts/bulk-sync-profiles', {
       method: 'POST',
-      body: JSON.stringify({ accountIds: ids }),
+      body: JSON.stringify({ accountIds: ids, batchSize: +(document.getElementById('prof-sync-batch')?.value || 3) }),
     });
     stat.textContent = `جارٍ المزامنة لـ ${d.total} حساب في الخلفية…`;
   } catch(e) { stat.textContent = ''; toast(e.message, 'err'); }
@@ -3734,7 +3810,7 @@ async function doUpdateProfiles() {
     const d = await api('/api/v1/accounts/bulk-update-profiles', {
       method: 'POST',
       body: JSON.stringify({
-        accountIds: ids, updates,
+        accountIds: ids, batchSize: +(document.getElementById('prof-upd-batch')?.value || 1), updates,
         namesList,
         locationsList: locsList,
         useAI: mode === 'ai',

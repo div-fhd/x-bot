@@ -308,6 +308,7 @@ const AccountCtrl = {
     res.json({ started: true, total: accounts.length });
     setImmediate(async () => {
       let done = 0;
+      const SyncBrowser = require('../services/browser.service');
       for (const account of accounts) {
         try {
           await ActionSvc.syncProfile(account);
@@ -318,6 +319,7 @@ const AccountCtrl = {
           logger.warn(`[BulkSync] @${account.username}: ${e.message}`);
           if (global.io) global.io.emit('profile:sync:progress', { done, total: accounts.length, username: account.username, error: e.message });
         }
+        await SyncBrowser.closeContext(account._id.toString()).catch(() => {});
         if (done < accounts.length) await new Promise(r => setTimeout(r, 8000));
       }
       if (global.io) global.io.emit('profile:sync:done', { total: accounts.length, done });
@@ -360,6 +362,7 @@ const AccountCtrl = {
           logger.warn(`[BulkUpdate] @${account.username}: ${e.message}`);
           if (global.io) global.io.emit('profile:update:progress', { done, total: accounts.length, username: account.username, error: e.message });
         }
+        await require('../services/browser.service').closeContext(account._id.toString()).catch(() => {});
         if (i < accounts.length - 1) await new Promise(r => setTimeout(r, 12000));
       }
       if (global.io) global.io.emit('profile:update:done', { total: accounts.length, done });

@@ -80,6 +80,82 @@ module.exports = {
     res.json({ updated, proxies: proxies.length, accounts: accounts.length });
   },
 
+  // ── فحص بروكسي ────────────────────────────────────────────────
+  async checkProxy(req, res) {
+    const proxy = await Proxy.findById(req.params.id);
+    if (!proxy) return res.status(404).json({ error: 'غير موجود' });
+    try {
+      const https = require('https');
+      const { URL } = require('url');
+
+      // تحليل الـ proxy URL يدوياً بدون مكتبة خارجية
+      const pu = new URL(proxy.url);
+      const isSOCKS = pu.protocol.startsWith('socks');
+
+      if (isSOCKS) {
+        // SOCKS — نستخدم https-proxy-agent إذا موجودة وإلا نرجع خطأ مفيد
+        try {
+          const { SocksProxyAgent } = require('socks-proxy-agent');
+          const agent = new SocksProxyAgent(proxy.url);
+          const ip = await new Promise((resolve, reject) => {
+            const r = https.get('https://api.ipify.org', { agent, timeout: 10000 }, res2 => {
+              let d = '';
+              res2.on('data', ch => d += ch);
+              res2.on('end', () => resolve(d.trim()));
+            });
+            r.on('error', reject);
+            r.on('timeout', () => { r.destroy(); reject(new Error('timeout')); });
+          });
+          return res.json({ ok: true, ip, type: 'socks' });
+        } catch(e) {
+          if (e.code === 'MODULE_NOT_FOUND') return res.json({ ok: false, error: 'SOCKS غير مدعوم — ثبّت socks-proxy-agent' });
+          return res.json({ ok: false, error: e.message });
+        }
+      }
+
+      // HTTP/HTTPS proxy — CONNECT tunnel
+      const proxyAuth = pu.username
+        ? Buffer.from(`${decodeURIComponent(pu.username)}:${decodeURIComponent(pu.password)}`).toString('base64')
+        : null;
+
+      const ip = await new Promise((resolve, reject) => {
+        const connectReq = require('http').request({
+          host: pu.hostname,
+          port: pu.port || 80,
+          method: 'CONNECT',
+          path: 'api.ipify.org:443',
+          headers: {
+            'Host': 'api.ipify.org:443',
+            ...(proxyAuth ? { 'Proxy-Authorization': `Basic ${proxyAuth}` } : {}),
+          },
+          timeout: 10000,
+        });
+        connectReq.on('connect', (res2, socket) => {
+          if (res2.statusCode !== 200) {
+            socket.destroy();
+            return reject(new Error(`Proxy CONNECT failed: ${res2.statusCode}`));
+          }
+          const tlsSocket = require('tls').connect({ host: 'api.ipify.org', socket, servername: 'api.ipify.org' }, () => {
+            tlsSocket.write('GET / HTTP/1.1\r\nHost: api.ipify.org\r\nConnection: close\r\n\r\n');
+          });
+          let data = '';
+          tlsSocket.on('data', d => data += d);
+          tlsSocket.on('end', () => {
+            const body = data.split('\r\n\r\n')[1] || data;
+            resolve(body.trim());
+          });
+          tlsSocket.on('error', reject);
+        });
+        connectReq.on('error', reject);
+        connectReq.on('timeout', () => { connectReq.destroy(); reject(new Error('timeout')); });
+        connectReq.end();
+      });
+      res.json({ ok: true, ip, type: 'http' });
+    } catch(e) {
+      res.json({ ok: false, error: e.message });
+    }
+  },
+
   // ── إزالة بروكسي من حسابات محددة ─────────────────────────────
   async removeFromAccounts(req, res) {
     const { accountIds } = req.body;
@@ -89,5 +165,52 @@ module.exports = {
       { $unset: { 'network.proxyUrl': '' } }
     );
     res.json({ updated: result.modifiedCount });
+  },
+
+  // ── فحص بروكسي ────────────────────────────────────────────────
+  async checkProxy(req, res) {
+    const proxy = await Proxy.findById(req.params.id);
+    if (!proxy) return res.status(404).json({ error: 'غير موجود' });
+    try {
+      const https = require('https');
+      const { URL } = require('url');
+      const pu = new URL(proxy.url);
+      // بناء tunnel يدوي عبر CONNECT — يعمل مع http/socks proxies بدون dependencies إضافية
+      const http = require('http');
+      const ip = await new Promise((resolve, reject) => {
+        const connectReq = http.request({
+          host: pu.hostname,
+          port: pu.port || 80,
+          method: 'CONNECT',
+          path: 'api.ipify.org:443',
+          headers: {
+            'Host': 'api.ipify.org:443',
+            ...(pu.username ? { 'Proxy-Authorization': 'Basic ' + Buffer.from(`${decodeURIComponent(pu.username)}:${decodeURIComponent(pu.password)}`).toString('base64') } : {}),
+          },
+          timeout: 10000,
+        });
+        connectReq.on('connect', (res2, socket) => {
+          const req2 = https.request({
+            host: 'api.ipify.org',
+            path: '/',
+            method: 'GET',
+            socket,
+            agent: false,
+          }, r => {
+            let d = '';
+            r.on('data', c => d += c);
+            r.on('end', () => resolve(d.trim()));
+          });
+          req2.on('error', reject);
+          req2.end();
+        });
+        connectReq.on('error', reject);
+        connectReq.on('timeout', () => { connectReq.destroy(); reject(new Error('timeout')); });
+        connectReq.end();
+      });
+      res.json({ ok: true, ip });
+    } catch(e) {
+      res.json({ ok: false, error: e.message });
+    }
   },
 };

@@ -28,7 +28,7 @@ const AccountSchema = new mongoose.Schema({
   status: {
     type: String,
     enum: ['نشط', 'يحتاج_مصادقة', 'نقطة_تحقق', 'محظور', 'غير_نشط', 'موقوف'],
-    default: 'غير_نشط',
+    default: 'نشط',
     index: true,
   },
   statusNote:   { type: String },
