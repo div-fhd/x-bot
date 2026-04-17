@@ -573,280 +573,189 @@ const ActionSvc = {
 
   // ── Update profile ────────────────────────────────────────────
   async updateProfile(account, updates = {}) {
-    const fs   = require('fs');
-    const page = await this._readyPage(account);
+    const fs = require('fs');
+
+    // نستخدم getPage مباشرة بعد API verify — بدون _readyPage لتجنب race condition
+    // _readyPage تضيف page.on('close')→persistSession اللي يتعارض مع closeContext
+    await AuthSvc.ensureSession(account);
+    const page = await Browser.getPage(account);
+
     try {
-      // فتح صفحة تعديل البروفايل
-      await page.goto('https://x.com/settings/profile', { waitUntil: 'domcontentloaded', timeout: 35_000 });
+      // ── الانتقال لصفحة البروفايل ──────────────────────────
+      await page.goto(`https://x.com/${account.username}`, {
+        waitUntil: 'load',
+        timeout: 40_000,
+      }).catch(() => {}); // timeout = partial load, نكمل
 
-      // تحقق الجلسة
-      if (page.url().includes('/login')) throw new Error('جلسة منتهية');
+      await sleep(1500, 2500);
+      await this._checkNotRedirected(page, account);
 
-      // أغلق popup الكوكيز — X.com يظهره بلغات مختلفة
-      const closeCookies = async () => {
-        const closed = await page.evaluate(() => {
-          const texts = ['Aceitar todos os cookies','Accept all cookies','Recusar cookies','Decline'];
-          for (const text of texts) {
-            const btns = [...document.querySelectorAll('button')];
-            const btn  = btns.find(b => b.textContent.trim().startsWith(text.slice(0,8)));
-            if (btn) { btn.click(); return true; }
-          }
-          // أغلق بـ BottomBar
-          const bb = document.querySelector('[data-testid="BottomBar"] button');
-          if (bb) { bb.click(); return true; }
-          return false;
-        });
-        if (closed) {
-          await sleep(800, 1200);
-          logger.info(`[Action] @${account.username} — أُغلق popup الكوكيز`);
-        }
-        return closed;
-      };
-      await closeCookies();
+      // كشف الشاشة السودة أو صفحة الخطأ
+      const brokenPage = await page.evaluate(() => {
+        const root = document.getElementById('react-root');
+        const body = document.body?.innerText || '';
+        const isSplash = !root || root.children.length === 0 || !document.querySelector('[data-testid]');
+        const isError  = body.includes('Something went wrong') || body.includes('Try again');
+        return isSplash || isError;
+      }).catch(() => false);
 
-      // إذا فتح home بدل settings — اذهب مباشرة
-      if (!page.url().includes('/settings/profile')) {
-        await page.goto('https://x.com/settings/profile', { waitUntil: 'domcontentloaded', timeout: 35_000 });
-        await sleep(1500, 2000);
-      }
-
-      // أغلق popup الكوكيز مرة ثانية إذا ظهر بعد التنقل
-      const cookieBtn2 = await page.$('button:has-text("Aceitar"), button:has-text("Accept"), [data-testid="BottomBar"] button').catch(() => null);
-      if (cookieBtn2) {
-        await cookieBtn2.evaluate(el => el.click());
-        await sleep(500, 800);
-      }
-
-      // انتظر ظهور الفورم — selectors متعددة
-      const waitForForm = async (timeout = 30_000) => {
-        return await Promise.race([
-          page.waitForSelector('input[name="displayName"]',          { state: 'visible', timeout }).then(() => 'form'),
-          page.waitForSelector('[data-testid="Profile_Save_Button"]', { state: 'attached', timeout }).then(() => 'save'),
-          // لا نعتمد على fileInput وحده — يظهر حتى لو الفورم ناقص
-        ]).catch(() => 'timeout');
-      };
-
-      let pageReady = await waitForForm(30_000);
-      logger.info(`[Action] @${account.username} — صفحة جاهزة: ${pageReady} | URL: ${page.url()}`);
-
-      // helper: كشف وضغط زر Refresh داخل settings pane
-      const clickRefreshIfNeeded = async () => {
-        const clicked = await page.evaluate(() => {
-          const btns = [...document.querySelectorAll('button,[role="button"]')];
-          const refresh = btns.find(b => {
-            const t = b.textContent.trim().toLowerCase();
-            const tid = b.getAttribute('data-testid') || '';
-            return t === 'refresh' || t === 'retry' || t === 'try again' || tid.includes('refresh');
-          });
-          if (refresh && refresh.offsetParent !== null) { refresh.click(); return true; }
-          return false;
-        }).catch(() => false);
-        if (clicked) {
-          logger.info(`[Action] @${account.username} — Refresh clicked in settings pane`);
-          await sleep(3000, 5000);
-        }
-        return clicked;
-      };
-
-      if (pageReady === 'timeout') {
-        // المحاولة 1: اضغط Refresh إذا ظهر داخل الـ pane
-        await clickRefreshIfNeeded();
-        pageReady = await waitForForm(20_000);
-        logger.info(`[Action] @${account.username} — بعد Refresh: ${pageReady}`);
-      }
-
-      if (pageReady === 'timeout') {
-        // المحاولة 2: goto كامل مع networkidle
-        logger.info(`[Action] @${account.username} — timeout، جارٍ full reload...`);
-        await page.goto('https://x.com/settings/profile', { waitUntil: 'networkidle', timeout: 40_000 }).catch(() => {});
+      if (brokenPage) {
+        logger.info(`[Action] @${account.username} — صفحة مكسورة، reload مع networkidle...`);
+        await page.reload({ waitUntil: 'networkidle', timeout: 40_000 }).catch(() => {});
         await sleep(2000, 3000);
-        await closeCookies();
-        await clickRefreshIfNeeded();
-        pageReady = await waitForForm(20_000);
-        logger.info(`[Action] @${account.username} — بعد full reload: ${pageReady}`);
+        await this._checkNotRedirected(page, account);
       }
 
-      if (pageReady === 'timeout') {
-        throw new Error(`SKIP:@${account.username} — فورم البروفايل لم يحمّل`);
-      }
-
+      // انتظر تحميل الـ primary column
+      await page.waitForSelector('[data-testid="primaryColumn"]', { timeout: 20_000 })
+        .catch(() => {});
       await sleep(800, 1200);
 
-      // ── رفع الصورة الشخصية ──────────────────────────────────
-      // الطريقة الصحيحة: X.com عنده label فوق كل input — الأول للأفاتار والثاني للبانر
-      if (updates.avatarPath) {
-        if (!fs.existsSync(updates.avatarPath)) {
-          logger.warn(`[Action] الصورة غير موجودة: ${updates.avatarPath}`);
-        } else {
-          // البحث عن input الأفاتار باستخدام موقعه في DOM
-          const avatarInputHandle = await page.evaluateHandle(() => {
-            const inputs = document.querySelectorAll('input[data-testid="fileInput"]');
-            return inputs[1] || null; // الثاني للأفاتار (الأول للبانر في X.com)
-          });
-          if (avatarInputHandle) {
-            const avatarInput = avatarInputHandle.asElement();
-            if (avatarInput) {
-              await avatarInput.setInputFiles(updates.avatarPath);
-              await sleep(3000, 4000);
-              // X.com يفتح crop dialog — اضغط Apply
-              const applyBtn = await page.$('[data-testid="applyButton"]').catch(() => null);
-              if (applyBtn) {
-                await applyBtn.evaluate(el => el.click());
-                await sleep(2000, 3000);
-              }
-              logger.info(`[Action] @${account.username} — ✓ الصورة الشخصية رُفعت`);
-            }
-          }
+      // ── ابحث عن زر Edit profile وضغطه ───────────────────
+      const clicked = await page.evaluate(() => {
+        // الأولوية: data-testid الرسمي
+        const byTestId = document.querySelector(
+          '[data-testid="editProfileButton"], [data-testid="EditProfileButton"]'
+        );
+        if (byTestId) { byTestId.click(); return byTestId.getAttribute('data-testid'); }
+
+        // aria-label
+        const byAria = document.querySelector('[aria-label="Edit profile"], [aria-label="تعديل الملف الشخصي"]');
+        if (byAria) { byAria.click(); return 'aria'; }
+
+        // بحث نصي
+        const btns = [...document.querySelectorAll('button, a[role="button"], div[role="button"]')];
+        const byText = btns.find(b => /^edit\s*profile$/i.test(b.textContent.trim()));
+        if (byText) { byText.click(); return 'text'; }
+
+        return null;
+      }).catch(() => null);
+
+      if (!clicked) throw new Error(`SKIP:@${account.username} — زر Edit profile غير موجود`);
+      logger.info(`[Action] @${account.username} — Edit profile clicked: ${clicked}`);
+
+      // ── انتظر الـ modal ───────────────────────────────────
+      const modalInput = await page.waitForSelector('input[name="displayName"]', {
+        state: 'visible',
+        timeout: 15_000,
+      }).catch(() => null);
+
+      if (!modalInput) throw new Error(`SKIP:@${account.username} — modal البروفايل لم يظهر`);
+      logger.info(`[Action] @${account.username} — ✓ modal مفتوح`);
+      await sleep(600, 1000);
+
+      // ── رفع الصورة الشخصية ──────────────────────────────
+      if (updates.avatarPath && fs.existsSync(updates.avatarPath)) {
+        const avatarInputHandle = await page.evaluateHandle(() => {
+          const inputs = document.querySelectorAll('input[data-testid="fileInput"]');
+          return inputs[1] || null; // الثاني للأفاتار في X.com
+        });
+        const avatarInput = avatarInputHandle?.asElement?.();
+        if (avatarInput) {
+          await avatarInput.setInputFiles(updates.avatarPath);
+          await sleep(3000, 4000);
+          const applyBtn = await page.$('[data-testid="applyButton"]').catch(() => null);
+          if (applyBtn) { await applyBtn.evaluate(el => el.click()); await sleep(2000, 3000); }
+          logger.info(`[Action] @${account.username} — ✓ أفاتار رُفع`);
         }
+      } else if (updates.avatarPath) {
+        logger.warn(`[Action] @${account.username} — avatar path غير موجود: ${updates.avatarPath}`);
       }
 
-      // ── رفع البانر ──────────────────────────────────────────
-      if (updates.bannerPath) {
-        if (!fs.existsSync(updates.bannerPath)) {
-          logger.warn(`[Action] البانر غير موجود: ${updates.bannerPath}`);
-        } else {
-          // انتظر قليلاً بعد الأفاتار قبل البانر
-          await sleep(1000, 1500);
-          const bannerInputHandle = await page.evaluateHandle(() => {
-            const inputs = document.querySelectorAll('input[data-testid="fileInput"]');
-            return inputs[0] || null; // الأول للبانر في X.com
-          });
-          if (bannerInputHandle) {
-            const bannerInput = bannerInputHandle.asElement();
-            if (bannerInput) {
-              await bannerInput.setInputFiles(updates.bannerPath);
-              await sleep(3000, 4000);
-              const applyBtn = await page.$('[data-testid="applyButton"]').catch(() => null);
-              if (applyBtn) {
-                await applyBtn.evaluate(el => el.click());
-                await sleep(2000, 3000);
-              }
-              logger.info(`[Action] @${account.username} — ✓ البانر رُفع`);
-            }
-          }
+      // ── رفع البانر ──────────────────────────────────────
+      if (updates.bannerPath && fs.existsSync(updates.bannerPath)) {
+        await sleep(1000, 1500);
+        const bannerInputHandle = await page.evaluateHandle(() => {
+          const inputs = document.querySelectorAll('input[data-testid="fileInput"]');
+          return inputs[0] || null; // الأول للبانر في X.com
+        });
+        const bannerInput = bannerInputHandle?.asElement?.();
+        if (bannerInput) {
+          await bannerInput.setInputFiles(updates.bannerPath);
+          await sleep(3000, 4000);
+          const applyBtn = await page.$('[data-testid="applyButton"]').catch(() => null);
+          if (applyBtn) { await applyBtn.evaluate(el => el.click()); await sleep(2000, 3000); }
+          logger.info(`[Action] @${account.username} — ✓ بانر رُفع`);
         }
+      } else if (updates.bannerPath) {
+        logger.warn(`[Action] @${account.username} — banner path غير موجود: ${updates.bannerPath}`);
       }
 
-      // ── تحديث النصوص ────────────────────────────────────────
-      if (updates.displayName !== undefined) {
-        const inp = await page.$(SEL.displayNameInput);
-        if (inp) {
-          await inp.click({ clickCount: 3 });
-          await sleep(150, 250);
-          await page.keyboard.press('Backspace');
-          await this._humanType(page, updates.displayName);
-          await sleep(400, 700);
+      // ── تحديث النصوص ────────────────────────────────────
+      const fillField = async (selector, value) => {
+        const el = await page.$(selector).catch(() => null);
+        if (!el) return;
+        await el.click({ clickCount: 3 });
+        await sleep(100, 200);
+        await page.keyboard.press('Backspace');
+        if (selector.includes('input')) {
+          await el.fill(value);
+        } else {
+          await this._humanType(page, value);
         }
-      }
-      if (updates.bio !== undefined) {
-        const bioEl = await page.$(SEL.bioInput);
-        if (bioEl) {
-          await bioEl.click({ clickCount: 3 });
-          await sleep(150, 250);
-          await page.keyboard.press('Backspace');
-          await this._humanType(page, updates.bio);
-          await sleep(400, 700);
-        }
-      }
-      // استخدم $ (لا ينتظر) بدل fill مباشرة — يتجنب timeout لو الحقل غير موجود
+        await sleep(300, 500);
+      };
+
+      if (updates.displayName !== undefined) await fillField('input[name="displayName"]',    updates.displayName);
+      if (updates.bio         !== undefined) await fillField('textarea[name="description"]', updates.bio);
+
       if (updates.location !== undefined) {
-        // X يغيّر أحياناً الـ name attribute — نجرب selectors متعددة
-        const locSelectors = ['input[name="location"]', 'input[placeholder*="location" i]', 'input[placeholder*="موقع" i]', 'input[data-testid="location"]'];
-        let locEl = null;
-        for (const sel of locSelectors) {
-          locEl = await page.$(sel);
-          if (locEl) break;
-        }
-        if (locEl) {
-          await locEl.click({ clickCount: 3 });
-          await sleep(100, 200);
-          await page.keyboard.press('Backspace');
-          await locEl.fill(updates.location);
-          await sleep(300, 600);
-        } else {
-          logger.warn(`[Action] @${account.username} — location field not found, skipping`);
+        const locSel = ['input[name="location"]','input[placeholder*="location" i]','input[placeholder*="موقع" i]'];
+        for (const s of locSel) {
+          const el = await page.$(s).catch(() => null);
+          if (el) { await fillField(s, updates.location); break; }
         }
       }
       if (updates.website !== undefined) {
-        const webSelectors = ['input[name="url"]', 'input[name="website"]', 'input[placeholder*="website" i]', 'input[data-testid="website"]'];
-        let webEl = null;
-        for (const sel of webSelectors) {
-          webEl = await page.$(sel);
-          if (webEl) break;
-        }
-        if (webEl) {
-          await webEl.click({ clickCount: 3 });
-          await sleep(100, 200);
-          await page.keyboard.press('Backspace');
-          await webEl.fill(updates.website);
-          await sleep(300, 600);
-        } else {
-          logger.warn(`[Action] @${account.username} — website field not found, skipping`);
+        const webSel = ['input[name="url"]','input[name="website"]','input[placeholder*="website" i]'];
+        for (const s of webSel) {
+          const el = await page.$(s).catch(() => null);
+          if (el) { await fillField(s, updates.website); break; }
         }
       }
 
-      // ── تفعيل زر الحفظ وضغطه ────────────────────────────────
-      // لمس حقل الاسم لتفعيل الزر — مطلوب حتى لو رفعنا صور فقط
-      const nameField = await page.$(SEL.displayNameInput);
-      if (nameField) {
-        const currentVal = await nameField.inputValue().catch(() => '');
-        await nameField.fill(currentVal + ' ');
-        await sleep(200, 300);
-        await nameField.fill(currentVal);
-        await sleep(300, 500);
-      }
-
-      // ── ضغط زر الحفظ — متعدد الاستراتيجيات ─────────────────
+      // ── حفظ ──────────────────────────────────────────────
       const saved = await (async () => {
-        // المحاولة 1: انتظر الزر attached (في DOM) ثم scroll إليه واضغط
+        // المحاولة 1: data-testid الرسمي
         try {
           const btn = page.locator('[data-testid="Profile_Save_Button"]');
-          await btn.waitFor({ state: 'attached', timeout: 12_000 });
+          await btn.waitFor({ state: 'attached', timeout: 10_000 });
           await btn.scrollIntoViewIfNeeded().catch(() => {});
           await sleep(400, 600);
           await btn.evaluate(el => el.click());
-          logger.info(`[Action] @${account.username} — ✓ حُفظ (attached)`);
+          logger.info(`[Action] @${account.username} — ✓ حُفظ (testid)`);
           return true;
         } catch {}
-
-        // المحاولة 2: ابحث بـ evaluate عن أي زر حفظ
-        const clicked = await page.evaluate(() => {
-          const selectors = [
-            '[data-testid="Profile_Save_Button"]',
-            'button[type="submit"]',
-          ];
-          for (const sel of selectors) {
-            const el = document.querySelector(sel);
-            if (el) { el.click(); return sel; }
-          }
-          // بحث بالنص
+        // المحاولة 2: evaluate بالنص
+        const ok = await page.evaluate(() => {
           const btns = [...document.querySelectorAll('button, [role="button"]')];
-          const saveBtn = btns.find(b => {
-            const t = b.textContent.trim().toLowerCase();
-            return t === 'save' || t === 'حفظ';
+          const b = btns.find(b => {
+            const tid = b.getAttribute('data-testid') || '';
+            const t   = b.textContent.trim().toLowerCase();
+            return tid.toLowerCase().includes('save') || t === 'save';
           });
-          if (saveBtn) { saveBtn.click(); return 'text-save'; }
-          return null;
-        }).catch(() => null);
-
-        if (clicked) {
-          logger.info(`[Action] @${account.username} — ✓ حُفظ (evaluate: ${clicked})`);
-          return true;
-        }
-
+          if (b) { b.click(); return true; }
+          return false;
+        }).catch(() => false);
+        if (ok) { logger.info(`[Action] @${account.username} — ✓ حُفظ (text)`); return true; }
         logger.warn(`[Action] @${account.username} — لم يُعثر على زر الحفظ`);
         return false;
       })();
 
       if (saved) await sleep(3000, 4000);
 
-      await Browser.persistSession(account);
+      // احفظ الجلسة قبل إغلاق الصفحة — مهم
+      await Browser.persistSession(account).catch(() => {});
       await log(account._id, 'profile', 'profile_updated', 'success', { fields: Object.keys(updates) });
-      return { success:true, updated:Object.keys(updates) };
+      return { success: true, updated: Object.keys(updates) };
+
     } catch (e) {
-      await log(account._id, 'profile', 'profile_update_failed', 'failure', { error:e.message });
+      await log(account._id, 'profile', 'profile_update_failed', 'failure', { error: e.message }).catch(() => {});
       throw e;
-    } finally { await page.close().catch(()=>{}); }
+    } finally {
+      // نغلق الصفحة فقط — closeContext يتولاها bulkUpdateProfiles بعد انتهاء الـ batch
+      await page.close().catch(() => {});
+    }
   },
 
   // ── Sync profile stats ────────────────────────────────────────
