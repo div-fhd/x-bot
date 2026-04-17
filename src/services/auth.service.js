@@ -148,10 +148,33 @@ const AuthSvc = {
       if (url.includes('/account/access') || url.includes('/challenge')) return 'checkpoint';
       if (url.includes('/suspended')) return 'suspended';
 
+      // كشف صفحة خطأ X "Something went wrong" — اضغط Try again
+      const xError = await page.evaluate(() => {
+        const body = document.body?.innerText || '';
+        return body.includes('Something went wrong') || body.includes('Try again');
+      }).catch(() => false);
+
+      if (xError) {
+        logger.info(`[Auth] @${account.username} — X error page, pressing Try again...`);
+        await page.evaluate(() => {
+          const btn = [...document.querySelectorAll('button')]
+            .find(b => b.textContent.trim().toLowerCase().includes('try again') || b.textContent.trim().includes('حاول'));
+          if (btn) btn.click();
+        }).catch(() => {});
+        await sleep(4000, 6000);
+        // تحقق من الـ URL بعد المحاولة
+        const urlAfter = page.url();
+        if (urlAfter.includes('/login')) return 'expired';
+        // اعطِ X وقتاً إضافياً
+        await sleep(3000, 4000);
+      }
+
       // انتظر أي علامة على إن الصفحة حملت
       const ready = await Promise.race([
-        page.locator('[data-testid="primaryColumn"]').waitFor({ timeout: 15_000 }).then(() => true),
-        page.locator('[data-testid="SideNav_NewTweet_Button"]').waitFor({ timeout: 15_000 }).then(() => true),
+        page.locator('[data-testid="primaryColumn"]').waitFor({ timeout: 10_000 }).then(() => true),
+        page.locator('[data-testid="SideNav_NewTweet_Button"]').waitFor({ timeout: 10_000 }).then(() => true),
+        page.locator('[data-testid="SideNav_AccountSwitcher_Button"]').waitFor({ timeout: 10_000 }).then(() => true),
+        page.locator('[aria-label="Home timeline"]').waitFor({ timeout: 10_000 }).then(() => true),
       ]).catch(() => false);
 
       if (ready) {

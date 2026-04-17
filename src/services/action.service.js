@@ -574,9 +574,7 @@ const ActionSvc = {
   // ── Update profile ────────────────────────────────────────────
   async updateProfile(account, updates = {}) {
     const fs   = require('fs');
-    // نستخدم _readyPageDirect بدل _readyPage لتجنب _classify على x.com/home
-    // updateProfile تعرف وجهتها (settings/profile) وتتحقق من الـ redirect بنفسها
-    const page = await this._readyPageDirect(account);
+    const page = await this._readyPage(account);
     try {
       // فتح صفحة تعديل البروفايل
       await page.goto('https://x.com/settings/profile', { waitUntil: 'domcontentloaded', timeout: 35_000 });
@@ -619,33 +617,56 @@ const ActionSvc = {
         await sleep(500, 800);
       }
 
-      // انتظر ظهور الفورم
-      const pageReady = await Promise.race([
-        page.waitForSelector('input[name="displayName"]',          { state: 'visible', timeout: 12_000 }).then(() => 'form'),
-        page.waitForSelector('[data-testid="fileInput"]',           { state: 'attached', timeout: 12_000 }).then(() => 'inputs'),
-        page.waitForSelector('[data-testid="Profile_Save_Button"]', { state: 'visible', timeout: 12_000 }).then(() => 'save'),
-      ]).catch(() => 'timeout');
+      // انتظر ظهور الفورم — selectors متعددة
+      const waitForForm = async (timeout = 30_000) => {
+        return await Promise.race([
+          page.waitForSelector('input[name="displayName"]',          { state: 'visible', timeout }).then(() => 'form'),
+          page.waitForSelector('[data-testid="Profile_Save_Button"]', { state: 'attached', timeout }).then(() => 'save'),
+          // لا نعتمد على fileInput وحده — يظهر حتى لو الفورم ناقص
+        ]).catch(() => 'timeout');
+      };
 
+      let pageReady = await waitForForm(30_000);
       logger.info(`[Action] @${account.username} — صفحة جاهزة: ${pageReady} | URL: ${page.url()}`);
-      await page.screenshot({ path: `./data/debug/profile2_${account.username}.png` }).catch(() => {});
 
-      // إذا timeout — الصفحة ما حملت الفورم، نجرب scroll أو reload
+      // إذا timeout — reload مرة واحدة وانتظر networkidle
       if (pageReady === 'timeout') {
         logger.info(`[Action] @${account.username} — timeout، جارٍ reload...`);
-        await page.reload({ waitUntil: 'domcontentloaded', timeout: 30_000 });
-        await sleep(3000, 4000);
-
-        // أغلق كوكيز مرة ثانية
+        await page.goto('https://x.com/settings/profile', { waitUntil: 'networkidle', timeout: 40_000 }).catch(() => {});
+        await sleep(2000, 3000);
         await closeCookies();
-
-        await Promise.race([
-          page.waitForSelector('input[name="displayName"]',          { state: 'visible', timeout: 12_000 }).then(() => {}),
-          page.waitForSelector('[data-testid="fileInput"]',           { state: 'attached', timeout: 12_000 }).then(() => {}),
-          page.waitForSelector('[data-testid="Profile_Save_Button"]', { state: 'visible', timeout: 12_000 }).then(() => {}),
-        ]).catch(() => {});
+        pageReady = await waitForForm(20_000);
+        logger.info(`[Action] @${account.username} — بعد reload: ${pageReady}`);
       }
 
-      await sleep(1000, 1500);
+      // تشخيص: اطبع كل الـ inputs الموجودة في الصفحة
+      const pageInputs = await page.evaluate(() => {
+        const inputs = [...document.querySelectorAll('input, textarea')];
+        return inputs.map(el => ({
+          tag: el.tagName,
+          name: el.name || '',
+          type: el.type || '',
+          testid: el.getAttribute('data-testid') || '',
+          placeholder: el.placeholder?.slice(0,30) || '',
+          visible: el.offsetParent !== null,
+        }));
+      }).catch(() => []);
+      logger.info(`[Action] @${account.username} — inputs في الصفحة: ${JSON.stringify(pageInputs)}`);
+
+      // تشخيص: ابحث عن أي زر save
+      const pageBtns = await page.evaluate(() => {
+        return [...document.querySelectorAll('button,[role="button"]')]
+          .filter(b => b.offsetParent !== null)
+          .slice(0, 10)
+          .map(b => ({ text: b.textContent.trim().slice(0,20), testid: b.getAttribute('data-testid') || '' }));
+      }).catch(() => []);
+      logger.info(`[Action] @${account.username} — أزرار مرئية: ${JSON.stringify(pageBtns)}`);
+
+      if (pageReady === 'timeout') {
+        throw new Error(`SKIP:@${account.username} — فورم البروفايل لم يحمّل`);
+      }
+
+      await sleep(800, 1200);
 
       // ── رفع الصورة الشخصية ──────────────────────────────────
       // الطريقة الصحيحة: X.com عنده label فوق كل input — الأول للأفاتار والثاني للبانر

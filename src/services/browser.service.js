@@ -61,6 +61,12 @@ async function ensureBrowser() {
       '--disable-renderer-backgrounding',
       '--metrics-recording-only',
       '--no-report-upload',
+      // منع X من كشف Playwright
+      '--disable-web-security',
+      '--allow-running-insecure-content',
+      '--ignore-certificate-errors',
+      '--lang=en-US,en',
+      '--accept-lang=en-US,en',
     ],
   });
   BROWSER.on('disconnected', () => {
@@ -171,8 +177,20 @@ async function getContext(account) {
 
       // Stealth patches — شاملة
       await ctx.addInitScript(() => {
-        // 1. إخفاء webdriver
-        Object.defineProperty(navigator, 'webdriver', { get: () => undefined, configurable: true });
+        // 0. حذف كل علامات Playwright/automation قبل أي شيء
+        delete window.__playwright;
+        delete window.__pwInitScripts;
+        try { Object.defineProperty(window, 'navigator', { value: window.navigator, writable: false }); } catch {}
+
+        // 1. إخفاء webdriver — الطريقة الأقوى
+        try {
+          const orig = Object.getOwnPropertyDescriptor(Navigator.prototype, 'webdriver');
+          Object.defineProperty(Navigator.prototype, 'webdriver', {
+            get: () => false,
+            configurable: true,
+          });
+        } catch {}
+        Object.defineProperty(navigator, 'webdriver', { get: () => false, configurable: true });
 
         // 2. plugins واقعية
         const fakePlugins = [
