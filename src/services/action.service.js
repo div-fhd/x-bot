@@ -574,7 +574,9 @@ const ActionSvc = {
   // ── Update profile ────────────────────────────────────────────
   async updateProfile(account, updates = {}) {
     const fs   = require('fs');
-    const page = await this._readyPage(account);
+    // نستخدم _readyPageDirect بدل _readyPage لتجنب _classify على x.com/home
+    // updateProfile تعرف وجهتها (settings/profile) وتتحقق من الـ redirect بنفسها
+    const page = await this._readyPageDirect(account);
     try {
       // فتح صفحة تعديل البروفايل
       await page.goto('https://x.com/settings/profile', { waitUntil: 'domcontentloaded', timeout: 35_000 });
@@ -721,11 +723,45 @@ const ActionSvc = {
           await sleep(400, 700);
         }
       }
-      if (updates.location !== undefined) { await page.fill(SEL.locationInput, updates.location); await sleep(300, 600); }
-      if (updates.website  !== undefined) { await page.fill(SEL.websiteInput,  updates.website);  await sleep(300, 600); }
+      // استخدم $ (لا ينتظر) بدل fill مباشرة — يتجنب timeout لو الحقل غير موجود
+      if (updates.location !== undefined) {
+        // X يغيّر أحياناً الـ name attribute — نجرب selectors متعددة
+        const locSelectors = ['input[name="location"]', 'input[placeholder*="location" i]', 'input[placeholder*="موقع" i]', 'input[data-testid="location"]'];
+        let locEl = null;
+        for (const sel of locSelectors) {
+          locEl = await page.$(sel);
+          if (locEl) break;
+        }
+        if (locEl) {
+          await locEl.click({ clickCount: 3 });
+          await sleep(100, 200);
+          await page.keyboard.press('Backspace');
+          await locEl.fill(updates.location);
+          await sleep(300, 600);
+        } else {
+          logger.warn(`[Action] @${account.username} — location field not found, skipping`);
+        }
+      }
+      if (updates.website !== undefined) {
+        const webSelectors = ['input[name="url"]', 'input[name="website"]', 'input[placeholder*="website" i]', 'input[data-testid="website"]'];
+        let webEl = null;
+        for (const sel of webSelectors) {
+          webEl = await page.$(sel);
+          if (webEl) break;
+        }
+        if (webEl) {
+          await webEl.click({ clickCount: 3 });
+          await sleep(100, 200);
+          await page.keyboard.press('Backspace');
+          await webEl.fill(updates.website);
+          await sleep(300, 600);
+        } else {
+          logger.warn(`[Action] @${account.username} — website field not found, skipping`);
+        }
+      }
 
       // ── تفعيل زر الحفظ وضغطه ────────────────────────────────
-      // لازم نلمس أي حقل عشان يتفعّل الزر حتى لو رفعنا صور فقط
+      // لمس حقل الاسم لتفعيل الزر — مطلوب حتى لو رفعنا صور فقط
       const nameField = await page.$(SEL.displayNameInput);
       if (nameField) {
         const currentVal = await nameField.inputValue().catch(() => '');
@@ -735,13 +771,49 @@ const ActionSvc = {
         await sleep(300, 500);
       }
 
-      // انتظر الزر يصير فعّال
-      const saveBtn = page.locator('[data-testid="Profile_Save_Button"]');
-      await saveBtn.waitFor({ state: 'visible', timeout: 8_000 });
-      await sleep(500, 800);
-      await saveBtn.evaluate(el => el.click());
-      logger.info(`[Action] @${account.username} — ✓ البروفايل حُفظ`);
-      await sleep(3000, 4000);
+      // ── ضغط زر الحفظ — متعدد الاستراتيجيات ─────────────────
+      const saved = await (async () => {
+        // المحاولة 1: انتظر الزر attached (في DOM) ثم scroll إليه واضغط
+        try {
+          const btn = page.locator('[data-testid="Profile_Save_Button"]');
+          await btn.waitFor({ state: 'attached', timeout: 12_000 });
+          await btn.scrollIntoViewIfNeeded().catch(() => {});
+          await sleep(400, 600);
+          await btn.evaluate(el => el.click());
+          logger.info(`[Action] @${account.username} — ✓ حُفظ (attached)`);
+          return true;
+        } catch {}
+
+        // المحاولة 2: ابحث بـ evaluate عن أي زر حفظ
+        const clicked = await page.evaluate(() => {
+          const selectors = [
+            '[data-testid="Profile_Save_Button"]',
+            'button[type="submit"]',
+          ];
+          for (const sel of selectors) {
+            const el = document.querySelector(sel);
+            if (el) { el.click(); return sel; }
+          }
+          // بحث بالنص
+          const btns = [...document.querySelectorAll('button, [role="button"]')];
+          const saveBtn = btns.find(b => {
+            const t = b.textContent.trim().toLowerCase();
+            return t === 'save' || t === 'حفظ';
+          });
+          if (saveBtn) { saveBtn.click(); return 'text-save'; }
+          return null;
+        }).catch(() => null);
+
+        if (clicked) {
+          logger.info(`[Action] @${account.username} — ✓ حُفظ (evaluate: ${clicked})`);
+          return true;
+        }
+
+        logger.warn(`[Action] @${account.username} — لم يُعثر على زر الحفظ`);
+        return false;
+      })();
+
+      if (saved) await sleep(3000, 4000);
 
       await Browser.persistSession(account);
       await log(account._id, 'profile', 'profile_updated', 'success', { fields: Object.keys(updates) });
@@ -793,6 +865,19 @@ const ActionSvc = {
       logger.warn(`[Action] @${account.username} — redirected to login, skipping`);
       throw new Error(`SKIP:@${account.username} — يحتاج_مصادقة`);
     }
+  },
+
+  // ── readyPage بدون classify — للعمليات التي تعرف وجهتها مسبقاً ──
+  // تبني الـ context من الجلسة المحفوظة/tokens مباشرة بدون فتح x.com/home
+  // العملية نفسها تتحقق من login redirect بعد goto()
+  async _readyPageDirect(account) {
+    const ctx  = await Browser.getContext(account);
+    const page = await ctx.newPage();
+    page.setDefaultTimeout(120_000);
+    page.setDefaultNavigationTimeout(120_000);
+    // لا نضيف persistSession هنا — updateProfile تستدعيه بشكل صريح قبل page.close()
+    // إضافته هنا تسبب race condition مع closeContext في bulkUpdateProfiles
+    return page;
   },
 
   async _readyPage(account) {

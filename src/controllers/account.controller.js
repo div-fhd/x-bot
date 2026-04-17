@@ -309,18 +309,24 @@ const AccountCtrl = {
     setImmediate(async () => {
       let done = 0;
       const SyncBrowser = require('../services/browser.service');
-      for (const account of accounts) {
-        try {
-          await ActionSvc.syncProfile(account);
-          done++;
-          if (global.io) global.io.emit('profile:sync:progress', { done, total: accounts.length, username: account.username, profile: account.profile });
-        } catch (e) {
-          done++;
-          logger.warn(`[BulkSync] @${account.username}: ${e.message}`);
-          if (global.io) global.io.emit('profile:sync:progress', { done, total: accounts.length, username: account.username, error: e.message });
-        }
-        await SyncBrowser.closeContext(account._id.toString()).catch(() => {});
-        if (done < accounts.length) await new Promise(r => setTimeout(r, 8000));
+      const syncBatch = req.body.batchSize || 1;
+      const syncAccounts = accounts;
+      for (let sb = 0; sb < syncAccounts.length; sb += syncBatch) {
+        const batch = syncAccounts.slice(sb, sb + syncBatch);
+        await Promise.allSettled(batch.map(async account => {
+          try {
+            await ActionSvc.syncProfile(account);
+            done++;
+            if (global.io) global.io.emit('profile:sync:progress', { done, total: accounts.length, username: account.username, profile: account.profile });
+          } catch (e) {
+            done++;
+            logger.warn(`[BulkSync] @${account.username}: ${e.message}`);
+            if (global.io) global.io.emit('profile:sync:progress', { done, total: accounts.length, username: account.username, error: e.message });
+          }
+          await SyncBrowser.closeContext(account._id.toString()).catch(() => {});
+        }));
+        await Promise.all(batch.map(acc => SyncBrowser.closeContext(acc._id.toString()).catch(() => {})));
+        if (sb + syncBatch < syncAccounts.length) await new Promise(r => setTimeout(r, 8000));
       }
       if (global.io) global.io.emit('profile:sync:done', { total: accounts.length, done });
     });
@@ -328,7 +334,7 @@ const AccountCtrl = {
 
   // ── تحديث بروفايل جماعي ──────────────────────────────────────
   async bulkUpdateProfiles(req, res) {
-    const { accountIds, updates = {}, namesList = [], locationsList = [], useAI = false, niche, avatarPaths = [], bannerPaths = [], imageOrder = 'sequential' } = req.body;
+    const { accountIds, updates = {}, namesList = [], locationsList = [], useAI = false, niche, avatarPaths = [], bannerPaths = [], imageOrder = 'sequential', batchSize = 1 } = req.body;
     const query = accountIds?.length
       ? { _id: { $in: accountIds }, isActive: true }
       : { isActive: true, status: 'نشط' };
@@ -340,30 +346,40 @@ const AccountCtrl = {
       const shuffled = arr => [...arr].sort(() => Math.random() - 0.5);
       const avatars = imageOrder === 'random' ? shuffled(avatarPaths) : avatarPaths;
       const banners = imageOrder === 'random' ? shuffled(bannerPaths) : bannerPaths;
-      for (let i = 0; i < accounts.length; i++) {
-        const account = accounts[i];
-        try {
-          let finalUpdates = { ...updates };
-          if (namesList.length > 0)     finalUpdates.displayName = namesList[i % namesList.length];
-          if (locationsList.length > 0) finalUpdates.location    = locationsList[i % locationsList.length];
-          if (avatars.length > 0) finalUpdates.avatarPath = avatars[i % avatars.length];
-          if (banners.length > 0) finalUpdates.bannerPath = banners[i % banners.length];
-          if (useAI) {
-            try {
-              const s = await AISvc.suggestBio({ niche: niche || account.niche || 'general', name: account.profile?.displayName || account.username, keywords: [] });
-              if (s?.bio) finalUpdates.bio = s.bio;
-            } catch (e) { logger.warn(`[BulkUpdate] AI @${account.username}: ${e.message}`); }
+      const UpdBrowser = require('../services/browser.service');
+
+      for (let bi = 0; bi < accounts.length; bi += batchSize) {
+        const batch = accounts.slice(bi, bi + batchSize);
+
+        await Promise.allSettled(batch.map(async (account, localIdx) => {
+          const i = bi + localIdx;
+          try {
+            let finalUpdates = { ...updates };
+            if (namesList.length > 0)     finalUpdates.displayName = namesList[i % namesList.length];
+            if (locationsList.length > 0) finalUpdates.location    = locationsList[i % locationsList.length];
+            if (avatars.length > 0) finalUpdates.avatarPath = avatars[i % avatars.length];
+            if (banners.length > 0) finalUpdates.bannerPath = banners[i % banners.length];
+            if (useAI) {
+              try {
+                const s = await AISvc.suggestBio({ niche: niche || account.niche || 'general', name: account.profile?.displayName || account.username, keywords: [] });
+                if (s?.bio) finalUpdates.bio = s.bio;
+              } catch (e) { logger.warn(`[BulkUpdate] AI @${account.username}: ${e.message}`); }
+            }
+            await ActionSvc.updateProfile(account, finalUpdates);
+            done++;
+            if (global.io) global.io.emit('profile:update:progress', { done, total: accounts.length, username: account.username, success: true });
+          } catch (e) {
+            done++;
+            logger.warn(`[BulkUpdate] @${account.username}: ${e.message}`);
+            if (global.io) global.io.emit('profile:update:progress', { done, total: accounts.length, username: account.username, error: e.message });
           }
-          await ActionSvc.updateProfile(account, finalUpdates);
-          done++;
-          if (global.io) global.io.emit('profile:update:progress', { done, total: accounts.length, username: account.username, success: true });
-        } catch (e) {
-          done++;
-          logger.warn(`[BulkUpdate] @${account.username}: ${e.message}`);
-          if (global.io) global.io.emit('profile:update:progress', { done, total: accounts.length, username: account.username, error: e.message });
-        }
-        await require('../services/browser.service').closeContext(account._id.toString()).catch(() => {});
-        if (i < accounts.length - 1) await new Promise(r => setTimeout(r, 12000));
+        }));
+
+        // اغلق contexts الدفعة لتحرير SEM
+        await Promise.all(batch.map(acc => UpdBrowser.closeContext(acc._id.toString()).catch(() => {})));
+
+        // تأخير بين الدفعات
+        if (bi + batchSize < accounts.length) await new Promise(r => setTimeout(r, 12000));
       }
       if (global.io) global.io.emit('profile:update:done', { total: accounts.length, done });
     });
