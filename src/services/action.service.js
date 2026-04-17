@@ -581,68 +581,39 @@ const ActionSvc = {
     const page = await Browser.getPage(account);
 
     try {
-      // ── الانتقال لصفحة البروفايل ──────────────────────────
-      await page.goto(`https://x.com/${account.username}`, {
-        waitUntil: 'load',
+      // ── الانتقال مباشرة لصفحة إعدادات البروفايل ─────────
+      await page.goto('https://x.com/settings/profile', {
+        waitUntil: 'domcontentloaded',
         timeout: 40_000,
-      }).catch(() => {}); // timeout = partial load, نكمل
+      }).catch(() => {});
 
-      await sleep(1500, 2500);
+      await sleep(1000, 1500);
       await this._checkNotRedirected(page, account);
 
-      // كشف الشاشة السودة أو صفحة الخطأ
-      const brokenPage = await page.evaluate(() => {
-        const root = document.getElementById('react-root');
-        const body = document.body?.innerText || '';
-        const isSplash = !root || root.children.length === 0 || !document.querySelector('[data-testid]');
-        const isError  = body.includes('Something went wrong') || body.includes('Try again');
-        return isSplash || isError;
-      }).catch(() => false);
+      // انتظر ظهور الفورم — أي من هذه العناصر يكفي
+      const formReady = await Promise.race([
+        page.waitForSelector('input[name="displayName"]',          { state: 'visible', timeout: 20_000 }).then(() => 'displayName'),
+        page.waitForSelector('[data-testid="Profile_Save_Button"]', { state: 'attached', timeout: 20_000 }).then(() => 'saveBtn'),
+        page.waitForSelector('textarea[name="description"]',       { state: 'visible', timeout: 20_000 }).then(() => 'bio'),
+      ]).catch(() => null);
 
-      if (brokenPage) {
-        logger.info(`[Action] @${account.username} — صفحة مكسورة، reload مع networkidle...`);
-        await page.reload({ waitUntil: 'networkidle', timeout: 40_000 }).catch(() => {});
+      if (!formReady) {
+        // الصفحة لم تحمّل الفورم — reload مرة واحدة
+        logger.info(`[Action] @${account.username} — settings form timeout، reload...`);
+        await page.reload({ waitUntil: 'domcontentloaded', timeout: 30_000 }).catch(() => {});
         await sleep(2000, 3000);
         await this._checkNotRedirected(page, account);
+
+        const retryReady = await Promise.race([
+          page.waitForSelector('input[name="displayName"]',          { state: 'visible', timeout: 15_000 }).then(() => true),
+          page.waitForSelector('[data-testid="Profile_Save_Button"]', { state: 'attached', timeout: 15_000 }).then(() => true),
+        ]).catch(() => false);
+
+        if (!retryReady) throw new Error(`SKIP:@${account.username} — settings/profile لم يحمّل`);
       }
 
-      // انتظر تحميل الـ primary column
-      await page.waitForSelector('[data-testid="primaryColumn"]', { timeout: 20_000 })
-        .catch(() => {});
-      await sleep(800, 1200);
-
-      // ── ابحث عن زر Edit profile وضغطه ───────────────────
-      const clicked = await page.evaluate(() => {
-        // الأولوية: data-testid الرسمي
-        const byTestId = document.querySelector(
-          '[data-testid="editProfileButton"], [data-testid="EditProfileButton"]'
-        );
-        if (byTestId) { byTestId.click(); return byTestId.getAttribute('data-testid'); }
-
-        // aria-label
-        const byAria = document.querySelector('[aria-label="Edit profile"], [aria-label="تعديل الملف الشخصي"]');
-        if (byAria) { byAria.click(); return 'aria'; }
-
-        // بحث نصي
-        const btns = [...document.querySelectorAll('button, a[role="button"], div[role="button"]')];
-        const byText = btns.find(b => /^edit\s*profile$/i.test(b.textContent.trim()));
-        if (byText) { byText.click(); return 'text'; }
-
-        return null;
-      }).catch(() => null);
-
-      if (!clicked) throw new Error(`SKIP:@${account.username} — زر Edit profile غير موجود`);
-      logger.info(`[Action] @${account.username} — Edit profile clicked: ${clicked}`);
-
-      // ── انتظر الـ modal ───────────────────────────────────
-      const modalInput = await page.waitForSelector('input[name="displayName"]', {
-        state: 'visible',
-        timeout: 15_000,
-      }).catch(() => null);
-
-      if (!modalInput) throw new Error(`SKIP:@${account.username} — modal البروفايل لم يظهر`);
-      logger.info(`[Action] @${account.username} — ✓ modal مفتوح`);
-      await sleep(600, 1000);
+      logger.info(`[Action] @${account.username} — ✓ settings/profile جاهز`);
+      await sleep(500, 800);
 
       // ── رفع الصورة الشخصية ──────────────────────────────
       if (updates.avatarPath && fs.existsSync(updates.avatarPath)) {
@@ -682,62 +653,75 @@ const ActionSvc = {
       }
 
       // ── تحديث النصوص ────────────────────────────────────
-      const fillField = async (selector, value) => {
-        const el = await page.$(selector).catch(() => null);
-        if (!el) return;
-        await el.click({ clickCount: 3 });
-        await sleep(100, 200);
-        await page.keyboard.press('Backspace');
-        if (selector.includes('input')) {
-          await el.fill(value);
-        } else {
-          await this._humanType(page, value);
+      // React inputs تحتاج nativeInputValueSetter لإطلاق onChange صحيح
+      const fillReact = async (selector, value) => {
+        const loc = page.locator(selector).first();
+        const count = await loc.count().catch(() => 0);
+        if (!count) { logger.warn(`[Action] @${account.username} — field not found: ${selector}`); return false; }
+        await loc.scrollIntoViewIfNeeded().catch(() => {});
+        await loc.click({ clickCount: 3 });
+        await sleep(150, 250);
+        // استخدم page.fill عبر locator — يُطلق input/change events كاملة
+        await loc.fill('');
+        await sleep(100);
+        await loc.fill(String(value));
+        // تحقق أن القيمة وصلت
+        const actual = await loc.inputValue().catch(() => '');
+        if (!actual && String(value).length > 0) {
+          // fallback: type حرفاً حرفاً عبر keyboard
+          await loc.click({ clickCount: 3 });
+          await sleep(100);
+          await page.keyboard.press('Control+a');
+          await page.keyboard.press('Delete');
+          await this._humanType(page, String(value));
         }
-        await sleep(300, 500);
+        await sleep(400, 600);
+        logger.info(`[Action] @${account.username} — ✓ field filled: ${selector.match(/name="([^"]+)"/)?.[1] || selector}`);
+        return true;
       };
 
-      if (updates.displayName !== undefined) await fillField('input[name="displayName"]',    updates.displayName);
-      if (updates.bio         !== undefined) await fillField('textarea[name="description"]', updates.bio);
+      if (updates.displayName !== undefined) await fillReact('input[name="displayName"]',    updates.displayName);
+      if (updates.bio         !== undefined) await fillReact('textarea[name="description"]', updates.bio);
 
       if (updates.location !== undefined) {
-        const locSel = ['input[name="location"]','input[placeholder*="location" i]','input[placeholder*="موقع" i]'];
-        for (const s of locSel) {
-          const el = await page.$(s).catch(() => null);
-          if (el) { await fillField(s, updates.location); break; }
+        const locSels = ['input[name="location"]', 'input[placeholder*="location" i]', 'input[placeholder*="موقع" i]'];
+        for (const s of locSels) {
+          if (await fillReact(s, updates.location)) break;
         }
       }
       if (updates.website !== undefined) {
-        const webSel = ['input[name="url"]','input[name="website"]','input[placeholder*="website" i]'];
-        for (const s of webSel) {
-          const el = await page.$(s).catch(() => null);
-          if (el) { await fillField(s, updates.website); break; }
+        const webSels = ['input[name="url"]', 'input[name="website"]', 'input[placeholder*="website" i]'];
+        for (const s of webSels) {
+          if (await fillReact(s, updates.website)) break;
         }
       }
 
       // ── حفظ ──────────────────────────────────────────────
       const saved = await (async () => {
-        // المحاولة 1: data-testid الرسمي
+        // انتظر زر الحفظ
+        const saveBtn = page.locator('[data-testid="Profile_Save_Button"]');
         try {
-          const btn = page.locator('[data-testid="Profile_Save_Button"]');
-          await btn.waitFor({ state: 'attached', timeout: 10_000 });
-          await btn.scrollIntoViewIfNeeded().catch(() => {});
-          await sleep(400, 600);
-          await btn.evaluate(el => el.click());
-          logger.info(`[Action] @${account.username} — ✓ حُفظ (testid)`);
+          await saveBtn.waitFor({ state: 'visible', timeout: 10_000 });
+          await saveBtn.scrollIntoViewIfNeeded().catch(() => {});
+          await sleep(300, 500);
+          // locator.click() يُطلق pointer events كاملة — React يستجيب
+          await saveBtn.click();
+          logger.info(`[Action] @${account.username} — ✓ حُفظ`);
           return true;
-        } catch {}
-        // المحاولة 2: evaluate بالنص
+        } catch (e) {
+          logger.warn(`[Action] @${account.username} — save btn error: ${e.message}`);
+        }
+        // fallback: dispatch click مع pointer events
         const ok = await page.evaluate(() => {
-          const btns = [...document.querySelectorAll('button, [role="button"]')];
-          const b = btns.find(b => {
-            const tid = b.getAttribute('data-testid') || '';
-            const t   = b.textContent.trim().toLowerCase();
-            return tid.toLowerCase().includes('save') || t === 'save';
-          });
-          if (b) { b.click(); return true; }
-          return false;
+          const b = document.querySelector('[data-testid="Profile_Save_Button"]')
+            || [...document.querySelectorAll('button')].find(el => /save/i.test(el.textContent.trim()));
+          if (!b) return false;
+          b.dispatchEvent(new MouseEvent('mousedown', { bubbles:true }));
+          b.dispatchEvent(new MouseEvent('mouseup',   { bubbles:true }));
+          b.dispatchEvent(new MouseEvent('click',     { bubbles:true }));
+          return true;
         }).catch(() => false);
-        if (ok) { logger.info(`[Action] @${account.username} — ✓ حُفظ (text)`); return true; }
+        if (ok) { logger.info(`[Action] @${account.username} — ✓ حُفظ (dispatch)`); return true; }
         logger.warn(`[Action] @${account.username} — لم يُعثر على زر الحفظ`);
         return false;
       })();
@@ -793,11 +777,20 @@ const ActionSvc = {
   async _checkNotRedirected(page, account) {
     const url = page.url();
     if (url.includes('/i/flow/login') || url.includes('/account/access') || url.includes('/i/flow/password_reset')) {
-      account.status = 'يحتاج_مصادقة';
+      account.status        = 'يحتاج_مصادقة';
       account.lastCheckedAt = new Date();
       await account.save().catch(() => {});
-      logger.warn(`[Action] @${account.username} — redirected to login, skipping`);
+      // احذف الجلسة المحفوظة — انتهت صلاحيتها
+      const Vault = require('./vault.service');
+      await Vault.deleteSession(account._id.toString()).catch(() => {});
+      logger.warn(`[Action] @${account.username} — redirected to login, session deleted`);
       throw new Error(`SKIP:@${account.username} — يحتاج_مصادقة`);
+    }
+    if (url.includes('/suspended')) {
+      account.status        = 'موقوف';
+      account.lastCheckedAt = new Date();
+      await account.save().catch(() => {});
+      throw new Error(`SKIP:@${account.username} — موقوف`);
     }
   },
 

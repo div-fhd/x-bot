@@ -53,33 +53,29 @@ const AuthSvc = {
 
   // ── ensureSession: called before every browser action ────────
   async ensureSession(account) {
+    // ── المبدأ: لا نفتح متصفح هنا أبداً ───────────────────────
+    // ensureSession = جهّز الـ context فقط
+    // لو الجلسة منتهية → العملية نفسها ستلتقط الـ redirect وترمي SKIP
+    // checkHealth = الوحيد الذي يفتح متصفح للتحقق الفعلي
+    //
+    // الحسابات البطيئة كانت تسبب مشكلة لأن _classify تفتح x.com/home
+    // (60+ ثانية) لكل حساب قبل كل عملية — هذا غير ضروري
+
     const creds = Vault.decryptAccount(account.credentials);
-    const ctx   = await Browser.getContext(account);
 
-    // الخطوة 1: تجاوز API verify — غير موثوق على السيرفر
-
-    let state = await this._classify(account, ctx);
-
-    // unknown = خطأ مؤقت (بطء شبكة، timeout) — نعيد المحاولة مرة واحدة
-    if (state === 'unknown') {
-      logger.info(`[Auth] @${account.username} — unknown state، إعادة المحاولة...`);
-      await sleep(3000, 5000);
-      state = await this._classify(account, ctx);
+    // تخطَّ الحسابات الموقوفة/المحظورة بدون browser
+    if (['موقوف', 'محظور'].includes(account.status)) {
+      throw new Error(`SKIP:@${account.username} — ${account.status}`);
     }
 
-    if (state === 'active') return ctx;
-
-    // حالة محددة — لا تحاول login أثناء العمليات، تخطَّ فوراً
-    // unknown بعد الـ retry = مشكلة مؤقتة، لا نغير حالة الحساب في DB
-    const statusMap = { expired: 'يحتاج_مصادقة', checkpoint: 'نقطة_تحقق', suspended: 'موقوف' };
-    if (statusMap[state]) {
-      account.status        = statusMap[state];
-      account.lastCheckedAt = new Date();
-      await account.save().catch(() => {});
+    // الحساب يحتاج_مصادقة ولا يوجد token → تخطَّ
+    if (account.status === 'يحتاج_مصادقة' && !creds.auth_token) {
+      throw new Error(`SKIP:@${account.username} — يحتاج_مصادقة`);
     }
-    await Browser.closeContext(account._id.toString()).catch(() => {});
-    logger.warn(`[Auth] @${account.username} — تخطي: ${state}`);
-    throw new Error(`SKIP:@${account.username} — ${state}`);
+
+    // ── جهّز الـ context (من جلسة محفوظة أو tokens) ─────────
+    const ctx = await Browser.getContext(account);
+    return ctx;
   },
 
   // ── Health check ─────────────────────────────────────────────
@@ -139,13 +135,25 @@ const AuthSvc = {
       }
 
       await sleep(500, 1000);
-      await page.goto(X_HOME, { waitUntil: 'domcontentloaded', timeout: 60_000 }).catch(async (e) => {
-        // لو timeout — تحقق من الـ URL الحالي قبل ما نرمي خطأ
+      // استخدم 'load' بدل 'domcontentloaded' — ينتظر الـ JS يحمّل كامل
+      await page.goto(X_HOME, { waitUntil: 'load', timeout: 60_000 }).catch(async (e) => {
         const url = page.url();
         if (url && url !== 'about:blank' && !url.includes('x.com/home')) throw e;
-        // الصفحة بدأت تحمل — تابع
       });
-      await sleep(3000, 5000);  // X.com SPA تحتاج وقت أطول بعد domcontentloaded
+      await sleep(2000, 3000);
+
+      // كشف الـ splash screen (الشاشة السودة) — JS لم يحمّل بعد
+      const isSplash = await page.evaluate(() => {
+        // لو الـ react root فارغ ولا يوجد أي data-testid → splash screen
+        const root = document.getElementById('react-root');
+        return !root || root.children.length === 0 || !document.querySelector('[data-testid]');
+      }).catch(() => false);
+
+      if (isSplash) {
+        logger.info(`[Auth] @${account.username} — splash screen، جارٍ reload مع networkidle...`);
+        await page.reload({ waitUntil: 'networkidle', timeout: 45_000 }).catch(() => {});
+        await sleep(2000, 3000);
+      }
       // عرض حالة البروكسي فقط بدون فتح صفحة
       const hasProxy = !!account.network?.proxyUrl;
       logger.info(`[IP] @${account.username} — proxy: ${hasProxy ? '✅ ' + (account.network.proxyUrl.split('@')[1]||'') : '❌ بدون بروكسي'}`);
@@ -440,7 +448,8 @@ const AuthSvc = {
         req.end();
       });
 
-      logger.info(`[Auth] _verifyViaAPI @${creds.auth_token?.slice(0,8)}… → ${result.status} | ${result.body?.slice(0,80)}`);
+      logger.info(`[Auth] _verifyViaAPI @${creds.auth_token?.slice(0,8)}… → ${result.status}`);
+      // 200 = صالح، 403 = محظور/موقوف، 401 = منتهي الصلاحية
       return result.status === 200;
     } catch (e) {
       logger.warn(`[Auth] _verifyViaAPI error: ${e.message}`);
