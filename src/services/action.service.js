@@ -629,38 +629,42 @@ const ActionSvc = {
       let pageReady = await waitForForm(30_000);
       logger.info(`[Action] @${account.username} — صفحة جاهزة: ${pageReady} | URL: ${page.url()}`);
 
-      // إذا timeout — reload مرة واحدة وانتظر networkidle
+      // helper: كشف وضغط زر Refresh داخل settings pane
+      const clickRefreshIfNeeded = async () => {
+        const clicked = await page.evaluate(() => {
+          const btns = [...document.querySelectorAll('button,[role="button"]')];
+          const refresh = btns.find(b => {
+            const t = b.textContent.trim().toLowerCase();
+            const tid = b.getAttribute('data-testid') || '';
+            return t === 'refresh' || t === 'retry' || t === 'try again' || tid.includes('refresh');
+          });
+          if (refresh && refresh.offsetParent !== null) { refresh.click(); return true; }
+          return false;
+        }).catch(() => false);
+        if (clicked) {
+          logger.info(`[Action] @${account.username} — Refresh clicked in settings pane`);
+          await sleep(3000, 5000);
+        }
+        return clicked;
+      };
+
       if (pageReady === 'timeout') {
-        logger.info(`[Action] @${account.username} — timeout، جارٍ reload...`);
+        // المحاولة 1: اضغط Refresh إذا ظهر داخل الـ pane
+        await clickRefreshIfNeeded();
+        pageReady = await waitForForm(20_000);
+        logger.info(`[Action] @${account.username} — بعد Refresh: ${pageReady}`);
+      }
+
+      if (pageReady === 'timeout') {
+        // المحاولة 2: goto كامل مع networkidle
+        logger.info(`[Action] @${account.username} — timeout، جارٍ full reload...`);
         await page.goto('https://x.com/settings/profile', { waitUntil: 'networkidle', timeout: 40_000 }).catch(() => {});
         await sleep(2000, 3000);
         await closeCookies();
+        await clickRefreshIfNeeded();
         pageReady = await waitForForm(20_000);
-        logger.info(`[Action] @${account.username} — بعد reload: ${pageReady}`);
+        logger.info(`[Action] @${account.username} — بعد full reload: ${pageReady}`);
       }
-
-      // تشخيص: اطبع كل الـ inputs الموجودة في الصفحة
-      const pageInputs = await page.evaluate(() => {
-        const inputs = [...document.querySelectorAll('input, textarea')];
-        return inputs.map(el => ({
-          tag: el.tagName,
-          name: el.name || '',
-          type: el.type || '',
-          testid: el.getAttribute('data-testid') || '',
-          placeholder: el.placeholder?.slice(0,30) || '',
-          visible: el.offsetParent !== null,
-        }));
-      }).catch(() => []);
-      logger.info(`[Action] @${account.username} — inputs في الصفحة: ${JSON.stringify(pageInputs)}`);
-
-      // تشخيص: ابحث عن أي زر save
-      const pageBtns = await page.evaluate(() => {
-        return [...document.querySelectorAll('button,[role="button"]')]
-          .filter(b => b.offsetParent !== null)
-          .slice(0, 10)
-          .map(b => ({ text: b.textContent.trim().slice(0,20), testid: b.getAttribute('data-testid') || '' }));
-      }).catch(() => []);
-      logger.info(`[Action] @${account.username} — أزرار مرئية: ${JSON.stringify(pageBtns)}`);
 
       if (pageReady === 'timeout') {
         throw new Error(`SKIP:@${account.username} — فورم البروفايل لم يحمّل`);
