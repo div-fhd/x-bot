@@ -261,12 +261,20 @@ async function getContext(account) {
         } catch {}
       });
 
+      // نضيف x-csrf-token فقط على API calls وليس على navigation
+      // setExtraHTTPHeaders على navigation يسبب كشف automation من X
       if (creds.session_token) {
-        await ctx.setExtraHTTPHeaders({
-          'x-csrf-token':              creds.session_token,
-          'x-twitter-auth-type':       'OAuth2Session',
-          'x-twitter-active-user':     'yes',
-          'x-twitter-client-language': 'en',
+        const csrfToken = creds.session_token;
+        await ctx.route('**/api/**', async (route) => {
+          await route.continue({
+            headers: {
+              ...route.request().headers(),
+              'x-csrf-token':              csrfToken,
+              'x-twitter-auth-type':       'OAuth2Session',
+              'x-twitter-active-user':     'yes',
+              'x-twitter-client-language': 'en',
+            },
+          });
         });
       }
 

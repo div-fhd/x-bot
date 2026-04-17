@@ -124,7 +124,21 @@ const AuthSvc = {
   async _classify(account, ctx) {
     const page = await ctx.newPage();
     try {
-      await sleep(1000, 2000);
+      // تحقق من الـ cookies قبل التنقل — لو auth_token موجود في الـ context
+      const cookies = await ctx.cookies('https://x.com').catch(() => []);
+      const hasAuth = cookies.some(c => c.name === 'auth_token' && c.value?.length > 10);
+      if (!hasAuth) {
+        // حاول inject الـ cookies من الـ credentials
+        const Vault   = require('./vault.service');
+        const creds   = Vault.decryptAccount(account.credentials);
+        const state   = Vault.buildStateFromTokens(creds);
+        if (state?.cookies?.length) {
+          await ctx.addCookies(state.cookies);
+          logger.info(`[Auth] @${account.username} — injected ${state.cookies.length} cookies manually`);
+        }
+      }
+
+      await sleep(500, 1000);
       await page.goto(X_HOME, { waitUntil: 'domcontentloaded', timeout: 60_000 }).catch(async (e) => {
         // لو timeout — تحقق من الـ URL الحالي قبل ما نرمي خطأ
         const url = page.url();

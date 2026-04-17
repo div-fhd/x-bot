@@ -73,13 +73,31 @@ const Vault = {
 
   buildStateFromTokens(creds) {
     if (!creds.auth_token) return null;
-    const cookies = [
-      { name:'auth_token', value:creds.auth_token, domain:'.x.com', path:'/', httpOnly:true, secure:true, sameSite:'None' },
-    ];
-    if (creds.session_token) {
-      cookies.push({ name:'ct0', value:creds.session_token, domain:'.x.com', path:'/', httpOnly:false, secure:true, sameSite:'Lax' });
+
+    // نضع cookies على كل الدومينات التي X يستخدمها
+    const domains = ['.x.com', '.twitter.com', 'x.com', 'twitter.com'];
+    const cookies = [];
+
+    for (const domain of domains) {
+      cookies.push({
+        name: 'auth_token', value: creds.auth_token,
+        domain, path: '/', httpOnly: true, secure: true, sameSite: 'None',
+      });
+      if (creds.session_token) {
+        cookies.push({
+          name: 'ct0', value: creds.session_token,
+          domain, path: '/', httpOnly: false, secure: true, sameSite: 'Lax',
+        });
+      }
     }
-    return { cookies, origins:[] };
+
+    // guest_id عشوائي — X يتوقعه موجوداً
+    const guestId = 'v1%3A' + Date.now() + Math.floor(Math.random() * 1e9);
+    for (const domain of ['.x.com', '.twitter.com']) {
+      cookies.push({ name: 'guest_id', value: guestId, domain, path: '/', secure: true, sameSite: 'None' });
+    }
+
+    return { cookies, origins: [] };
   },
 
   fingerprint(state) {
