@@ -442,47 +442,112 @@ const ActionSvc = {
       }
 
       // تجاوز تحذير "This account is temporarily restricted"
-      const warningBtn = await page.$('button:has-text("Yes, view profile")').catch(() => null);
+      // نستخدم waitForSelector بدل $ لأن الصفحة ممكن ما تحملت كامل
+      const warningBtn = await page.waitForSelector(
+        'button:has-text("Yes, view profile"), button:has-text("Yes, view")',
+        { state: 'visible', timeout: 5_000 }
+      ).catch(() => null);
       if (warningBtn) {
+        logger.info(`[Follow] @${account.username} — تجاوز تحذير restricted`);
         await warningBtn.click();
+        // انتظر حتى يختفي التحذير ويظهر المحتوى
+        await page.waitForSelector('[data-testid="primaryColumn"]', { timeout: 10_000 }).catch(() => {});
+        await sleep(1000, 1500);
+      }
+
+      // كشف صفحة الخطأ "Try again" — يعني React ما hydrate
+      const hasTryAgain = await page.evaluate(() => {
+        return [...document.querySelectorAll('button')].some(b => /try again/i.test(b.textContent.trim()));
+      }).catch(() => false);
+
+      if (hasTryAgain) {
+        logger.info(`[Follow] @${account.username} — صفحة خطأ، إعادة تحميل كاملة...`);
+        // reload بـ networkidle يضمن تحميل React كامل
+        await page.reload({ waitUntil: 'networkidle', timeout: 40_000 }).catch(() => {});
         await sleep(2000, 3000);
+        await this._checkNotRedirected(page, account);
+        // تحقق مرة ثانية
+        const stillBroken = await page.evaluate(() =>
+          [...document.querySelectorAll('button')].some(b => /try again/i.test(b.textContent.trim()))
+        ).catch(() => false);
+        if (stillBroken) throw new Error(`SKIP:@${account.username} — X رفض تحميل الصفحة`);
       }
 
       // انتظر تحميل المحتوى — X.com SPA تحتاج وقت بعد domcontentloaded
-      await sleep(2000, 3000);
-      // انتظر حتى يظهر عنصر في الصفحة
-      await page.waitForSelector('[data-testid="UserName"], [data-testid="userActions"]', { timeout: 15000 }).catch(() => {});
-      await sleep(1000, 1500);
+      await sleep(1500, 2500);
+
+      // انتظر userActions أو primaryColumn
+      await Promise.race([
+        page.waitForSelector('[data-testid="userActions"]',       { timeout: 15_000 }),
+        page.waitForSelector('[data-testid="placementTracking"]', { timeout: 15_000 }),
+        page.waitForSelector('[data-testid="primaryColumn"]',     { timeout: 15_000 }),
+      ]).catch(() => {});
+
+      // انتظر زر المتابعة نفسه يظهر (بدل sleep ثابت)
+      // X SPA يحمّل userActions أولاً ثم يضيف الأزرار
+      await Promise.race([
+        page.waitForSelector('[data-testid$="-follow"]:not([data-testid$="-unfollow"])', { timeout: 5_000 }),
+        page.waitForSelector('[aria-label^="Follow @"]',   { timeout: 5_000 }),
+        page.waitForSelector('[data-testid$="-unfollow"]', { timeout: 5_000 }), // يتابعه مسبقاً
+      ]).catch(() => {}); // لو ما وجد — نكمل للـ evaluate
+      await sleep(300, 500);
 
       logger.info(`[Follow] @${account.username} — searching for follow button on ${targetHandle}`);
-      // البحث عن زر المتابعة
-      const clicked = await page.evaluate(() => {
-        // الطريقة 1: data-testid ينتهي بـ "-follow"
-        const byEndFollow = document.querySelector('[data-testid$="-follow"]');
-        if (byEndFollow) { byEndFollow.click(); return 'end-follow'; }
 
-        // الطريقة 2: aria-label يبدأ بـ "Follow @"
-        const byAria = document.querySelector('[aria-label^="Follow @"]');
-        if (byAria) { byAria.click(); return 'aria'; }
+      // المحاولة 1: انتظر الزر عبر locator (أكثر موثوقية من evaluate)
+      const followSelectors = [
+        '[data-testid$="-follow"]:not([data-testid$="-unfollow"])',
+        '[aria-label^="Follow @"]',
+        '[aria-label^="متابعة @"]',
+        '[data-testid="follow"]',
+      ];
+      let clicked = null;
+      for (const sel of followSelectors) {
+        const loc = page.locator(sel).first();
+        const count = await loc.count().catch(() => 0);
+        if (count > 0) {
+          await loc.click();
+          clicked = sel.includes('aria') ? 'aria' : sel.includes('testid') ? 'testid' : 'end-follow';
+          break;
+        }
+      }
 
-        // الطريقة 3: data-testid="follow"
-        const byTestId = document.querySelector('[data-testid="follow"]');
-        if (byTestId) { byTestId.click(); return 'testid'; }
+      // المحاولة 2: evaluate بحث شامل (للزر ذو النص الفارغ)
+      if (!clicked) {
+        clicked = await page.evaluate(() => {
+          // تحقق إذا يتابعه مسبقاً
+          const already = document.querySelector('[data-testid$="-unfollow"],[aria-label^="Following @"],[aria-label^="Unfollow @"]');
+          if (already) return 'already';
 
-        // الطريقة 4: نص الزر
-        const btns = [...document.querySelectorAll('button[role="button"], div[role="button"]')];
-        const byText = btns.find(b => {
-          const t = b.textContent.trim().toLowerCase();
-          return t === 'follow' || t === 'متابعة';
-        });
-        if (byText) { byText.click(); return 'text'; }
+          // بحث في كل الأزرار المرئية داخل userActions
+          const zone = document.querySelector('[data-testid="userActions"]') || document.body;
+          const btns = [...zone.querySelectorAll('button,[role="button"]')];
 
-        // تحقق إذا يتابعه مسبقاً
-        const alreadyFollow = document.querySelector('[data-testid$="-unfollow"], [aria-label^="Following @"], [aria-label^="Unfollow @"]');
-        if (alreadyFollow) return 'already';
+          // زر المتابعة في X.com: style يشمل background-color أخضر أو له data-testid
+          const byTestId = btns.find(b => {
+            const tid = b.getAttribute('data-testid') || '';
+            return tid.endsWith('-follow') && !tid.endsWith('-unfollow');
+          });
+          if (byTestId) { byTestId.click(); return 'testid-zone'; }
 
-        return null;
-      });
+          // بحث بالـ aria-label على أي عنصر
+          const byAria = document.querySelector('[aria-label^="Follow "],[aria-label^="متابعة "]');
+          if (byAria) { byAria.click(); return 'aria-full'; }
+
+          // آخر محاولة: أي زر غير More وغير اسم الحساب في الـ header
+          const candidate = btns.find(b => {
+            const tid = b.getAttribute('data-testid') || '';
+            const txt = b.textContent.trim();
+            // استبعد الأزرار المعروفة
+            return !tid.includes('unfollow') && !tid.includes('More') &&
+                   !tid.includes('message') && !tid.includes('share') &&
+                   txt !== 'More' && !txt.includes('@') && b.offsetParent !== null;
+          });
+          if (candidate) { candidate.click(); return 'candidate'; }
+
+          return null;
+        }).catch(() => null);
+      }
 
       logger.info(`[Follow] @${account.username} — clicked: ${clicked}`);
       if (clicked === 'already') return { success: true, alreadyFollowing: true };
@@ -494,19 +559,35 @@ const ActionSvc = {
           btns: [...document.querySelectorAll('button')].slice(0,5).map(b => b.textContent.trim()),
         })).catch(() => ({}));
         logger.warn(`[Follow] page info: ${JSON.stringify(pageInfo)}`);
+        // "See new posts" = يتابعه مسبقاً
+        const alreadyIndicators = ['See new posts', 'New posts', 'Show new posts'];
+        const isAlready = pageInfo.btns?.some(b => alreadyIndicators.some(i => b.includes(i)));
+        if (isAlready) {
+          logger.info(`[Follow] @${account.username} — يتابع @${targetHandle} مسبقاً (See new posts)`);
+          return { success: true, alreadyFollowing: true };
+        }
         throw new Error('لم يتم إيجاد زر المتابعة');
       }
 
       logger.info(`[Action] Follow btn clicked via: ${clicked} @${targetHandle}`);
-      // انتظر تأكيد المتابعة
-      await sleep(2000, 3000);
-      // تحقق إن المتابعة تمت فعلاً
+      // انتظر تأكيد المتابعة — X يأخذ 1-3 ثوانٍ لتغيير الزر
+      await sleep(1500, 2000);
+      // تحقق من التأكيد — ننتظر الزر يتغير بدل sleep ثابت
+      await Promise.race([
+        page.waitForSelector('[data-testid$="-unfollow"]',    { timeout: 4_000 }),
+        page.waitForSelector('[aria-label^="Following @"]',   { timeout: 4_000 }),
+        page.waitForSelector('[aria-label^="Unfollow @"]',    { timeout: 4_000 }),
+      ]).catch(() => {});
       const confirmed = await page.evaluate(() => {
-        return !!(
+        // كشف كل علامات المتابعة الناجحة بما فيها See new posts
+        const hasUnfollow = !!(
           document.querySelector('[data-testid$="-unfollow"]') ||
           document.querySelector('[aria-label^="Following @"]') ||
           document.querySelector('[aria-label^="Unfollow @"]')
         );
+        const hasSeeNew = [...document.querySelectorAll('button')]
+          .some(b => /see new posts|new posts/i.test(b.textContent));
+        return hasUnfollow || hasSeeNew;
       }).catch(() => true);
       logger.info(`[Action] Follow confirmed: ${confirmed} @${targetHandle}`);
       await account.bump('follow');
@@ -816,6 +897,25 @@ const ActionSvc = {
     // logger.info(`[IP] @${account.username} — proxy: ${hasProxy ? '✅ ' + (account.network.proxyUrl.split('@')[1] || '') : '❌ بدون بروكسي'}`);
 
     // لا نغلق الصفحة تلقائياً — _checkNotRedirected يتولى الأمر
+
+    // كشف "Try again" و "Yes, view profile" بعد أي تنقل
+    page.on('load', async () => {
+      try {
+        // تجاوز تحذير restricted تلقائياً
+        const viewBtn = await page.$('button:has-text("Yes, view profile"), button:has-text("Yes, view")').catch(() => null);
+        if (viewBtn) {
+          await viewBtn.click().catch(() => {});
+          await sleep(1000, 1500);
+        }
+        // إعادة تحميل عند صفحة الخطأ
+        const broken = await page.evaluate(() =>
+          [...document.querySelectorAll('button')].some(b => /^try again$/i.test(b.textContent.trim()))
+        ).catch(() => false);
+        if (broken) {
+          await page.reload({ waitUntil: 'networkidle', timeout: 40_000 }).catch(() => {});
+        }
+      } catch {}
+    });
 
     // أغلق popup الكوكيز بعد أي تنقل
     page.on('load', async () => {

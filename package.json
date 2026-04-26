@@ -26,6 +26,8 @@
     "multer": "^2.1.1",
     "node-cron": "^3.0.3",
     "playwright": "^1.44.0",
+    "playwright-extra": "^4.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
     "socket.io": "^4.6.1",
     "winston": "^3.11.0"
   },

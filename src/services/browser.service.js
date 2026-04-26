@@ -11,7 +11,19 @@
  *  3. Browser disconnect recovery — individual contexts survive a SIGHUP reconnect.
  *  4. Plain Playwright only (no puppeteer-extra / playwright-extra).
  */
-const { chromium } = require('playwright');
+// playwright-extra مع stealth plugin — يُخفي كل علامات Playwright
+let chromium;
+try {
+  const { chromium: chromiumExtra } = require('playwright-extra');
+  const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+  chromiumExtra.use(StealthPlugin());
+  chromium = chromiumExtra;
+  require('../utils/logger').info('[Browser] playwright-extra + stealth ✅');
+} catch {
+  // fallback لو لم يُثبَّت playwright-extra
+  chromium = require('playwright').chromium;
+  require('../utils/logger').warn('[Browser] playwright-extra غير مثبَّت — يعمل بدون stealth');
+}
 const cfg    = require('../config');
 const Vault  = require('./vault.service');
 const logger = require('../utils/logger');
