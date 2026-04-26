@@ -54,6 +54,10 @@ app.use(`${API}/content`,   contentRouter);
 app.use(`${API}/proxies`,   proxyRouter);
 app.use(`${API}/dashboard`, dashRouter);
 
+// ── Route for home.html ───────────────────────────────────────
+app.get('/home', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'home.html'));
+});
 // ── SPA fallback ─────────────────────────────────────────────
 app.use((req, res) => {
   if (req.path.startsWith('/api')) return res.status(404).json({ error: 'Route not found' });
@@ -61,10 +65,7 @@ app.use((req, res) => {
 });
 app.use(errorHandler);
 
-// ── Route for home.html ───────────────────────────────────────
-app.get('/home', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'home.html'));
-});
+
 // ── Socket.IO ─────────────────────────────────────────────────
 io.on('connection', socket => {
   logger.info(`[WS] Connected: ${socket.id}`);
