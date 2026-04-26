@@ -61,6 +61,10 @@ app.use((req, res) => {
 });
 app.use(errorHandler);
 
+// ── Route for home.html ───────────────────────────────────────
+app.get('/home', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'home.html'));
+});
 // ── Socket.IO ─────────────────────────────────────────────────
 io.on('connection', socket => {
   logger.info(`[WS] Connected: ${socket.id}`);
