@@ -4192,6 +4192,182 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
   });
 });
 
+
 </script>
 </body>
-</html>
+</html><!-- تم حقنه تلقائياً — btn-interactions -->
+<style>
+@keyframes _btn-spin{to{transform:rotate(360deg)}}
+@keyframes _btn-pop{0%{transform:scale(1)}45%{transform:scale(.94)}80%{transform:scale(1.04)}100%{transform:scale(1)}}
+@keyframes _btn-shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-4px)}40%,80%{transform:translateX(4px)}}
+@keyframes _ripple{0%{transform:scale(0);opacity:.35}100%{transform:scale(4);opacity:0}}
+@keyframes _progress-fill{from{width:0}to{width:100%}}
+.btn{position:relative;overflow:hidden}
+.btn._loading{pointer-events:none!important;opacity:.72!important;cursor:not-allowed!important}
+.btn._loading::after{content:'';position:absolute;inset:0;margin:auto;width:13px;height:13px;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;animation:_btn-spin .7s linear infinite}
+.btn._loading ._btn-label{opacity:0}
+.btn._done{pointer-events:none;background:rgba(30,212,138,.13)!important;border-color:rgba(30,212,138,.32)!important;color:var(--grn)!important;animation:_btn-pop .35s ease}
+.btn._error{pointer-events:none;background:rgba(242,86,104,.11)!important;border-color:rgba(242,86,104,.28)!important;color:var(--red)!important;animation:_btn-shake .4s ease}
+._ripple-el{position:absolute;border-radius:50%;background:rgba(255,255,255,.18);width:80px;height:80px;margin-top:-40px;margin-right:-40px;animation:_ripple .6s ease-out forwards;pointer-events:none}
+</style>
+<script>
+(function(){
+/* ── helpers ── */
+function btnLoad(btn){
+  if(!btn)return;
+  btn._ot=btn._ot||btn.innerHTML;
+  btn._od=btn.disabled;
+  btn.disabled=true;
+  btn.classList.add('_loading');
+  btn.innerHTML='<span class="_btn-label">'+btn._ot+'</span>';
+}
+function btnDone(btn,msg){
+  if(!btn)return;
+  btn.classList.remove('_loading','_error');
+  btn.classList.add('_done');
+  btn.disabled=false;
+  btn.innerHTML='<span class="_btn-label">'+(msg||btn._ot||'✓')+'</span>';
+  setTimeout(()=>btnReset(btn),2200);
+}
+function btnError(btn,msg){
+  if(!btn)return;
+  btn.classList.remove('_loading','_done');
+  btn.classList.add('_error');
+  btn.disabled=false;
+  btn.innerHTML='<span class="_btn-label">'+(msg?'✕ '+msg:(btn._ot||'✕'))+'</span>';
+  setTimeout(()=>btnReset(btn),2500);
+}
+function btnReset(btn){
+  if(!btn)return;
+  btn.classList.remove('_loading','_done','_error');
+  btn.disabled=btn._od||false;
+  if(btn._ot){btn.innerHTML=btn._ot;delete btn._ot;}
+}
+window.withBtn=async function(btn,fn,opts){
+  opts=opts||{};
+  if(!btn||btn.classList.contains('_loading'))return;
+  btnLoad(btn);
+  try{
+    var r=await fn();
+    btnDone(btn,opts.successMsg||'');
+    return r;
+  }catch(e){
+    var m=opts.errorMsg||(e&&e.message&&!e.message.startsWith('SKIP:')?e.message.slice(0,28):'');
+    btnError(btn,m);
+    throw e;
+  }
+};
+
+/* ── Ripple ── */
+document.addEventListener('click',function(e){
+  var btn=e.target.closest('.btn');
+  if(!btn||btn.classList.contains('_loading'))return;
+  var rect=btn.getBoundingClientRect();
+  var rp=document.createElement('span');
+  rp.className='_ripple-el';
+  rp.style.top=(e.clientY-rect.top)+'px';
+  rp.style.right=(rect.right-e.clientX)+'px';
+  btn.appendChild(rp);
+  setTimeout(function(){rp.remove()},650);
+},true);
+
+/* ── ربط الأزرار الثابتة ── */
+function bindStatic(sel,fn,done){
+  var btn=document.querySelector(sel);
+  if(!btn)return;
+  btn.removeAttribute('onclick');
+  btn.addEventListener('click',async function(e){
+    e.preventDefault();
+    if(btn.classList.contains('_loading'))return;
+    try{await withBtn(btn,fn,{successMsg:done});}catch{}
+  });
+}
+
+document.addEventListener('DOMContentLoaded',function(){
+  var defs=[
+    ['button[onclick="doTweet()"]',          function(){return doTweet()},          '✓ نُشرت'],
+    ['button[onclick="doTweetMulti()"]',      function(){return doTweetMulti()},      '✓ بدأ النشر'],
+    ['button[onclick="doFollowMulti()"]',     function(){return doFollowMulti()},     '✓ بدأت المتابعة'],
+    ['button[onclick="doLikeMulti()"]',       function(){return doLikeMulti()},       '✓ بدأ الإعجاب'],
+    ['button[onclick="doRepostMulti()"]',     function(){return doRepostMulti()},     '✓ بدأت إعادة التغريد'],
+    ['button[onclick="doReplyMulti()"]',      function(){return doReplyMulti()},      '✓ بدأ الرد'],
+    ['button[onclick="doMutualFollow()"]',    function(){return doMutualFollow()},    '✓ بدأت التبادلية'],
+    ['button[onclick="doReport()"]',          function(){return doReport()},          '✓ بدأ الإبلاغ'],
+    ['button[onclick="doSyncProfiles()"]',    function(){return doSyncProfiles()},    '✓ بدأت المزامنة'],
+    ['button[onclick="doUpdateProfiles()"]',  function(){return doUpdateProfiles()},  '✓ بدأ التحديث'],
+    ['button[onclick="doImport()"]',          function(){return doImport()},          '✓ اكتمل'],
+    ['button[onclick="doAISuggest()"]',       function(){return doAISuggest()},       '✓ اكتمل'],
+    ['button[onclick="doScore()"]',           function(){return doScore()},           '✓ تم التقييم'],
+    ['button[onclick="doSchedule()"]',        function(){return doSchedule()},        '✓ تم الجدولة'],
+    ['button[onclick="saveProxy()"]',         function(){return saveProxy()},         '✓ تم الحفظ'],
+    ['button[onclick="autoDistribute()"]',    function(){return autoDistribute()},    '✓ تم التوزيع'],
+    ['button[onclick="doAssignProxy()"]',     function(){return doAssignProxy()},     '✓ تم التعيين'],
+    ['button[onclick="saveEditAccountFull()"]',function(){return saveEditAccountFull()},'✓ تم الحفظ'],
+    ['button[onclick="stopAllJobs()"]',       function(){return stopAllJobs()},       '✓ أُوقف'],
+    ['button[onclick="doLogin()"]',           function(){return doLogin()},           '✓ جارٍ الدخول'],
+    ['button[onclick="deleteSelectedAccounts()"]',function(){return deleteSelectedAccounts()},'✓ حُذف'],
+  ];
+  defs.forEach(function(d){bindStatic(d[0],d[1],d[2]);});
+
+  /* ── فحص جماعي ── */
+  var bkBtn=document.getElementById('bulk-check-btn');
+  if(bkBtn){
+    bkBtn.removeAttribute('onclick');
+    bkBtn.addEventListener('click',async function(){
+      if(bkBtn.classList.contains('_loading'))return;
+      btnLoad(bkBtn);
+      try{await doBulkCheckSelected();}
+      catch{btnError(bkBtn);}
+    });
+    document.addEventListener('_checkDone',function(){btnDone(bkBtn,'✓ اكتمل');});
+  }
+});
+
+/* ── Event delegation للأزرار الديناميكية ── */
+document.addEventListener('click',function(e){
+  var btn=e.target.closest('button');
+  if(!btn)return;
+  if(btn.classList.contains('_loading')){
+    e.preventDefault();e.stopImmediatePropagation();return;
+  }
+  var oc=btn.getAttribute('onclick')||'';
+
+  if(oc.includes('checkAccount(')){
+    e.preventDefault();btn.removeAttribute('onclick');
+    var m=oc.match(/'([^']+)'/);
+    if(m)withBtn(btn,function(){return checkAccount(m[1])},{successMsg:'✓ فُحص'});
+  }
+  if(oc.includes('deleteAccount(')){
+    e.preventDefault();btn.removeAttribute('onclick');
+    var m2=oc.match(/'([^']+)',\s*'([^']+)'/);
+    if(m2)withBtn(btn,function(){return deleteAccount(m2[1],m2[2])},{successMsg:'✓ حُذف',errorMsg:'خطأ'});
+  }
+  if(oc.includes('cancelJobById(')){
+    e.preventDefault();btn.removeAttribute('onclick');
+    var m3=oc.match(/\((\d+)\)/);
+    if(m3)withBtn(btn,function(){return cancelJobById(+m3[1])},{successMsg:'✓ أُوقف'});
+  }
+  if(oc.includes('resolveRisk(')){
+    e.preventDefault();btn.removeAttribute('onclick');
+    var m4=oc.match(/'([^']+)'/);
+    if(m4)withBtn(btn,function(){return resolveRisk(m4[1])},{successMsg:'✓ حُلّ'});
+  }
+  if(oc.includes('publishNow(')){
+    e.preventDefault();btn.removeAttribute('onclick');
+    var m5=oc.match(/'([^']+)'/);
+    if(m5)withBtn(btn,function(){return publishNow(m5[1])},{successMsg:'✓ نُشر'});
+  }
+  if(oc.includes('deleteProxy(')){
+    e.preventDefault();btn.removeAttribute('onclick');
+    var m6=oc.match(/'([^']+)'/);
+    if(m6)withBtn(btn,function(){return deleteProxy(m6[1])},{successMsg:'✓ حُذف'});
+  }
+  if(oc.includes('cancelSchedule(')){
+    e.preventDefault();btn.removeAttribute('onclick');
+    var m7=oc.match(/'([^']+)'/);
+    if(m7)withBtn(btn,function(){return cancelSchedule(m7[1])},{successMsg:'✓ أُلغي'});
+  }
+},true);
+
+})();
+</script>
