@@ -1,0 +1,57 @@
+'use strict';
+const { Worker }       = require('bullmq');
+const { createConnection } = require('../connection');
+const { QUEUE_NAMES }  = require('../queues');
+const { setIO, attachQueueEvents } = require('../events/job.events');
+const logger           = require('../../utils/logger');
+const BROWSER_LIMIT    = parseInt(process.env.BROWSER_LIMIT || '5');
+
+const PROCESSOR_MAP = {
+  [QUEUE_NAMES.FOLLOW]:         require('../processors/follow.processor'),
+  [QUEUE_NAMES.LIKE]:           require('../processors/like.processor'),
+  [QUEUE_NAMES.RETWEET]:        require('../processors/retweet.processor'),
+  [QUEUE_NAMES.TWEET_MULTI]:    require('../processors/tweet-multi.processor'),
+  [QUEUE_NAMES.MUTUAL_FOLLOW]:  require('../processors/mutual-follow.processor'),
+  [QUEUE_NAMES.REPORT_ACCOUNT]: require('../processors/report.processor'),
+  [QUEUE_NAMES.REPORT_TWEET]:   require('../processors/report.processor'),
+  [QUEUE_NAMES.PROFILE_UPDATE]: require('../processors/profile-update.processor'),
+  [QUEUE_NAMES.PROFILE_SYNC]:   require('../processors/profile-sync.processor'),
+  [QUEUE_NAMES.HEALTH_CHECK]:   require('../processors/health-check.processor'),
+};
+
+const _workers    = [];
+const _queueEvents = [];
+
+async function startWorkers(io) {
+  setIO(io);
+
+  for (const [queueName, processor] of Object.entries(PROCESSOR_MAP)) {
+    const worker = new Worker(queueName, processor, {
+      connection:      createConnection(),
+      concurrency:     BROWSER_LIMIT,
+      stalledInterval: 30_000,
+      lockDuration:    180_000,
+    });
+
+    worker.on('completed', job  => logger.info(`[Worker] ✓ ${queueName} job ${job.id} done`));
+    worker.on('failed', (job, err) => {
+      const skip = err.message?.includes('SKIP:');
+      logger[skip ? 'warn' : 'error'](`[Worker] ✗ ${queueName} job ${job?.id}: ${err.message}`);
+    });
+    worker.on('error', err => logger.error(`[Worker] ${queueName} error: ${err.message}`));
+
+    _workers.push(worker);
+    _queueEvents.push(attachQueueEvents(queueName));
+  }
+
+  logger.info(`[Workers] Started ${_workers.length} workers (concurrency: ${BROWSER_LIMIT})`);
+}
+
+async function stopWorkers() {
+  logger.info('[Workers] Graceful shutdown...');
+  await Promise.allSettled(_workers.map(w => w.close()));
+  await Promise.allSettled(_queueEvents.map(qe => qe.close()));
+  logger.info('[Workers] All workers stopped');
+}
+
+module.exports = { startWorkers, stopWorkers };

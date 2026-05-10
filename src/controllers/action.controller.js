@@ -4,6 +4,8 @@ const { Content, EngageCampaign, log } = require('../models/index');
 const ActionSvc      = require('../services/action.service');
 const AISvc          = require('../services/ai.service');
 const logger         = require('../utils/logger');
+const { getQueue, QUEUE_NAMES } = require('../queues/queues');
+const { jobEvents }  = require('../queues/events/job.events');
 
 // ── نظام Jobs ─────────────────────────────────────────────────
 const activeJobs = new Map();
@@ -59,6 +61,26 @@ function getActiveJobs() {
   return [...activeJobs.values()];
 }
 
+
+// ── BullMQ helper ─────────────────────────────────────────────
+async function queueBulkOp(queueName, accounts, jobDataFn, delayMinMs = 0, delayMaxMs = 0) {
+  const queue = getQueue(queueName);
+  const parentJobId = `${queueName}-${Date.now()}`;
+  const jobs = await queue.addBulk(
+    accounts.map((account, idx) => {
+      const delayMs = idx === 0 ? 0 : Math.round(
+        delayMinMs + Math.random() * Math.max(0, delayMaxMs - delayMinMs)
+      ) * idx;
+      return {
+        name: queueName,
+        data: { ...jobDataFn(account, idx), meta: { parentJobId, index: idx, total: accounts.length } },
+        opts: { delay: delayMs, jobId: `${queueName}-${account._id}-${Date.now()}` },
+      };
+    })
+  );
+  return { parentJobId, jobCount: jobs.length };
+}
+
 // ── batch parallel helper ────────────────────────────────────
 async function runInBatches(items, batchSize, jobId, fn) {
   for (let i = 0; i < items.length; i += batchSize) {
@@ -103,7 +125,9 @@ async function runMultiOp({ accounts, batchSize, delayMinMs, delayMaxMs, jobId, 
       }
     }));
 
-    // اغلق contexts الدفعة الحالية لتحرير SEM قبل الدفعة التالية
+    // انتظر 500ms بعد allSettled قبل إغلاق الـ contexts
+    // يضمن إن page.close() في finally خلصت قبل closeContext
+    await new Promise(r => setTimeout(r, 500));
     await Promise.all(batch.map(acc => Browser.closeContext(acc._id.toString()).catch(() => {})));
 
     // تاخير بين الدفعات مع دعم الالغاء - يستخدم delayMin/Max بغض النظر عن batchSize
@@ -452,12 +476,13 @@ const ActionCtrl = {
     if (!accountIds?.length || !targetHandle) return res.status(400).json({ error: 'accountIds[] and targetHandle required' });
     const accounts = await Account.find({ _id: { $in: accountIds }, isActive: true });
     if (!accounts.length) return res.status(400).json({ error: 'No active accounts' });
-    const jobId = createJob('follow', accounts);
-    res.json({ started: true, jobId, total: accounts.length });
-    setImmediate(() => runMultiOp({
-      accounts, batchSize, delayMinMs, delayMaxMs, jobId, type: 'follow',
-      fn: (account) => ActionSvc.follow(account, targetHandle),
-    }));
+    const { parentJobId, jobCount } = await queueBulkOp(
+      QUEUE_NAMES.FOLLOW, accounts,
+      (account) => ({ accountId: account._id.toString(), targetHandle }),
+      delayMinMs, delayMaxMs
+    );
+    logger.info(`[followMulti] Queued ${jobCount} jobs → ${parentJobId}`);
+    res.json({ started: true, jobId: parentJobId, total: accounts.length });
   },
 
     // ── Like Multi ────────────────────────────────────────────
@@ -466,12 +491,13 @@ const ActionCtrl = {
     if (!accountIds?.length || !tweetId) return res.status(400).json({ error: 'accountIds[] and tweetId required' });
     const accounts = await Account.find({ _id: { $in: accountIds }, isActive: true });
     if (!accounts.length) return res.status(400).json({ error: 'No active accounts' });
-    const jobId = createJob('like', accounts);
-    res.json({ started: true, jobId, total: accounts.length });
-    setImmediate(() => runMultiOp({
-      accounts, batchSize, delayMinMs, delayMaxMs, jobId, type: 'like',
-      fn: (account) => ActionSvc.like(account, tweetId),
-    }));
+    const { parentJobId, jobCount } = await queueBulkOp(
+      QUEUE_NAMES.LIKE, accounts,
+      (account) => ({ accountId: account._id.toString(), tweetId }),
+      delayMinMs, delayMaxMs
+    );
+    logger.info(`[likeMulti] Queued ${jobCount} jobs → ${parentJobId}`);
+    res.json({ started: true, jobId: parentJobId, total: accounts.length });
   },
 
     // ── Retweet Multi ───────────────────────────────────────────

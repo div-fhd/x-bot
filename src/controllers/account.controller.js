@@ -1,5 +1,6 @@
 'use strict';
 const Account  = require('../models/Account');
+const { getQueue, QUEUE_NAMES } = require('../queues/queues');
 const { User, log } = require('../models/index');
 const Vault    = require('../services/vault.service');
 const AuthSvc  = require('../services/auth.service');
@@ -232,157 +233,65 @@ const AccountCtrl = {
 
   // ── رفع الصور ──────────────────────────────────────────────────
   async bulkCheck(req, res) {
-    // منع تشغيل أكثر من bulk-check في نفس الوقت
-    if (global._bulkCheckRunning) return res.json({ started: false, message: 'فحص جارٍ بالفعل' });
-    global._bulkCheckRunning = true;
-
-    const { accountIds } = req.body;
-    const query = accountIds?.length
-      ? { _id: { $in: accountIds }, isActive: true }
-      : { isActive: true };
+    const { accountIds, batchSize = 1 } = req.body;
+    const query = accountIds?.length ? { _id: { $in: accountIds }, isActive: true } : { isActive: true };
     const accounts = await Account.find(query);
-    if (!accounts.length) { global._bulkCheckRunning = false; return res.json({ total: 0 }); }
-    res.json({ started: true, total: accounts.length });
-    setImmediate(async () => {
-      let done = 0;
-      const batchSize = req.body.batchSize || 1; // عدد الحسابات بالتوازي
+    if (!accounts.length) return res.json({ total: 0 });
 
-      // قسّم الحسابات إلى مجموعات
-      for (let i = 0; i < accounts.length; i += batchSize) {
-        const batch = accounts.slice(i, i + batchSize);
-
-        // شغّل المجموعة بالتوازي
-        await Promise.allSettled(batch.map(async account => {
-          try {
-            await AuthSvc.checkHealth(account);
-          } catch(e) {
-            logger.warn(`[BulkCheck] @${account.username}: ${e.message}`);
-          }
-          done++;
-          if (global.io) global.io.emit('account:check:progress', {
-            done, total: accounts.length, username: account.username, status: account.status,
-          });
-        }));
-
-        // تأخير بين المجموعات
-        if (i + batchSize < accounts.length) {
-          await new Promise(r => setTimeout(r, 2000));
-        }
-      }
-
-      global._bulkCheckRunning = false;
-      if (global.io) global.io.emit('account:check:done', { total: accounts.length });
-      logger.info(`[BulkCheck] اكتمل: ${done}/${accounts.length}`);
-    });
+    const queue = getQueue(QUEUE_NAMES.HEALTH_CHECK);
+    const parentJobId = `health-check-${Date.now()}`;
+    await queue.addBulk(accounts.map((account, idx) => ({
+      name: QUEUE_NAMES.HEALTH_CHECK,
+      data: { accountId: account._id.toString(), meta: { parentJobId, index: idx, total: accounts.length } },
+      opts: { delay: idx * 8000, jobId: `hc-${account._id}-${Date.now()}` },
+    })));
+    logger.info(`[bulkCheck] Queued ${accounts.length} health checks → ${parentJobId}`);
+    res.json({ started: true, total: accounts.length, jobId: parentJobId });
   },
-
-  async uploadImages(req, res) {
-    const fs   = require('fs');
-    const path = require('path');
-    const dir  = path.join(process.cwd(), 'data', 'images');
-    fs.mkdirSync(dir, { recursive: true });
-    const avatarPaths = [];
-    const bannerPaths = [];
-    const files = req.files || {};
-    for (const file of (files.avatars || [])) {
-      const dest = path.join(dir, `avatar_${Date.now()}_${file.originalname}`);
-      fs.writeFileSync(dest, file.buffer);
-      avatarPaths.push(dest);
-    }
-    for (const file of (files.banners || [])) {
-      const dest = path.join(dir, `banner_${Date.now()}_${file.originalname}`);
-      fs.writeFileSync(dest, file.buffer);
-      bannerPaths.push(dest);
-    }
-    res.json({ avatarPaths, bannerPaths });
-  },
-
-  // ── مزامنة بروفايل جماعي ──────────────────────────────────────
   async bulkSyncProfiles(req, res) {
-    const { accountIds } = req.body;
-    const query = accountIds?.length
-      ? { _id: { $in: accountIds }, isActive: true }
-      : { isActive: true, status: 'نشط' };
+    const { accountIds, batchSize = 3 } = req.body;
+    const query = accountIds?.length ? { _id: { $in: accountIds }, isActive: true } : { isActive: true, status: 'نشط' };
     const accounts = await Account.find(query);
-    if (!accounts.length) return res.json({ message: 'لا توجد حسابات', total: 0 });
-    res.json({ started: true, total: accounts.length });
-    setImmediate(async () => {
-      let done = 0;
-      const SyncBrowser = require('../services/browser.service');
-      const syncBatch = req.body.batchSize || 1;
-      const syncAccounts = accounts;
-      for (let sb = 0; sb < syncAccounts.length; sb += syncBatch) {
-        const batch = syncAccounts.slice(sb, sb + syncBatch);
-        await Promise.allSettled(batch.map(async account => {
-          try {
-            await ActionSvc.syncProfile(account);
-            done++;
-            if (global.io) global.io.emit('profile:sync:progress', { done, total: accounts.length, username: account.username, profile: account.profile });
-          } catch (e) {
-            done++;
-            logger.warn(`[BulkSync] @${account.username}: ${e.message}`);
-            if (global.io) global.io.emit('profile:sync:progress', { done, total: accounts.length, username: account.username, error: e.message });
-          }
-          await SyncBrowser.closeContext(account._id.toString()).catch(() => {});
-        }));
-        await Promise.all(batch.map(acc => SyncBrowser.closeContext(acc._id.toString()).catch(() => {})));
-        if (sb + syncBatch < syncAccounts.length) await new Promise(r => setTimeout(r, 8000));
-      }
-      if (global.io) global.io.emit('profile:sync:done', { total: accounts.length, done });
-    });
-  },
+    if (!accounts.length) return res.json({ total: 0 });
 
-  // ── تحديث بروفايل جماعي ──────────────────────────────────────
+    const queue = getQueue(QUEUE_NAMES.PROFILE_SYNC);
+    const parentJobId = `profile-sync-${Date.now()}`;
+    await queue.addBulk(accounts.map((account, idx) => ({
+      name: QUEUE_NAMES.PROFILE_SYNC,
+      data: { accountId: account._id.toString(), meta: { parentJobId, index: idx, total: accounts.length } },
+      opts: { delay: Math.floor(idx / batchSize) * 8000, jobId: `sync-${account._id}-${Date.now()}` },
+    })));
+    logger.info(`[bulkSyncProfiles] Queued ${accounts.length} sync jobs → ${parentJobId}`);
+    res.json({ started: true, total: accounts.length, jobId: parentJobId });
+  },
   async bulkUpdateProfiles(req, res) {
     const { accountIds, updates = {}, namesList = [], locationsList = [], useAI = false, niche, avatarPaths = [], bannerPaths = [], imageOrder = 'sequential', batchSize = 1 } = req.body;
-    const query = accountIds?.length
-      ? { _id: { $in: accountIds }, isActive: true }
-      : { isActive: true, status: 'نشط' };
+    const query = accountIds?.length ? { _id: { $in: accountIds }, isActive: true } : { isActive: true, status: 'نشط' };
     const accounts = await Account.find(query);
-    if (!accounts.length) return res.json({ message: 'لا توجد حسابات', total: 0 });
-    res.json({ started: true, total: accounts.length });
-    setImmediate(async () => {
-      let done = 0;
-      const shuffled = arr => [...arr].sort(() => Math.random() - 0.5);
-      const avatars = imageOrder === 'random' ? shuffled(avatarPaths) : avatarPaths;
-      const banners = imageOrder === 'random' ? shuffled(bannerPaths) : bannerPaths;
-      const UpdBrowser = require('../services/browser.service');
+    if (!accounts.length) return res.json({ message: 'No accounts found', total: 0 });
 
-      for (let bi = 0; bi < accounts.length; bi += batchSize) {
-        const batch = accounts.slice(bi, bi + batchSize);
+    const shuffled = arr => [...arr].sort(() => Math.random() - 0.5);
+    const avatars = imageOrder === 'random' ? shuffled(avatarPaths) : avatarPaths;
+    const banners = imageOrder === 'random' ? shuffled(bannerPaths) : bannerPaths;
 
-        await Promise.allSettled(batch.map(async (account, localIdx) => {
-          const i = bi + localIdx;
-          try {
-            let finalUpdates = { ...updates };
-            if (namesList.length > 0)     finalUpdates.displayName = namesList[i % namesList.length];
-            if (locationsList.length > 0) finalUpdates.location    = locationsList[i % locationsList.length];
-            if (avatars.length > 0) finalUpdates.avatarPath = avatars[i % avatars.length];
-            if (banners.length > 0) finalUpdates.bannerPath = banners[i % banners.length];
-            if (useAI) {
-              try {
-                const s = await AISvc.suggestBio({ niche: niche || account.niche || 'general', name: account.profile?.displayName || account.username, keywords: [] });
-                if (s?.bio) finalUpdates.bio = s.bio;
-              } catch (e) { logger.warn(`[BulkUpdate] AI @${account.username}: ${e.message}`); }
-            }
-            await ActionSvc.updateProfile(account, finalUpdates);
-            done++;
-            if (global.io) global.io.emit('profile:update:progress', { done, total: accounts.length, username: account.username, success: true });
-          } catch (e) {
-            done++;
-            logger.warn(`[BulkUpdate] @${account.username}: ${e.message}`);
-            if (global.io) global.io.emit('profile:update:progress', { done, total: accounts.length, username: account.username, error: e.message });
-          }
-        }));
+    const queue = getQueue(QUEUE_NAMES.PROFILE_UPDATE);
+    const parentJobId = `profile-update-${Date.now()}`;
 
-        // اغلق contexts الدفعة لتحرير SEM
-        await Promise.all(batch.map(acc => UpdBrowser.closeContext(acc._id.toString()).catch(() => {})));
+    await queue.addBulk(accounts.map((account, idx) => {
+      const jobUpdates = { ...updates };
+      if (namesList.length)     jobUpdates.displayName = namesList[idx % namesList.length];
+      if (locationsList.length) jobUpdates.location    = locationsList[idx % locationsList.length];
+      if (avatars.length)       jobUpdates.avatarPath  = avatars[idx % avatars.length];
+      if (banners.length)       jobUpdates.bannerPath  = banners[idx % banners.length];
+      return {
+        name: QUEUE_NAMES.PROFILE_UPDATE,
+        data: { accountId: account._id.toString(), updates: jobUpdates, useAI, niche, meta: { parentJobId, index: idx, total: accounts.length } },
+        opts: { delay: Math.floor(idx / batchSize) * 12000, jobId: `upd-${account._id}-${Date.now()}` },
+      };
+    }));
 
-        // تأخير بين الدفعات
-        if (bi + batchSize < accounts.length) await new Promise(r => setTimeout(r, 12000));
-      }
-      if (global.io) global.io.emit('profile:update:done', { total: accounts.length, done });
-    });
+    logger.info(`[bulkUpdateProfiles] Queued ${accounts.length} update jobs → ${parentJobId}`);
+    res.json({ started: true, total: accounts.length, jobId: parentJobId });
   },
 };
 

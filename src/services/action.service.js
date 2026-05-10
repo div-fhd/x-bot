@@ -448,7 +448,7 @@ const ActionSvc = {
         { state: 'visible', timeout: 5_000 }
       ).catch(() => null);
       if (warningBtn) {
-        logger.info(`[Follow] @${account.username} — تجاوز تحذير restricted`);
+        logger.info(`[Follow] @${account.username} — Bypassing restricted warning`);
         await warningBtn.click();
         // انتظر حتى يختفي التحذير ويظهر المحتوى
         await page.waitForSelector('[data-testid="primaryColumn"]', { timeout: 10_000 }).catch(() => {});
@@ -461,7 +461,7 @@ const ActionSvc = {
       }).catch(() => false);
 
       if (hasTryAgain) {
-        logger.info(`[Follow] @${account.username} — صفحة خطأ، إعادة تحميل كاملة...`);
+        logger.info(`[Follow] @${account.username} — Error page, reloading......`);
         // reload بـ networkidle يضمن تحميل React كامل
         await page.reload({ waitUntil: 'networkidle', timeout: 40_000 }).catch(() => {});
         await sleep(2000, 3000);
@@ -563,7 +563,7 @@ const ActionSvc = {
         const alreadyIndicators = ['See new posts', 'New posts', 'Show new posts'];
         const isAlready = pageInfo.btns?.some(b => alreadyIndicators.some(i => b.includes(i)));
         if (isAlready) {
-          logger.info(`[Follow] @${account.username} — يتابع @${targetHandle} مسبقاً (See new posts)`);
+          logger.info(`[Follow] @${account.username} — Already following @${targetHandle} (See new posts)`);
           return { success: true, alreadyFollowing: true };
         }
         throw new Error('لم يتم إيجاد زر المتابعة');
@@ -680,7 +680,7 @@ const ActionSvc = {
 
       if (!formReady) {
         // الصفحة لم تحمّل الفورم — reload مرة واحدة
-        logger.info(`[Action] @${account.username} — settings form timeout، reload...`);
+        logger.info(`[Action] @${account.username} — Settings form timeout, reloading...`);
         await page.reload({ waitUntil: 'domcontentloaded', timeout: 30_000 }).catch(() => {});
         await sleep(2000, 3000);
         await this._checkNotRedirected(page, account);
@@ -690,10 +690,10 @@ const ActionSvc = {
           page.waitForSelector('[data-testid="Profile_Save_Button"]', { state: 'attached', timeout: 15_000 }).then(() => true),
         ]).catch(() => false);
 
-        if (!retryReady) throw new Error(`SKIP:@${account.username} — settings/profile لم يحمّل`);
+        if (!retryReady) throw new Error(`SKIP:@${account.username} — settings/profile failed to load`);
       }
 
-      logger.info(`[Action] @${account.username} — ✓ settings/profile جاهز`);
+      logger.info(`[Action] @${account.username} — ✓ settings/profile Ready`);
       await sleep(500, 800);
 
       // ── رفع الصورة الشخصية ──────────────────────────────
@@ -708,10 +708,10 @@ const ActionSvc = {
           await sleep(3000, 4000);
           const applyBtn = await page.$('[data-testid="applyButton"]').catch(() => null);
           if (applyBtn) { await applyBtn.evaluate(el => el.click()); await sleep(2000, 3000); }
-          logger.info(`[Action] @${account.username} — ✓ أفاتار رُفع`);
+          logger.info(`[Action] @${account.username} — ✓ Avatar uploaded`);
         }
       } else if (updates.avatarPath) {
-        logger.warn(`[Action] @${account.username} — avatar path غير موجود: ${updates.avatarPath}`);
+        logger.warn(`[Action] @${account.username} — Avatar path not found: ${updates.avatarPath}`);
       }
 
       // ── رفع البانر ──────────────────────────────────────
@@ -727,10 +727,10 @@ const ActionSvc = {
           await sleep(3000, 4000);
           const applyBtn = await page.$('[data-testid="applyButton"]').catch(() => null);
           if (applyBtn) { await applyBtn.evaluate(el => el.click()); await sleep(2000, 3000); }
-          logger.info(`[Action] @${account.username} — ✓ بانر رُفع`);
+          logger.info(`[Action] @${account.username} — ✓ Banner uploaded`);
         }
       } else if (updates.bannerPath) {
-        logger.warn(`[Action] @${account.username} — banner path غير موجود: ${updates.bannerPath}`);
+        logger.warn(`[Action] @${account.username} — Banner path not found: ${updates.bannerPath}`);
       }
 
       // ── تحديث النصوص ────────────────────────────────────
@@ -738,7 +738,7 @@ const ActionSvc = {
       const fillReact = async (selector, value) => {
         const loc = page.locator(selector).first();
         const count = await loc.count().catch(() => 0);
-        if (!count) { logger.warn(`[Action] @${account.username} — field not found: ${selector}`); return false; }
+        if (!count) { logger.warn(`[Action] @${account.username} — Field not found: ${selector}`); return false; }
         await loc.scrollIntoViewIfNeeded().catch(() => {});
         await loc.click({ clickCount: 3 });
         await sleep(150, 250);
@@ -757,7 +757,7 @@ const ActionSvc = {
           await this._humanType(page, String(value));
         }
         await sleep(400, 600);
-        logger.info(`[Action] @${account.username} — ✓ field filled: ${selector.match(/name="([^"]+)"/)?.[1] || selector}`);
+        logger.info(`[Action] @${account.username} — ✓ Field filled: ${selector.match(/name="([^"]+)"/)?.[1] || selector}`);
         return true;
       };
 
@@ -802,8 +802,8 @@ const ActionSvc = {
           b.dispatchEvent(new MouseEvent('click',     { bubbles:true }));
           return true;
         }).catch(() => false);
-        if (ok) { logger.info(`[Action] @${account.username} — ✓ حُفظ (dispatch)`); return true; }
-        logger.warn(`[Action] @${account.username} — لم يُعثر على زر الحفظ`);
+        if (ok) { logger.info(`[Action] @${account.username} — ✓ Saved (dispatch)`); return true; }
+        logger.warn(`[Action] @${account.username} — Save button not found`);
         return false;
       })();
 
@@ -864,7 +864,7 @@ const ActionSvc = {
       // احذف الجلسة المحفوظة — انتهت صلاحيتها
       const Vault = require('./vault.service');
       await Vault.deleteSession(account._id.toString()).catch(() => {});
-      logger.warn(`[Action] @${account.username} — redirected to login, session deleted`);
+      logger.warn(`[Action] @${account.username} — Redirected to login, session deleted`);
       throw new Error(`SKIP:@${account.username} — يحتاج_مصادقة`);
     }
     if (url.includes('/suspended')) {
@@ -894,14 +894,14 @@ const ActionSvc = {
 
     // عرض الـ IP
     const hasProxy = !!account.network?.proxyUrl;
-    // logger.info(`[IP] @${account.username} — proxy: ${hasProxy ? '✅ ' + (account.network.proxyUrl.split('@')[1] || '') : '❌ بدون بروكسي'}`);
+    // logger.info(`[IP] @${account.username} — proxy: ${hasProxy ? '✅ ' + (account.network.proxyUrl.split('@')[1] || '') : '❌ no proxy'}`);
 
     // لا نغلق الصفحة تلقائياً — _checkNotRedirected يتولى الأمر
 
     // كشف "Try again" و "Yes, view profile" بعد أي تنقل
     page.on('load', async () => {
       try {
-        // تجاوز تحذير restricted تلقائياً
+        // Bypassing restricted warning تلقائياً
         const viewBtn = await page.$('button:has-text("Yes, view profile"), button:has-text("Yes, view")').catch(() => null);
         if (viewBtn) {
           await viewBtn.click().catch(() => {});

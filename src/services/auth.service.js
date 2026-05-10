@@ -130,7 +130,7 @@ const AuthSvc = {
         const state   = Vault.buildStateFromTokens(creds);
         if (state?.cookies?.length) {
           await ctx.addCookies(state.cookies);
-          logger.info(`[Auth] @${account.username} — injected ${state.cookies.length} cookies manually`);
+          logger.info(`[Auth] @${account.username} — Injected ${state.cookies.length} cookies manually`);
         }
       }
 
@@ -142,21 +142,21 @@ const AuthSvc = {
       });
       await sleep(2000, 3000);
 
-      // كشف الـ splash screen (الشاشة السودة) — JS لم يحمّل بعد
+      // كشف الـ Splash screen detected, reloading (الشاشة السودة) — JS لم يحمّل بعد
       const isSplash = await page.evaluate(() => {
-        // لو الـ react root فارغ ولا يوجد أي data-testid → splash screen
+        // لو الـ react root فارغ ولا يوجد أي data-testid → Splash screen detected, reloading
         const root = document.getElementById('react-root');
         return !root || root.children.length === 0 || !document.querySelector('[data-testid]');
       }).catch(() => false);
 
       if (isSplash) {
-        logger.info(`[Auth] @${account.username} — splash screen، جارٍ reload مع networkidle...`);
+        logger.info(`[Auth] @${account.username} — Splash screen detected, reloading، Processing reload مع networkidle...`);
         await page.reload({ waitUntil: 'networkidle', timeout: 45_000 }).catch(() => {});
         await sleep(2000, 3000);
       }
       // عرض حالة البروكسي فقط بدون فتح صفحة
       const hasProxy = !!account.network?.proxyUrl;
-      logger.info(`[IP] @${account.username} — proxy: ${hasProxy ? '✅ ' + (account.network.proxyUrl.split('@')[1]||'') : '❌ بدون بروكسي'}`);
+      logger.info(`[IP] @${account.username} — proxy: ${hasProxy ? '✅ ' + (account.network.proxyUrl.split('@')[1]||'') : '❌ no proxy'}`);
 
       // أغلق cookie popup إذا ظهر
       await page.evaluate(() => {
@@ -177,7 +177,7 @@ const AuthSvc = {
       }).catch(() => false);
 
       if (xError) {
-        logger.info(`[Auth] @${account.username} — X error page, pressing Try again...`);
+        logger.info(`[Auth] @${account.username} — X error page, clicking Try again...`);
         await page.evaluate(() => {
           const btn = [...document.querySelectorAll('button')]
             .find(b => b.textContent.trim().toLowerCase().includes('try again') || b.textContent.trim().includes('حاول'));
@@ -252,7 +252,7 @@ const AuthSvc = {
         // Dump full HTML for inspection
         const html = await page.content().catch(() => '');
         require('fs').writeFileSync('./data/debug/err_login_page.html', html, 'utf8');
-        throw new Error(`Username field not found — URL: ${url} | Title: ${title} | Body: ${bodyText.replace(/\s+/g,' ').trim()}`);
+        throw new Error(`Username Field not found — URL: ${url} | Title: ${title} | Body: ${bodyText.replace(/\s+/g,' ').trim()}`);
       }
 
       await userInput.click();
@@ -313,7 +313,7 @@ const AuthSvc = {
         passInput = await page.waitForSelector(passSel, { state: 'visible', timeout: 8_000 })
           .catch(() => null);
         if (passInput) break;
-        logger.warn(`[Auth] @${account.username} — password field not found (attempt ${attempt+1})`);
+        logger.warn(`[Auth] @${account.username} — password Field not found (attempt ${attempt+1})`);
         await sleep(2000, 3000);
         await shot(`03_password_wait_${attempt}`);
       }

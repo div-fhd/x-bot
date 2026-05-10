@@ -228,7 +228,29 @@ async function start() {
   await connectMongo();
   await connectRedis().catch(() => {}); // Redis is optional
 
-  server.listen(cfg.port, () => {
+  // ── BullMQ Workers ───────────────────────────────────────────
+if (process.env.REDIS_HOST || process.env.REDIS_URL) {
+  const { startWorkers } = require('./src/queues/workers');
+  const { closeAllQueues } = require('./src/queues/queues');
+  const { closeRedis }     = require('./src/queues/connection');
+
+  startWorkers(global.io).catch(err =>
+    require('./src/utils/logger').warn(`[Workers] Failed to start: ${err.message}`)
+  );
+
+  const graceful = async (sig) => {
+    require('./src/utils/logger').info(`[Server] ${sig} — shutting down workers...`);
+    const { stopWorkers } = require('./src/queues/workers');
+    await stopWorkers();
+    await closeAllQueues();
+    await closeRedis();
+    process.exit(0);
+  };
+  process.once('SIGTERM', () => graceful('SIGTERM'));
+  process.once('SIGINT',  () => graceful('SIGINT'));
+}
+
+server.listen(cfg.port, () => {
     logger.info(`[Server] Running at http://localhost:${cfg.port}`);
     logger.info(`[Server] Dashboard: http://localhost:${cfg.port}`);
     logger.info(`[Server] Health:    http://localhost:${cfg.port}/health`);
