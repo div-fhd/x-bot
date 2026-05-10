@@ -3,16 +3,16 @@ const { Queue }        = require('bullmq');
 const { createConnection } = require('./connection');
 
 const QUEUE_NAMES = {
-  FOLLOW:         'xops:follow',
-  LIKE:           'xops:like',
-  RETWEET:        'xops:retweet',
-  TWEET_MULTI:    'xops:tweet-multi',
-  MUTUAL_FOLLOW:  'xops:mutual-follow',
-  REPORT_ACCOUNT: 'xops:report-account',
-  REPORT_TWEET:   'xops:report-tweet',
-  PROFILE_UPDATE: 'xops:profile-update',
-  PROFILE_SYNC:   'xops:profile-sync',
-  HEALTH_CHECK:   'xops:health-check',
+  FOLLOW:         'xops-follow',
+  LIKE:           'xops-like',
+  RETWEET:        'xops-retweet',
+  TWEET_MULTI:    'xops-tweet-multi',
+  MUTUAL_FOLLOW:  'xops-mutual-follow',
+  REPORT_ACCOUNT: 'xops-report-account',
+  REPORT_TWEET:   'xops-report-tweet',
+  PROFILE_UPDATE: 'xops-profile-update',
+  PROFILE_SYNC:   'xops-profile-sync',
+  HEALTH_CHECK:   'xops-health-check',
 };
 
 const DEFAULT_JOB_OPTS = {
