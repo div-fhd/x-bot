@@ -157,7 +157,7 @@ const AccountCtrl = {
     const tokenChanged = req.body.auth_token && req.body.auth_token !== current.auth_token;
     if (tokenChanged) {
       await Vault.deleteSession(account._id.toString());
-      account.status     = 'يحتاج_مصادقة';
+      account.status     = 'needs_auth';
       account.statusNote = 'Credentials updated';
     }
     await account.save();
@@ -250,7 +250,7 @@ const AccountCtrl = {
   },
   async bulkSyncProfiles(req, res) {
     const { accountIds, batchSize = 3 } = req.body;
-    const query = accountIds?.length ? { _id: { $in: accountIds }, isActive: true } : { isActive: true, status: 'نشط' };
+    const query = accountIds?.length ? { _id: { $in: accountIds }, isActive: true } : { isActive: true, status: 'active' };
     const accounts = await Account.find(query);
     if (!accounts.length) return res.json({ total: 0 });
 
@@ -266,7 +266,7 @@ const AccountCtrl = {
   },
   async bulkUpdateProfiles(req, res) {
     const { accountIds, updates = {}, namesList = [], locationsList = [], useAI = false, niche, avatarPaths = [], bannerPaths = [], imageOrder = 'sequential', batchSize = 1 } = req.body;
-    const query = accountIds?.length ? { _id: { $in: accountIds }, isActive: true } : { isActive: true, status: 'نشط' };
+    const query = accountIds?.length ? { _id: { $in: accountIds }, isActive: true } : { isActive: true, status: 'active' };
     const accounts = await Account.find(query);
     if (!accounts.length) return res.json({ message: 'No accounts found', total: 0 });
 

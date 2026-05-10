@@ -1,10 +1,11 @@
 'use strict';
+const { wrapProcessor } = require('./base.processor');
 const Account    = require('../../models/Account');
 const AuthSvc    = require('../../services/auth.service');
 const { jobEvents } = require('../events/job.events');
 const logger     = require('../../utils/logger');
 
-module.exports = async function healthCheckProcessor(job) {
+module.exports = wrapProcessor(async function healthCheckProcessor(job) {
   const { accountId, meta } = job.data;
   const account = await Account.findById(accountId);
   if (!account) throw new Error(`Account ${accountId} not found`);
@@ -22,4 +23,5 @@ module.exports = async function healthCheckProcessor(job) {
     jobEvents.checkProg({ username: account.username, done: meta.index + 1, total: meta.total, status: 'error' });
     throw e;
   }
-};
+}
+);

@@ -1,11 +1,12 @@
 'use strict';
+const { wrapProcessor } = require('./base.processor');
 const Account    = require('../../models/Account');
 const ActionSvc  = require('../../services/action.service');
 const Browser    = require('../../services/browser.service');
 const { jobEvents } = require('../events/job.events');
 const logger     = require('../../utils/logger');
 
-module.exports = async function followProcessor(job) {
+module.exports = wrapProcessor(async function followProcessor(job) {
   const { accountId, targetHandle, meta } = job.data;
   const account = await Account.findById(accountId);
   if (!account) throw new Error(`Account ${accountId} not found`);
@@ -21,4 +22,5 @@ module.exports = async function followProcessor(job) {
   } finally {
     await Browser.closeContext(accountId).catch(() => {});
   }
-};
+}
+);

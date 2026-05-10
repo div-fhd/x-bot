@@ -912,6 +912,11 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
       العمليات النشطة
       <span class="nbadge nb-a" id="nb-jobs" style="display:none">0</span>
     </button>
+    <button class="nav-btn" onclick="nav('ops-console',this)">
+      <svg class="nav-ico" viewBox="0 0 16 16" fill="none"><rect x="1.5" y="1.5" width="13" height="13" rx="2" stroke="currentColor" stroke-width="1.4"/><path d="M4 5.5l2.5 2.5L4 10.5M8.5 10.5h3.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      وحدة التحكم
+      <span class="nbadge nb-a" id="nb-ops" style="display:none">0</span>
+    </button>
     <button class="nav-btn" onclick="nav('risks',this)">
       <svg class="nav-ico" viewBox="0 0 16 16" fill="none"><path d="M8 1.5L14.5 13H1.5L8 1.5z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M8 6.5v3M8 11v.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
       المخاطر
@@ -1856,6 +1861,58 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
     </div>
   </div>
 
+
+  <!-- ════════════ وحدة التحكم Operations Console ════════════ -->
+  <div class="panel" id="p-ops-console">
+
+    <!-- KPI Row -->
+    <div class="krow" style="grid-template-columns:repeat(5,minmax(0,1fr));margin-bottom:16px">
+      <div class="kcard" style="--kc:var(--grn)"><div class="k-lbl">عمليات نشطة</div><div class="k-val" id="ops-k-active">0</div></div>
+      <div class="kcard" style="--kc:var(--blu)"><div class="k-lbl">مجموع Jobs</div><div class="k-val" id="ops-k-jobs">0</div></div>
+      <div class="kcard" style="--kc:var(--grn)"><div class="k-lbl">نجاح</div><div class="k-val" id="ops-k-success">0</div></div>
+      <div class="kcard" style="--kc:var(--red)"><div class="k-lbl">فشل</div><div class="k-val" id="ops-k-failed">0</div></div>
+      <div class="kcard" style="--kc:var(--amb)"><div class="k-lbl">Browser Contexts</div><div class="k-val" id="ops-k-browsers">0</div></div>
+    </div>
+
+    <div class="g2" style="margin-bottom:14px">
+      <!-- Active Operations -->
+      <div class="card" style="grid-column:1/-1">
+        <div class="card-h">
+          <span class="card-title">العمليات النشطة</span>
+          <button class="btn btn-sm" onclick="loadOpsConsole()">↻ تحديث</button>
+          <button class="btn btn-sm btn-r" onclick="cancelAllOps()">⏹ إيقاف الكل</button>
+        </div>
+        <div id="ops-list">
+          <div style="text-align:center;padding:40px;color:var(--t2);font-size:13px">✓ لا توجد عمليات نشطة</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Browser Contexts + Queue Health -->
+    <div class="g2">
+      <div class="card">
+        <div class="card-h">
+          <span class="card-title">🖥 Browser Contexts</span>
+          <span id="ops-browser-util" style="font-size:11px;color:var(--t2)"></span>
+        </div>
+        <div class="card-b" id="ops-browsers-panel">
+          <div style="text-align:center;padding:20px;color:var(--t2);font-size:12px">لا توجد contexts نشطة</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-h">
+          <span class="card-title">📊 Queue Health</span>
+          <span id="ops-queue-healthy" style="font-size:11px;color:var(--grn)">✓ سليم</span>
+        </div>
+        <div class="card-b" id="ops-queues-panel">
+          <div style="text-align:center;padding:20px;color:var(--t2);font-size:12px">جارٍ التحميل...</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
   </div><!-- /main-content -->
 </main>
 </div><!-- /app -->
@@ -2166,6 +2223,9 @@ function init() {
         loadAccounts();
       }
     });
+    // Init ops console socket events
+    initOpsSocketEvents(socket);
+
     socket.on('profile:update:progress', d => {
       const prog = document.getElementById('prof-upd-progress');
       if (prog) prog.innerHTML += `<div>${d.error ? '❌' : '✅'} @${d.username} ${d.error || ''}</div>`;
@@ -2259,7 +2319,8 @@ function nav(id, btn) {
   document.getElementById('ptitle').textContent = titles[id] || id;
   currentPanel = id;
 
-  if (id === 'accounts') { accPage = 1; _showPrimaryOnly = false; loadAccounts(); }
+  if (id === 'accounts')    { accPage = 1; _showPrimaryOnly = false; loadAccounts(); }
+  if (id === 'ops-console') { loadOpsConsole(); }
   if (id === 'risks')    loadRisks();
   if (id === 'jobs')     loadJobs();
   if (id === 'proxies')  loadProxies();
@@ -4192,6 +4253,226 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
   });
 });
 
+
+/* ═══════════════════════════════════════════════════════════════
+   Operations Console
+═══════════════════════════════════════════════════════════════ */
+const OP_TYPE_LABELS = {
+  'follow':'متابعة','like':'إعجاب','retweet':'ريتويت','tweet-multi':'نشر جماعي',
+  'mutual-follow':'تبادلية','report-account':'إبلاغ حساب','report-tweet':'إبلاغ تغريدة',
+  'profile-update':'تحديث بروفايل','profile-sync':'مزامنة بروفايل','health-check':'فحص صحة',
+};
+const OP_STATE_PILL = {
+  'waiting':    ['p-n','انتظار'],
+  'active':     ['p-g','نشط'],
+  'paused':     ['p-a','موقوف مؤقتاً'],
+  'completed':  ['p-b','مكتمل'],
+  'cancelling': ['p-a','جارٍ الإلغاء'],
+  'cancelled':  ['p-r','ملغى'],
+  'failed':     ['p-r','فشل'],
+  'retrying':   ['p-p','إعادة المحاولة'],
+};
+
+let _opsList = [];
+
+function renderOp(op) {
+  const [pillCls, pillLabel] = OP_STATE_PILL[op.state] || ['p-n', op.state];
+  const typeLabel = OP_TYPE_LABELS[op.type] || op.type;
+  const pct = op.pct || 0;
+  const eta = op.eta ? (op.eta > 60 ? `${Math.round(op.eta/60)}د` : `${op.eta}ث`) : '—';
+  const isActive = ['active','waiting','paused','retrying'].includes(op.state);
+  const isPaused = op.state === 'paused';
+
+  return `<div class="card" style="margin:8px 16px;background:var(--s3)" id="op-card-${op.parentJobId}">
+    <div style="padding:14px 18px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+        <span class="pill p-b" style="font-size:11px">${typeLabel}</span>
+        <span class="pill ${pillCls}" style="font-size:10px">${pillLabel}</span>
+        <span style="font-size:11px;color:var(--t2);font-family:var(--m)">${op.parentJobId.slice(-12)}</span>
+        <span style="font-size:11px;color:var(--t2);margin-right:auto">${op.duration}ث مضت · ETA: ${eta}</span>
+        <div style="display:flex;gap:6px">
+          ${isActive ? `<button class="btn btn-sm" onclick="opPause('${op.parentJobId}')">${isPaused?'▶ استئناف':'⏸ إيقاف مؤقت'}</button>` : ''}
+          ${isActive ? `<button class="btn btn-sm btn-r" onclick="opCancel('${op.parentJobId}')">⏹ إلغاء</button>` : ''}
+          ${op.failed > 0 ? `<button class="btn btn-sm" onclick="opRetry('${op.parentJobId}')" style="color:var(--amb);border-color:rgba(248,179,64,.3)">↻ إعادة (${op.failed})</button>` : ''}
+        </div>
+      </div>
+      <!-- Progress -->
+      <div style="height:5px;background:var(--s5);border-radius:3px;overflow:hidden;margin-bottom:8px">
+        <div style="height:100%;width:${pct}%;background:${op.state==='cancelled'?'var(--red)':op.state==='completed'?'var(--grn)':'var(--blu)'};border-radius:3px;transition:width .4s"></div>
+      </div>
+      <div style="display:flex;gap:16px;font-size:11px;font-family:var(--m)">
+        <span>${op.done}/${op.total} <span style="color:var(--t2)">jobs</span></span>
+        <span style="color:var(--grn)">✓ ${op.success}</span>
+        <span style="color:var(--red)">✕ ${op.failed}</span>
+        ${op.skipped > 0 ? `<span style="color:var(--t2)">↷ ${op.skipped} تخطي</span>` : ''}
+        ${op.successRate !== null ? `<span style="color:var(--t2);margin-right:auto">${op.successRate}% نجاح</span>` : ''}
+      </div>
+      <!-- Active accounts -->
+      ${op.activeAccounts?.length ? `<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">
+        ${op.activeAccounts.map(u=>`<span style="font-size:10px;background:rgba(79,126,248,.1);border:1px solid rgba(79,126,248,.2);border-radius:4px;padding:2px 8px;font-family:var(--m);color:var(--blu2)">@${u} ●</span>`).join('')}
+      </div>` : ''}
+    </div>
+  </div>`;
+}
+
+async function loadOpsConsole() {
+  try {
+    const d = await api('/api/v1/ops/all');
+    _opsList = d.ops || [];
+    renderOpsList();
+    updateOpsKPIs();
+
+    // Load browser contexts
+    const br = await api('/api/v1/ops/browsers');
+    renderBrowsers(br);
+
+    // Load queue health
+    const qh = await api('/api/v1/ops/queues');
+    renderQueues(qh);
+  } catch(e) { console.error('[OpsConsole]', e); }
+}
+
+function renderOpsList() {
+  const el = document.getElementById('ops-list');
+  if (!el) return;
+  if (!_opsList.length) {
+    el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--grn);font-size:13px">✓ لا توجد عمليات</div>';
+    return;
+  }
+  const sorted = [..._opsList].sort((a,b) => new Date(b.startedAt) - new Date(a.startedAt));
+  el.innerHTML = sorted.map(op => renderOp(op)).join('');
+  // Update nb badge
+  const active = _opsList.filter(o => ['active','waiting','paused','retrying'].includes(o.state)).length;
+  const nb = document.getElementById('nb-ops');
+  if (nb) { nb.textContent = active; nb.style.display = active > 0 ? '' : 'none'; }
+}
+
+function updateOpsKPIs() {
+  const active  = _opsList.filter(o => ['active','waiting','paused','retrying'].includes(o.state));
+  const total   = _opsList.reduce((s,o) => s + o.done, 0);
+  const success = _opsList.reduce((s,o) => s + o.success, 0);
+  const failed  = _opsList.reduce((s,o) => s + o.failed, 0);
+  document.getElementById('ops-k-active').textContent  = active.length;
+  document.getElementById('ops-k-jobs').textContent    = total;
+  document.getElementById('ops-k-success').textContent = success;
+  document.getElementById('ops-k-failed').textContent  = failed;
+}
+
+function renderBrowsers(br) {
+  const s  = br?.stats || {};
+  const el = document.getElementById('ops-browsers-panel');
+  const ul = document.getElementById('ops-browser-util');
+  if (ul) ul.textContent = `${s.total||0}/${s.limit||5} — ${s.utilization||0}%`;
+  document.getElementById('ops-k-browsers').textContent = s.total || 0;
+  if (!el) return;
+  const ctxs = br?.contexts || [];
+  if (!ctxs.length) { el.innerHTML = '<div style="text-align:center;padding:16px;color:var(--t2);font-size:12px">لا توجد contexts نشطة</div>'; return; }
+  el.innerHTML = `
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+      <span style="font-size:12px;background:rgba(30,212,138,.1);border:1px solid rgba(30,212,138,.2);padding:3px 10px;border-radius:6px;color:var(--grn)">جاهز: ${s.ready||0}</span>
+      <span style="font-size:12px;background:rgba(245,166,35,.1);border:1px solid rgba(245,166,35,.2);padding:3px 10px;border-radius:6px;color:var(--amb)">مشغول: ${s.busy||0}</span>
+      <span style="font-size:12px;background:rgba(79,126,248,.1);border:1px solid rgba(79,126,248,.2);padding:3px 10px;border-radius:6px;color:var(--blu2)">يفتح: ${s.opening||0}</span>
+    </div>
+    ${ctxs.map(ctx => `
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--bd)">
+        <div style="width:6px;height:6px;border-radius:50%;background:${ctx.state==='busy'?'var(--amb)':ctx.state==='ready'?'var(--grn)':'var(--t3)'}"></div>
+        <span style="font-family:var(--m);font-size:12px;color:var(--t0)">@${ctx.username}</span>
+        <span style="font-size:11px;color:var(--t2)">${ctx.operationType||'—'}</span>
+        <span style="font-size:10px;color:var(--t3);margin-right:auto">${ctx.durationSec}ث</span>
+      </div>`).join('')}`;
+}
+
+function renderQueues(qh) {
+  const el = document.getElementById('ops-queues-panel');
+  const hl = document.getElementById('ops-queue-healthy');
+  if (hl) { hl.textContent = qh?.healthy ? '✓ سليم' : `⚠ ${qh?.issues?.length} مشكلة`; hl.style.color = qh?.healthy ? 'var(--grn)' : 'var(--amb)'; }
+  if (!el) return;
+  const stats = qh?.stats || {};
+  const keys  = Object.keys(stats).filter(k => !stats[k].error);
+  if (!keys.length) { el.innerHTML = '<div style="text-align:center;padding:12px;color:var(--t2);font-size:12px">لا يوجد Redis</div>'; return; }
+  el.innerHTML = keys.map(k => {
+    const q = stats[k];
+    const total = (q.waiting||0)+(q.active||0)+(q.failed||0)+(q.delayed||0);
+    if (!total && !q.active) return '';
+    return `<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--bd);font-size:11px">
+      <span style="color:var(--t2);min-width:120px;font-family:var(--m)">${q.name?.replace('xops-','')}</span>
+      ${q.active  ? `<span style="color:var(--grn)">●${q.active} نشط</span>` : ''}
+      ${q.waiting ? `<span style="color:var(--t2)">⏳${q.waiting}</span>` : ''}
+      ${q.failed  ? `<span style="color:var(--red)">✕${q.failed}</span>` : ''}
+      ${q.paused  ? `<span class="pill p-a" style="font-size:9px">موقوف</span>` : ''}
+      <div style="margin-right:auto;display:flex;gap:4px">
+        ${q.paused
+          ? `<button class="btn btn-sm" onclick="resumeQueue('${k}')" style="padding:2px 7px;font-size:10px">▶</button>`
+          : `<button class="btn btn-sm" onclick="pauseQueue('${k}')" style="padding:2px 7px;font-size:10px">⏸</button>`}
+        ${q.failed > 0 ? `<button class="btn btn-sm btn-r" onclick="clearFailed('${k}')" style="padding:2px 7px;font-size:10px">✕ مسح</button>` : ''}
+      </div>
+    </div>`;
+  }).filter(Boolean).join('') || '<div style="text-align:center;padding:12px;color:var(--t2);font-size:12px">لا توجد jobs نشطة</div>';
+}
+
+// ── Op Controls ──────────────────────────────────────────────
+async function opCancel(id) {
+  if (!confirm('إلغاء هذه العملية؟')) return;
+  try { await api(`/api/v1/ops/${id}/cancel`, { method:'POST' }); toast('⏹ جارٍ الإلغاء...', 'ok'); }
+  catch(e) { toast(e.message, 'err'); }
+}
+async function opPause(id) {
+  const op = _opsList.find(o => o.parentJobId === id);
+  const isPaused = op?.state === 'paused';
+  try {
+    await api(`/api/v1/ops/${id}/${isPaused ? 'resume' : 'pause'}`, { method:'POST' });
+    toast(isPaused ? '▶ تم الاستئناف' : '⏸ تم الإيقاف المؤقت', 'ok');
+  } catch(e) { toast(e.message, 'err'); }
+}
+async function opRetry(id) {
+  try { const d = await api(`/api/v1/ops/${id}/retry`, { method:'POST' }); toast(`↻ إعادة ${d.retried} job`, 'ok'); }
+  catch(e) { toast(e.message, 'err'); }
+}
+async function cancelAllOps() {
+  const active = _opsList.filter(o => ['active','waiting','paused','retrying'].includes(o.state));
+  if (!active.length) return toast('لا توجد عمليات نشطة', 'warn');
+  if (!confirm(`إلغاء ${active.length} عملية نشطة؟`)) return;
+  for (const op of active) await api(`/api/v1/ops/${op.parentJobId}/cancel`, { method:'POST' }).catch(() => {});
+  toast('⏹ تم إلغاء الكل', 'ok');
+}
+async function pauseQueue(key) {
+  try { await api(`/api/v1/ops/queues/${key}/pause`, { method:'POST' }); toast('⏸ Queue موقوف', 'ok'); loadOpsConsole(); }
+  catch(e) { toast(e.message, 'err'); }
+}
+async function resumeQueue(key) {
+  try { await api(`/api/v1/ops/queues/${key}/resume`, { method:'POST' }); toast('▶ Queue مستأنف', 'ok'); loadOpsConsole(); }
+  catch(e) { toast(e.message, 'err'); }
+}
+async function clearFailed(key) {
+  if (!confirm('مسح كل الـ failed jobs في هذا الـ queue؟')) return;
+  try { await api(`/api/v1/ops/queues/${key}/failed`, { method:'DELETE' }); toast('✓ تم المسح', 'ok'); loadOpsConsole(); }
+  catch(e) { toast(e.message, 'err'); }
+}
+
+// ── Socket.IO real-time updates ──────────────────────────────
+function initOpsSocketEvents(socket) {
+  const updateOp = (data) => {
+    const idx = _opsList.findIndex(o => o.parentJobId === data.parentJobId);
+    if (idx >= 0) _opsList[idx] = { ..._opsList[idx], ...data };
+    else if (data.parentJobId) _opsList.push(data);
+    if (currentPanel === 'ops-console') { renderOpsList(); updateOpsKPIs(); }
+    const active = _opsList.filter(o => ['active','waiting','paused','retrying'].includes(o.state)).length;
+    const nb = document.getElementById('nb-ops');
+    if (nb) { nb.textContent = active; nb.style.display = active > 0 ? '' : 'none'; }
+  };
+
+  ['op:created','op:progress','op:completed','op:cancelled','op:paused','op:resumed','op:retrying','op:cancelling']
+    .forEach(ev => socket.on(ev, updateOp));
+
+  socket.on('browsers:snapshot', (br) => {
+    if (currentPanel === 'ops-console') renderBrowsers(br);
+    document.getElementById('ops-k-browsers').textContent = br?.stats?.total || 0;
+  });
+
+  socket.on('queues:health', (qh) => {
+    if (currentPanel === 'ops-console') renderQueues(qh);
+  });
+}
 
 </script>
 </body>

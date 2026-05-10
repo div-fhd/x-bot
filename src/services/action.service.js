@@ -435,10 +435,10 @@ const ActionSvc = {
       // تحقق من Cloudflare
       const currentUrl = page.url();
       if (currentUrl.includes('/account/access') || currentUrl.includes('Just a moment')) {
-        account.status = 'نقطة_تحقق';
+        account.status = 'checkpoint';
         account.lastCheckedAt = new Date();
         await account.save().catch(() => {});
-        throw new Error(`SKIP:@${account.username} — نقطة_تحقق`);
+        throw new Error(`SKIP:@${account.username} — checkpoint`);
       }
 
       // تجاوز تحذير "This account is temporarily restricted"
@@ -470,7 +470,7 @@ const ActionSvc = {
         const stillBroken = await page.evaluate(() =>
           [...document.querySelectorAll('button')].some(b => /try again/i.test(b.textContent.trim()))
         ).catch(() => false);
-        if (stillBroken) throw new Error(`SKIP:@${account.username} — X رفض تحميل الصفحة`);
+        if (stillBroken) throw new Error(`SKIP:@${account.username} — X refused to load the page`);
       }
 
       // انتظر تحميل المحتوى — X.com SPA تحتاج وقت بعد domcontentloaded
@@ -483,12 +483,12 @@ const ActionSvc = {
         page.waitForSelector('[data-testid="primaryColumn"]',     { timeout: 15_000 }),
       ]).catch(() => {});
 
-      // انتظر زر المتابعة نفسه يظهر (بدل sleep ثابت)
+      // انتظر follow button نفسه يظهر (بدل sleep ثابت)
       // X SPA يحمّل userActions أولاً ثم يضيف الأزرار
       await Promise.race([
         page.waitForSelector('[data-testid$="-follow"]:not([data-testid$="-unfollow"])', { timeout: 5_000 }),
         page.waitForSelector('[aria-label^="Follow @"]',   { timeout: 5_000 }),
-        page.waitForSelector('[data-testid$="-unfollow"]', { timeout: 5_000 }), // يتابعه مسبقاً
+        page.waitForSelector('[data-testid$="-unfollow"]', { timeout: 5_000 }), // already following
       ]).catch(() => {}); // لو ما وجد — نكمل للـ evaluate
       await sleep(300, 500);
 
@@ -515,7 +515,7 @@ const ActionSvc = {
       // المحاولة 2: evaluate بحث شامل (للزر ذو النص الفارغ)
       if (!clicked) {
         clicked = await page.evaluate(() => {
-          // تحقق إذا يتابعه مسبقاً
+          // تحقق إذا already following
           const already = document.querySelector('[data-testid$="-unfollow"],[aria-label^="Following @"],[aria-label^="Unfollow @"]');
           if (already) return 'already';
 
@@ -523,7 +523,7 @@ const ActionSvc = {
           const zone = document.querySelector('[data-testid="userActions"]') || document.body;
           const btns = [...zone.querySelectorAll('button,[role="button"]')];
 
-          // زر المتابعة في X.com: style يشمل background-color أخضر أو له data-testid
+          // follow button في X.com: style يشمل background-color أخضر أو له data-testid
           const byTestId = btns.find(b => {
             const tid = b.getAttribute('data-testid') || '';
             return tid.endsWith('-follow') && !tid.endsWith('-unfollow');
@@ -559,14 +559,14 @@ const ActionSvc = {
           btns: [...document.querySelectorAll('button')].slice(0,5).map(b => b.textContent.trim()),
         })).catch(() => ({}));
         logger.warn(`[Follow] page info: ${JSON.stringify(pageInfo)}`);
-        // "See new posts" = يتابعه مسبقاً
+        // "See new posts" = already following
         const alreadyIndicators = ['See new posts', 'New posts', 'Show new posts'];
         const isAlready = pageInfo.btns?.some(b => alreadyIndicators.some(i => b.includes(i)));
         if (isAlready) {
           logger.info(`[Follow] @${account.username} — Already following @${targetHandle} (See new posts)`);
           return { success: true, alreadyFollowing: true };
         }
-        throw new Error('لم يتم إيجاد زر المتابعة');
+        throw new Error('لم يتم إيجاد follow button');
       }
 
       logger.info(`[Action] Follow btn clicked via: ${clicked} @${targetHandle}`);
@@ -858,20 +858,20 @@ const ActionSvc = {
   async _checkNotRedirected(page, account) {
     const url = page.url();
     if (url.includes('/i/flow/login') || url.includes('/account/access') || url.includes('/i/flow/password_reset')) {
-      account.status        = 'يحتاج_مصادقة';
+      account.status        = 'needs_auth';
       account.lastCheckedAt = new Date();
       await account.save().catch(() => {});
       // احذف الجلسة المحفوظة — انتهت صلاحيتها
       const Vault = require('./vault.service');
       await Vault.deleteSession(account._id.toString()).catch(() => {});
       logger.warn(`[Action] @${account.username} — Redirected to login, session deleted`);
-      throw new Error(`SKIP:@${account.username} — يحتاج_مصادقة`);
+      throw new Error(`SKIP:@${account.username} — needs_auth`);
     }
     if (url.includes('/suspended')) {
-      account.status        = 'موقوف';
+      account.status        = 'suspended';
       account.lastCheckedAt = new Date();
       await account.save().catch(() => {});
-      throw new Error(`SKIP:@${account.username} — موقوف`);
+      throw new Error(`SKIP:@${account.username} — suspended`);
     }
   },
 
@@ -907,7 +907,7 @@ const ActionSvc = {
           await viewBtn.click().catch(() => {});
           await sleep(1000, 1500);
         }
-        // إعادة تحميل عند صفحة الخطأ
+        // Reloading on error page
         const broken = await page.evaluate(() =>
           [...document.querySelectorAll('button')].some(b => /^try again$/i.test(b.textContent.trim()))
         ).catch(() => false);

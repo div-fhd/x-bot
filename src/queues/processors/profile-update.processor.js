@@ -1,4 +1,5 @@
 'use strict';
+const { wrapProcessor } = require('./base.processor');
 const Account    = require('../../models/Account');
 const ActionSvc  = require('../../services/action.service');
 const AISvc      = require('../../services/ai.service');
@@ -6,7 +7,7 @@ const Browser    = require('../../services/browser.service');
 const { jobEvents } = require('../events/job.events');
 const logger     = require('../../utils/logger');
 
-module.exports = async function profileUpdateProcessor(job) {
+module.exports = wrapProcessor(async function profileUpdateProcessor(job) {
   const { accountId, updates, useAI, niche, meta } = job.data;
   const account = await Account.findById(accountId);
   if (!account?.isActive) throw new Error(`SKIP: @${account?.username} — inactive`);
@@ -28,4 +29,5 @@ module.exports = async function profileUpdateProcessor(job) {
   } finally {
     await Browser.closeContext(accountId).catch(() => {});
   }
-};
+}
+);

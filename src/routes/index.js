@@ -75,4 +75,22 @@ proxyRouter.post  ('/remove-from-accounts', proxyCtrl.removeFromAccounts);
 proxyRouter.post  ('/:id/check',            proxyCtrl.checkProxy);
 proxyRouter.post  ('/:id/check',           proxyCtrl.checkProxy);
 
-module.exports = { actionRouter, contentRouter, dashRouter, proxyRouter };
+// ── Operations Management ────────────────────────────────────
+const opsCtrl   = require('../ops/ops.controller');
+const opsRouter = require('express').Router();
+opsRouter.get   ('/',                   opsCtrl.getActive);
+opsRouter.get   ('/all',                opsCtrl.getAll);
+opsRouter.get   ('/browsers',           opsCtrl.getBrowsers);
+opsRouter.get   ('/queues',             opsCtrl.getQueues);
+opsRouter.get   ('/queues/stats',       opsCtrl.getQueueStats);
+opsRouter.get   ('/:id',                opsCtrl.getOne);
+opsRouter.post  ('/:id/cancel',         opsCtrl.cancel);
+opsRouter.post  ('/:id/pause',          opsCtrl.pause);
+opsRouter.post  ('/:id/resume',         opsCtrl.resume);
+opsRouter.post  ('/:id/retry',          opsCtrl.retry);
+opsRouter.post  ('/:id/reprioritize',   opsCtrl.reprioritize);
+opsRouter.post  ('/queues/:key/pause',  opsCtrl.pauseQueue);
+opsRouter.post  ('/queues/:key/resume', opsCtrl.resumeQueue);
+opsRouter.delete('/queues/:key/failed', opsCtrl.clearFailed);
+
+module.exports = { actionRouter, contentRouter, dashRouter, proxyRouter, opsRouter };

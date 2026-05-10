@@ -6,6 +6,7 @@ const AISvc          = require('../services/ai.service');
 const logger         = require('../utils/logger');
 const { getQueue, QUEUE_NAMES } = require('../queues/queues');
 const { jobEvents }  = require('../queues/events/job.events');
+const { registry }   = require('../ops/operations.registry');
 
 // ── نظام Jobs ─────────────────────────────────────────────────
 const activeJobs = new Map();
@@ -78,7 +79,7 @@ async function queueBulkOp(queueName, accounts, jobDataFn, delayMinMs = 0, delay
       };
     })
   );
-  return { parentJobId, jobCount: jobs.length };
+  return { parentJobId, jobCount: jobs.length, jobIds: jobs.map(j => j.id) };
 }
 
 // ── batch parallel helper ────────────────────────────────────
@@ -215,7 +216,7 @@ const ActionCtrl = {
     if (mode === 'manual' && !manualTexts.length) return res.status(400).json({ error: 'manualTexts required for manual mode' });
     if (mode === 'same' && !text) return res.status(400).json({ error: 'text required for same mode' });
 
-    const accounts = await Account.find({ _id: { $in: accountIds }, isActive: true, status: 'نشط' });
+    const accounts = await Account.find({ _id: { $in: accountIds }, isActive: true, status: 'active' });
     if (!accounts.length) return res.status(400).json({ error: 'No active accounts found' });
 
     // Respond immediately, run in background
@@ -476,11 +477,13 @@ const ActionCtrl = {
     if (!accountIds?.length || !targetHandle) return res.status(400).json({ error: 'accountIds[] and targetHandle required' });
     const accounts = await Account.find({ _id: { $in: accountIds }, isActive: true });
     if (!accounts.length) return res.status(400).json({ error: 'No active accounts' });
-    const { parentJobId, jobCount } = await queueBulkOp(
+    const { parentJobId, jobCount, jobIds } = await queueBulkOp(
       QUEUE_NAMES.FOLLOW, accounts,
       (account) => ({ accountId: account._id.toString(), targetHandle }),
       delayMinMs, delayMaxMs
     );
+    const op = registry.create({ parentJobId, type: 'follow', total: accounts.length, accountUsernames: accounts.map(a => a.username), meta: { targetHandle } });
+    registry.registerJobs(parentJobId, jobIds);
     logger.info(`[followMulti] Queued ${jobCount} jobs → ${parentJobId}`);
     res.json({ started: true, jobId: parentJobId, total: accounts.length });
   },
@@ -656,7 +659,7 @@ const ActionCtrl = {
     if (campaign.status === 'running') return res.status(400).json({ error: 'Campaign already running' });
 
     // Resolve accounts
-    let accountQuery = { isActive: true, status: 'نشط' };
+    let accountQuery = { isActive: true, status: 'active' };
     if (campaign.accountIds?.length) {
       accountQuery._id = { $in: campaign.accountIds };
     } else if (campaign.accountRole) {

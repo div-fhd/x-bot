@@ -63,14 +63,14 @@ const AuthSvc = {
 
     const creds = Vault.decryptAccount(account.credentials);
 
-    // تخطَّ الحسابات الموقوفة/المحظورة بدون browser
-    if (['موقوف', 'محظور'].includes(account.status)) {
+    // تخطَّ الحسابات الsuspendedة/الbannedة بدون browser
+    if (['suspended', 'banned'].includes(account.status)) {
       throw new Error(`SKIP:@${account.username} — ${account.status}`);
     }
 
-    // الحساب يحتاج_مصادقة ولا يوجد token → تخطَّ
-    if (account.status === 'يحتاج_مصادقة' && !creds.auth_token) {
-      throw new Error(`SKIP:@${account.username} — يحتاج_مصادقة`);
+    // الحساب needs_auth ولا يوجد token → تخطَّ
+    if (account.status === 'needs_auth' && !creds.auth_token) {
+      throw new Error(`SKIP:@${account.username} — needs_auth`);
     }
 
     // ── جهّز الـ context (من جلسة محفوظة أو tokens) ─────────
@@ -85,11 +85,11 @@ const AuthSvc = {
     try {
       const creds = Vault.decryptAccount(account.credentials);
       const statusMap = {
-        active:     'نشط',
-        expired:    'يحتاج_مصادقة',
-        checkpoint: 'نقطة_تحقق',
-        suspended:  'موقوف',
-        unknown:    'غير_نشط',
+        active:     'active',
+        expired:    'needs_auth',
+        checkpoint: 'checkpoint',
+        suspended:  'suspended',
+        unknown:    'inactive',
       };
 
       // فحص عبر المتصفح فقط — الأكثر موثوقية على السيرفر
@@ -97,7 +97,7 @@ const AuthSvc = {
       // ثانياً — فحص عبر المتصفح مع timeout أطول
       const ctx   = await Browser.getContext(account);
       const state = await this._classify(account, ctx);
-      account.status        = statusMap[state] || 'غير_نشط';
+      account.status        = statusMap[state] || 'inactive';
       account.lastCheckedAt = new Date();
       if (state === 'active') account.lastActiveAt = new Date();
       await account.save();
@@ -107,7 +107,7 @@ const AuthSvc = {
       await Browser.closeContext(account._id.toString()).catch(() => {});
       return { state, status: account.status };
     } catch (e) {
-      account.status     = 'غير_نشط';
+      account.status     = 'inactive';
       account.statusNote = e.message;
       await account.save().catch(() => {});
       await Browser.closeContext(account._id.toString()).catch(() => {});
@@ -200,7 +200,7 @@ const AuthSvc = {
       ]).catch(() => false);
 
       if (ready) {
-        account.status        = 'نشط';
+        account.status        = 'active';
         account.lastActiveAt  = new Date();
         account.lastCheckedAt = new Date();
         await account.save().catch(() => {});
@@ -290,15 +290,15 @@ const AuthSvc = {
           await shot('03_after_email_verify');
         }
       } else if (midState === 'unusual_activity') {
-        account.status = 'نقطة_تحقق';
+        account.status = 'checkpoint';
         account.lastCheckedAt = new Date();
         await account.save().catch(() => {});
-        throw new Error(`SKIP:@${account.username} — نقطة_تحقق`);
+        throw new Error(`SKIP:@${account.username} — checkpoint`);
       } else if (midState === 'suspended') {
-        account.status = 'موقوف';
+        account.status = 'suspended';
         account.lastCheckedAt = new Date();
         await account.save().catch(() => {});
-        throw new Error(`SKIP:@${account.username} — موقوف`);
+        throw new Error(`SKIP:@${account.username} — suspended`);
       } else if (midState === 'password') {
         // Already at password — nothing to do
       }
@@ -320,10 +320,10 @@ const AuthSvc = {
 
       if (!passInput) {
         await shot('err_no_password_field');
-        account.status = 'يحتاج_مصادقة';
+        account.status = 'needs_auth';
         account.lastCheckedAt = new Date();
         await account.save().catch(() => {});
-        throw new Error(`SKIP:@${account.username} — يحتاج_مصادقة`);
+        throw new Error(`SKIP:@${account.username} — needs_auth`);
       }
 
       await passInput.click();
@@ -449,7 +449,7 @@ const AuthSvc = {
       });
 
       logger.info(`[Auth] _verifyViaAPI @${creds.auth_token?.slice(0,8)}… → ${result.status}`);
-      // 200 = صالح، 403 = محظور/موقوف، 401 = منتهي الصلاحية
+      // 200 = صالح، 403 = banned/suspended، 401 = منتهي الصلاحية
       return result.status === 200;
     } catch (e) {
       logger.warn(`[Auth] _verifyViaAPI error: ${e.message}`);

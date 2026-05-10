@@ -25,6 +25,23 @@ const _queueEvents = [];
 async function startWorkers(io) {
   setIO(io);
 
+  // Bridge registry events → Socket.IO
+  const { registry } = require('../../ops/operations.registry');
+  const { browserRegistry } = require('../../ops/browser.registry');
+  const { getQueueHealth }  = require('../../ops/queue.monitor');
+
+  ['op:created','op:progress','op:completed','op:cancelled','op:paused','op:resumed','op:retrying','op:cancelling']
+    .forEach(ev => registry.on(ev, data => io.emit(ev, data)));
+
+  // Browser context pulse every 3s
+  setInterval(() => io.emit('browsers:snapshot', browserRegistry.snapshot()), 3000).unref();
+
+  // Queue health pulse every 10s
+  setInterval(async () => {
+    const h = await getQueueHealth().catch(() => null);
+    if (h) io.emit('queues:health', h);
+  }, 10_000).unref();
+
   for (const [queueName, processor] of Object.entries(PROCESSOR_MAP)) {
     const worker = new Worker(queueName, processor, {
       connection:      createConnection(),

@@ -1,4 +1,5 @@
 'use strict';
+const { wrapProcessor } = require('./base.processor');
 const Account    = require('../../models/Account');
 const { Content } = require('../../models/index');
 const ActionSvc  = require('../../services/action.service');
@@ -7,7 +8,7 @@ const AISvc      = require('../../services/ai.service');
 const { jobEvents } = require('../events/job.events');
 const logger     = require('../../utils/logger');
 
-module.exports = async function tweetMultiProcessor(job) {
+module.exports = wrapProcessor(async function tweetMultiProcessor(job) {
   const { accountId, mode, text, topic, hashtags, manualTexts, mediaPaths, meta } = job.data;
   const account = await Account.findById(accountId);
   if (!account?.isActive) throw new Error(`SKIP: @${account?.username} — inactive`);
@@ -31,4 +32,5 @@ module.exports = async function tweetMultiProcessor(job) {
   } finally {
     await Browser.closeContext(accountId).catch(() => {});
   }
-};
+}
+);
