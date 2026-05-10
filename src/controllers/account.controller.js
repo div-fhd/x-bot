@@ -293,6 +293,52 @@ const AccountCtrl = {
     logger.info(`[bulkUpdateProfiles] Queued ${accounts.length} update jobs → ${parentJobId}`);
     res.json({ started: true, total: accounts.length, jobId: parentJobId });
   },
+  async uploadImages(req, res) {
+    try {
+      const path  = require('path');
+      const fs    = require('fs');
+      const sharp = require('sharp').default || require('sharp');
+      const uploadDir = path.join(process.cwd(), 'data', 'uploads');
+      fs.mkdirSync(uploadDir, { recursive: true });
+
+      const avatarPaths = [];
+      const bannerPaths = [];
+
+      for (const file of (req.files?.avatars || [])) {
+        const fname = `avatar_${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
+        const fpath = path.join(uploadDir, fname);
+        await sharp(file.buffer).resize(400, 400, { fit: 'cover' }).jpeg({ quality: 85 }).toFile(fpath);
+        avatarPaths.push(fpath);
+      }
+      for (const file of (req.files?.banners || [])) {
+        const fname = `banner_${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
+        const fpath = path.join(uploadDir, fname);
+        await sharp(file.buffer).resize(1500, 500, { fit: 'cover' }).jpeg({ quality: 85 }).toFile(fpath);
+        bannerPaths.push(fpath);
+      }
+      res.json({ avatarPaths, bannerPaths });
+    } catch(e) {
+      // fallback: save without processing
+      const path = require('path');
+      const fs   = require('fs');
+      const uploadDir = path.join(process.cwd(), 'data', 'uploads');
+      fs.mkdirSync(uploadDir, { recursive: true });
+      const avatarPaths = [], bannerPaths = [];
+      for (const file of (req.files?.avatars || [])) {
+        const fpath = path.join(uploadDir, `avatar_${Date.now()}.jpg`);
+        fs.writeFileSync(fpath, file.buffer);
+        avatarPaths.push(fpath);
+      }
+      for (const file of (req.files?.banners || [])) {
+        const fpath = path.join(uploadDir, `banner_${Date.now()}.jpg`);
+        fs.writeFileSync(fpath, file.buffer);
+        bannerPaths.push(fpath);
+      }
+      res.json({ avatarPaths, bannerPaths });
+    }
+  },
+
+
 };
 
 module.exports = AccountCtrl;
