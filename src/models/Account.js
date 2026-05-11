@@ -87,7 +87,7 @@ const AccountSchema = new mongoose.Schema({
 }, { timestamps: true, toJSON: { virtuals: true } });
 
 AccountSchema.virtual('isOperational').get(function () {
-  return this.status === 'نشط' && this.isActive;
+  return this.status === 'active' && this.isActive;
 });
 
 AccountSchema.methods.canDo = function (action) {
