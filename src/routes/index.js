@@ -96,4 +96,13 @@ opsRouter.post  ('/queues/:key/pause',  opsCtrl.pauseQueue);
 opsRouter.post  ('/queues/:key/resume', opsCtrl.resumeQueue);
 opsRouter.delete('/queues/:key/failed', opsCtrl.clearFailed);
 
-module.exports = { actionRouter, contentRouter, dashRouter, proxyRouter, opsRouter };
+// ── Engagement Campaigns ─────────────────────────────────────
+const engCtrl    = require('../controllers/engagement.controller');
+const engRouter  = require('express').Router();
+engRouter.get  ('/',           engCtrl.list);
+engRouter.post ('/',           engCtrl.create);
+engRouter.post ('/:id/launch', engCtrl.launch);
+engRouter.post ('/:id/cancel', engCtrl.cancel);
+engRouter.delete('/:id',       engCtrl.remove);
+
+module.exports = { actionRouter, contentRouter, dashRouter, proxyRouter, opsRouter, engRouter };

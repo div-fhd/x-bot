@@ -20,7 +20,7 @@ const { errorHandler, authMiddleware } = require('./src/middleware/index');
 
 const authRoutes    = require('./src/routes/auth.routes');
 const accRoutes     = require('./src/routes/account.routes');
-const { actionRouter, contentRouter, dashRouter, proxyRouter, opsRouter } = require('./src/routes/index');
+const { actionRouter, contentRouter, dashRouter, proxyRouter, opsRouter, engRouter } = require('./src/routes/index');
 
 const app    = express();
 const server = http.createServer(app);
@@ -63,7 +63,6 @@ app.use((req, res) => {
   if (req.path.startsWith('/api')) return res.status(404).json({ error: 'Route not found' });
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
-app.use('/console', express.static(path.join(__dirname, 'public/console')));
 app.use(errorHandler);
 
 

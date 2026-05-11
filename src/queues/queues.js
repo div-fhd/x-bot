@@ -13,6 +13,7 @@ const QUEUE_NAMES = {
   PROFILE_UPDATE: 'xops-profile-update',
   PROFILE_SYNC:   'xops-profile-sync',
   HEALTH_CHECK:   'xops-health-check',
+  ENGAGEMENT:     'xops-engagement',
 };
 
 const DEFAULT_JOB_OPTS = {
