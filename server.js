@@ -49,15 +49,25 @@ app.get('/health', (req, res) => {
 const API = '/api/v1';
 app.use(`${API}/auth`,      authRoutes);
 app.use(`${API}/accounts`,  accRoutes);
-app.use(`${API}/actions`,   actionRouter);
-app.use(`${API}/content`,   contentRouter);
-app.use(`${API}/proxies`,   proxyRouter);
-app.use(`${API}/dashboard`, dashRouter);
+app.use(`${API}/actions`,    actionRouter);
+app.use(`${API}/content`,    contentRouter);
+app.use(`${API}/proxies`,    proxyRouter);
+app.use(`${API}/dashboard`,  dashRouter);
+app.use(`${API}/ops`,        opsRouter);
+app.use(`${API}/engagement`, engRouter);
 
 // ── Route for home.html ───────────────────────────────────────
 app.get('/home', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'home.html'));
 });
+
+// ── React Console ─────────────────────────────────────────────
+// أي مسار يبدأ بـ /console يُعاد توجيهه لـ index.html الخاصة بالـ React build
+app.use('/console', express.static(path.join(__dirname, 'public', 'console')));
+app.get('/console/*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'console', 'index.html'));
+});
+
 // ── SPA fallback ─────────────────────────────────────────────
 app.use((req, res) => {
   if (req.path.startsWith('/api')) return res.status(404).json({ error: 'Route not found' });
