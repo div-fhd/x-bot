@@ -25,15 +25,12 @@ const AccountSchema = new mongoose.Schema({
     totpSecretEnc:  { type: String },
   },
 
-  enum: [
-    'active',
-    'suspended',
-    'locked',
-    'auth_required',
-    'dead',
-    'warmup',
-    'limited'
-  ],
+  status: {
+    type: String,
+    enum: ['active', 'suspended', 'locked', 'auth_required', 'dead', 'warmup', 'limited'],
+    default: 'active',
+    index: true,
+  },
   statusNote:   { type: String },
   lastCheckedAt:{ type: Date },
   lastActiveAt: { type: Date },
@@ -87,7 +84,7 @@ const AccountSchema = new mongoose.Schema({
 }, { timestamps: true, toJSON: { virtuals: true } });
 
 AccountSchema.virtual('isOperational').get(function () {
-  return this.status === 'active' && this.isActive;
+  return this.status === 'active' && this.isActive !== false;
 });
 
 AccountSchema.methods.canDo = function (action) {
