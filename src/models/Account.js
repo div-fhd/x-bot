@@ -25,12 +25,15 @@ const AccountSchema = new mongoose.Schema({
     totpSecretEnc:  { type: String },
   },
 
-  status: {
-    type: String,
-    enum: ['نشط', 'يحتاج_مصادقة', 'نقطة_تحقق', 'محظور', 'غير_نشط', 'موقوف'],
-    default: 'نشط',
-    index: true,
-  },
+  enum: [
+    'active',
+    'suspended',
+    'locked',
+    'auth_required',
+    'dead',
+    'warmup',
+    'limited'
+  ],
   statusNote:   { type: String },
   lastCheckedAt:{ type: Date },
   lastActiveAt: { type: Date },
