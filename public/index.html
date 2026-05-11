@@ -1487,10 +1487,72 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
         </div>
 
         <div id="tm-acc-container"></div>
-        <br>
-        <div style="display:flex;gap:10px;align-items:center">
+
+        <!-- ── Auto Engage Section ── -->
+        <div style="margin:14px 0;border:1px solid var(--bd2);border-radius:10px;overflow:hidden">
+          <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--s3);cursor:pointer" onclick="toggleAutoEngage()">
+            <input type="checkbox" id="tm-auto-engage" style="width:15px;height:15px;accent-color:var(--grn)" onchange="event.stopPropagation();updateAutoEngageToggle()">
+            <span style="font-size:13px;font-weight:600">⚡ تفاعل تلقائي بعد النشر</span>
+            <span style="font-size:11px;color:var(--t2);margin-right:auto">حسابات مخصصة تتفاعل فور نجاح كل تغريدة</span>
+          </div>
+          <div id="tm-auto-engage-body" style="display:none;padding:14px">
+
+            <!-- Actions -->
+            <div class="field" style="margin-bottom:12px">
+              <label>إجراءات التفاعل</label>
+              <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:6px">
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12.5px;font-weight:400;text-transform:none;letter-spacing:0">
+                  <input type="checkbox" class="tm-eng-action" value="like" style="accent-color:var(--grn)" checked> ❤️ إعجاب
+                </label>
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12.5px;font-weight:400;text-transform:none;letter-spacing:0">
+                  <input type="checkbox" class="tm-eng-action" value="retweet" style="accent-color:var(--blu)"> 🔁 ريتويت
+                </label>
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12.5px;font-weight:400;text-transform:none;letter-spacing:0">
+                  <input type="checkbox" class="tm-eng-action" value="reply" style="accent-color:var(--pur)" onchange="toggleEngReplyTexts()"> 💬 رد
+                </label>
+              </div>
+            </div>
+
+            <!-- Reply texts -->
+            <div id="tm-eng-reply-wrap" style="display:none;margin-bottom:12px">
+              <div class="field">
+                <label>نصوص الرد <small style="color:var(--t2);font-weight:400">— سطر لكل حساب</small></label>
+                <textarea id="tm-eng-reply-texts" rows="3" placeholder="رائع!&#10;محتوى ممتاز 👏&#10;استمر" style="font-size:12px;resize:vertical"></textarea>
+              </div>
+            </div>
+
+            <!-- Engage accounts -->
+            <div class="field" style="margin-bottom:12px">
+              <label>حسابات التفاعل <span id="tm-eng-acc-count" style="color:var(--blu2);font-weight:400"></span></label>
+              <div style="display:flex;gap:6px;margin-bottom:6px">
+                <button class="btn btn-sm" onclick="selectAllEngTm()">الكل</button>
+                <button class="btn btn-sm" onclick="deselectAllEngTm()">لا شيء</button>
+                <select id="tm-eng-role-filter" onchange="filterEngTmAccounts()" style="font-size:11px;padding:3px 8px;border-radius:6px;background:var(--s3);border:1px solid var(--bd2);color:var(--t1)">
+                  <option value="">كل الأدوار</option>
+                  <option value="engage">تفاعل فقط</option>
+                  <option value="mixed">مختلط</option>
+                </select>
+              </div>
+              <select id="tm-eng-accounts" multiple style="height:100px;font-family:var(--m);font-size:12px">
+                <option disabled>جارٍ التحميل…</option>
+              </select>
+            </div>
+
+            <!-- Engage delay -->
+            <div class="field">
+              <label>التأخير بين حسابات التفاعل</label>
+              <select id="tm-eng-delay">
+                <option value="5000,15000">5-15 ثانية (سريع)</option>
+                <option value="10000,25000" selected>10-25 ثانية (موصى)</option>
+                <option value="20000,45000">20-45 ثانية (آمن)</option>
+              </select>
+            </div>
+
+          </div>
+        </div>
+
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
           <span style="font-size:11px;color:var(--t2);white-space:nowrap">نمط التشغيل:</span>
-          <label style="font-size:11px;color:var(--t2);margin-bottom:2px;display:block">نمط التشغيل</label>
           <select class="batch-size-sel" style="font-size:11px;padding:3px 6px;border-radius:6px;background:var(--s3);border:1px solid var(--bd2);color:var(--t1)">
             <option value="1">1 — تسلسلي</option>
             <option value="3" selected>3 — متوازي</option>
@@ -4025,6 +4087,17 @@ async function doTweetMulti() {
   prog.innerHTML = '';
 
   try {
+    // Auto-engage params
+    const autoEngage = document.getElementById('tm-auto-engage')?.checked || false;
+    const engageAccountIds = autoEngage ? getSelectedAccounts('tm-eng-accounts') : [];
+    const engageActions = autoEngage
+      ? [...document.querySelectorAll('.tm-eng-action:checked')].map(c => c.value)
+      : [];
+    const engageReplyTexts = autoEngage
+      ? (document.getElementById('tm-eng-reply-texts')?.value.trim().split('\n').filter(Boolean) || [])
+      : [];
+    const engDelayParts = document.getElementById('tm-eng-delay')?.value.split(',') || ['10000','25000'];
+
     const d = await api('/api/v1/actions/tweet-multi', {
       method: 'POST',
       body: JSON.stringify({
@@ -4040,6 +4113,13 @@ async function doTweetMulti() {
         imageOrder:   imgOrder,
         delayMinMs:   minD,
         delayMaxMs:   maxD,
+        // Auto-engage
+        autoEngage,
+        engageAccountIds,
+        engageActions,
+        engageReplyTexts,
+        engageDelayMinMs: +engDelayParts[0],
+        engageDelayMaxMs: +engDelayParts[1],
       }),
     });
     s.textContent = `✅ بدأ النشر على ${d.total || ids.length} حساب`;
@@ -5285,6 +5365,61 @@ async function deleteCampaign(id) {
   catch(e) { toast(e.message, 'err'); }
 }
 
+
+// ── Auto Engage UI helpers ────────────────────────────────
+function toggleAutoEngage() {
+  const cb = document.getElementById('tm-auto-engage');
+  if (cb) { cb.checked = !cb.checked; updateAutoEngageToggle(); }
+}
+function updateAutoEngageToggle() {
+  const on  = document.getElementById('tm-auto-engage')?.checked;
+  const body = document.getElementById('tm-auto-engage-body');
+  if (body) body.style.display = on ? 'block' : 'none';
+  if (on && !document.querySelectorAll('#tm-eng-accounts option').length) {
+    fillEngTmAccounts();
+  }
+}
+function fillEngTmAccounts() {
+  const sel = document.getElementById('tm-eng-accounts');
+  if (!sel || !allActiveAccounts.length) return;
+  const role = document.getElementById('tm-eng-role-filter')?.value || '';
+  sel.innerHTML = allActiveAccounts
+    .filter(a => !role || a.role === role)
+    .map(a => {
+      const roleLabel = {post:'نشر',engage:'تفاعل',support:'دعم',mixed:'مختلط'}[a.role] || a.role;
+      return `<option value="${a._id}">@${a.username} (${roleLabel})</option>`;
+    }).join('');
+  updateEngTmCount();
+}
+function filterEngTmAccounts() { fillEngTmAccounts(); }
+function selectAllEngTm() {
+  [...document.querySelectorAll('#tm-eng-accounts option')].forEach(o => o.selected = true);
+  updateEngTmCount();
+}
+function deselectAllEngTm() {
+  [...document.querySelectorAll('#tm-eng-accounts option')].forEach(o => o.selected = false);
+  updateEngTmCount();
+}
+function updateEngTmCount() {
+  const count = document.querySelectorAll('#tm-eng-accounts option:checked').length;
+  const el = document.getElementById('tm-eng-acc-count');
+  if (el) el.textContent = count > 0 ? `(${count} محدد)` : '';
+}
+function toggleEngReplyTexts() {
+  const has = [...document.querySelectorAll('.tm-eng-action:checked')].some(c => c.value === 'reply');
+  const wrap = document.getElementById('tm-eng-reply-wrap');
+  if (wrap) wrap.style.display = has ? 'block' : 'none';
+}
+document.addEventListener('change', e => {
+  if (e.target.closest('#tm-eng-accounts')) updateEngTmCount();
+});
+// Wire accounts load when panel opens
+document.addEventListener('DOMContentLoaded', () => {
+  const cb = document.getElementById('tm-auto-engage');
+  if (cb) cb.addEventListener('change', () => {
+    if (cb.checked && allActiveAccounts.length) fillEngTmAccounts();
+  });
+});
 
 </script>
 </body>

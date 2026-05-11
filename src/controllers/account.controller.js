@@ -1,344 +1,852 @@
 'use strict';
-const Account  = require('../models/Account');
+const Account        = require('../models/Account');
+const { Content, EngageCampaign, log } = require('../models/index');
+const ActionSvc      = require('../services/action.service');
+const AISvc          = require('../services/ai.service');
+const logger         = require('../utils/logger');
 const { getQueue, QUEUE_NAMES } = require('../queues/queues');
-const { User, log } = require('../models/index');
-const Vault    = require('../services/vault.service');
-const AuthSvc  = require('../services/auth.service');
-const ActionSvc= require('../services/action.service');
-const AISvc    = require('../services/ai.service');
-const { parseBulkText } = require('../utils/parser');
-const logger   = require('../utils/logger');
+const { jobEvents }  = require('../queues/events/job.events');
+const { registry }   = require('../ops/operations.registry');
 
-const AccountCtrl = {
+// ── نظام Jobs ─────────────────────────────────────────────────
+const activeJobs = new Map();
+let jobCounter = 0;
+function createJob(type, accounts) {
+  const id = ++jobCounter;
+  activeJobs.set(id, {
+    id, type, cancelled: false,
+    accounts: accounts.map(a => a.username),
+    total: accounts.length,
+    done: 0,
+    startedAt: new Date(),
+  });
+  return id;
+}
 
-  async list(req, res) {
-    const { status, role, page = 1, limit = 50, q, isPrimary } = req.query;
-    const filter = { isActive: true };
-    if (status)    filter.status    = status;
-    if (role)      filter.role      = role;
-    if (q)         filter.username  = { $regex: q, $options: 'i' };
-    if (isPrimary) filter.isPrimary = true;
-    // تطبيق حد عدد الحسابات للمشترك
-    const maxAcc = req.user?.permissions?.maxAccounts;
-    const effectiveLimit = maxAcc ? Math.min(+limit, maxAcc) : +limit;
-    const [accounts, total] = await Promise.all([
-      Account.find(filter).select('-credentials').sort({ createdAt: -1 })
-        .skip((page-1)*limit).limit(+limit).lean(),
-      Account.countDocuments(filter),
-    ]);
-    res.json({ accounts, total, page: +page, pages: Math.ceil(total/limit) });
-  },
+function updateJobProgress(id, done) {
+  const job = activeJobs.get(id);
+  if (job) job.done = done;
+}
 
-  async get(req, res) {
-    const a = await Account.findById(req.params.id).lean();
-    if (!a) return res.status(404).json({ error: 'Account not found' });
-    // فك تشفير بيانات الدخول لعرضها في صفحة التعديل
-    try {
-      const creds = Vault.decryptAccount(a.credentials || {});
-      a.email         = creds.email         || '';
-      a.auth_token    = creds.auth_token     || '';
-      a.session_token = creds.session_token  || '';
-      a.totp_secret   = creds.totp_secret    || '';
-      a.mail_password = creds.mail_password  || '';
-    } catch {}
-    delete a.credentials;
-    res.json(a);
-  },
+function getJobETA(id) {
+  const job = activeJobs.get(id);
+  if (!job || !job.done || !job.total) return null;
+  const elapsed = (Date.now() - new Date(job.startedAt)) / 1000;
+  const rate    = job.done / elapsed;
+  const remaining = (job.total - job.done) / rate;
+  return Math.round(remaining);
+}
+function cancelJob(id) {
+  const job = activeJobs.get(+id);
+  if (!job) return false;
+  job.cancelled = true;
+  // أغلق browser context الحساب الحالي فوراً
+  const Browser = require('../services/browser.service');
+  if (job.currentAccountId) {
+    Browser.closeContext(job.currentAccountId).catch(() => {});
+  }
+  return true;
+}
 
-  async create(req, res) {
-    const { username, password, email, session_token, auth_token, totp_secret,
-            proxy_url, niche, label, tags, timezone, dailyCaps, role } = req.body;
-    if (!username || !password) return res.status(400).json({ error: 'username and password required' });
-    const handle = username.replace('@','').trim();
-    if (await Account.exists({ username: handle })) {
-      return res.status(409).json({ error: `@${handle} already exists` });
-    }
-    const creds = Vault.encryptAccount({ password, email, session_token, auth_token, totp_secret });
-    const account = await Account.create({
-      username: handle, label: label || `@${handle}`,
-      niche, tags: tags || [], role: role || 'mixed',
-      credentials: creds,
-      ownedBy: req.user._id,
-      network: { proxyUrl: proxy_url, timezone: timezone || 'America/New_York' },
-      dailyCaps: dailyCaps || {},
-    });
-    logger.info(`[Account] Created: @${handle}`);
-    res.status(201).json({ account: { ...account.toObject(), credentials: undefined } });
-  },
+function setJobCurrentAccount(id, accountId) {
+  const job = activeJobs.get(id);
+  if (job) job.currentAccountId = accountId;
+}
+function isCancelled(id) {
+  return activeJobs.get(id)?.cancelled === true;
+}
+function finishJob(id) {
+  activeJobs.delete(id);
+}
+function getActiveJobs() {
+  return [...activeJobs.values()];
+}
 
-  async bulkImport(req, res) {
-    const { text, defaultNiche, defaultTimezone, defaultRole, stagger = 'staggered', updateExisting = false } = req.body;
-    if (!text) return res.status(400).json({ error: 'text required' });
-    const { valid, invalid, total } = parseBulkText(text);
-    if (!valid.length) return res.status(400).json({ error: 'No valid accounts found', invalid, total });
 
-    const results = { created: [], updated: [], skipped: [], errors: [] };
-
-    for (let i = 0; i < valid.length; i++) {
-      const row = valid[i];
-      try {
-        const existing = await Account.findOne({ username: row.username });
-        if (existing) {
-          if (!updateExisting) { results.skipped.push(row.username); continue; }
-          // تحديث بيانات الحساب الموجود
-          const creds = Vault.encryptAccount(row);
-          existing.credentials = creds;
-          if (row.proxy_url)    existing.network = { ...existing.network, proxyUrl: row.proxy_url };
-          if (defaultRole)      existing.role    = defaultRole;
-          if (defaultNiche)     existing.niche   = defaultNiche;
-          await existing.save();
-          results.updated.push(row.username);
-          logger.info(`[Import] Updated: @${row.username}`);
-          continue;
-        }
-        const creds = Vault.encryptAccount(row);
-        const account = await Account.create({
-          username: row.username,
-          label:    `@${row.username}`,
-          niche:    defaultNiche || '',
-          role:     defaultRole  || 'mixed',
-          credentials: creds,
-          ownedBy: req.user._id,
-          network: { proxyUrl: row.proxy_url || null, timezone: defaultTimezone || 'America/New_York' },
-        });
-
-        results.created.push(row.username);
-
-        // الفحص التلقائي
-        if (stagger !== 'manual') {
-          const delayMs = stagger === 'safe' ? 120_000 : 30_000;
-          setImmediate(async () => {
-            try {
-              const acc = await Account.findOne({ username: row.username });
-              if (!acc) return;
-              const AuthSvc = require('../services/auth.service');
-              await AuthSvc.checkHealth(acc);
-              logger.info(`[Import] فحص @${row.username} ✓`);
-            } catch(e) {
-              logger.warn(`[Import] فحص @${row.username}: ${e.message}`);
-            }
-          });
-          if (i < valid.length - 1) await new Promise(r => setTimeout(r, delayMs));
-        }
-      } catch (e) {
-        results.errors.push({ username: row.username, error: e.message });
-      }
-    }
-
-    logger.info(`[Import] created:${results.created.length} skipped:${results.skipped.length} errors:${results.errors.length}`);
-    res.json({
-      results,
-      summary: { total, created: results.created.length, skipped: results.skipped.length, errors: results.errors.length },
-      invalid,
-    });
-  },
-
-  async update(req, res) {
-    const allowed = ['label','niche','tags','role','network','features','dailyCaps','notes','status','isPrimary'];
-    const updates = {};
-    for (const k of allowed) if (req.body[k] !== undefined) updates[k] = req.body[k];
-    const a = await Account.findByIdAndUpdate(req.params.id, { $set: updates }, { new: true }).select('-credentials');
-    if (!a) return res.status(404).json({ error: 'Account not found' });
-    res.json(a);
-  },
-
-  async updateCredentials(req, res) {
-    const account = await Account.findById(req.params.id);
-    if (!account) return res.status(404).json({ error: 'Account not found' });
-    const current = Vault.decryptAccount(account.credentials);
-    account.credentials = Vault.encryptAccount({
-      password:      req.body.password      || current.password,
-      email:         req.body.email         || current.email,
-      session_token: req.body.session_token || current.session_token,
-      auth_token:    req.body.auth_token    || current.auth_token,
-      totp_secret:   req.body.totp_secret   || current.totp_secret,
-    });
-    // إذا تغير الـ auth_token → أعد المصادقة، وإلا احتفظ بالحالة الحالية
-    const tokenChanged = req.body.auth_token && req.body.auth_token !== current.auth_token;
-    if (tokenChanged) {
-      await Vault.deleteSession(account._id.toString());
-      account.status     = 'needs_auth';
-      account.statusNote = 'Credentials updated';
-    }
-    await account.save();
-    logger.info(`[Account] Credentials updated: @${account.username}`);
-    res.json({ success: true });
-  },
-
-  async remove(req, res) {
-    const hard = req.query.hard === 'true';
-    if (hard) {
-      await Account.findByIdAndDelete(req.params.id);
-      await Vault.deleteSession(req.params.id);
-      logger.info(`[Account] Deleted permanently: ${req.params.id}`);
-    } else {
-      await Account.findByIdAndUpdate(req.params.id, { isActive: false });
-      await Vault.deleteSession(req.params.id);
-      logger.info(`[Account] Hidden: ${req.params.id}`);
-    }
-    res.json({ success: true });
-  },
-
-  async checkSession(req, res) {
-    const account = await Account.findById(req.params.id);
-    if (!account) return res.status(404).json({ error: 'Account not found' });
-    const result = await AuthSvc.checkHealth(account);
-    res.json(result);
-  },
-
-  async login(req, res) {
-    const account = await Account.findById(req.params.id);
-    if (!account) return res.status(404).json({ error: 'Account not found' });
-    await AuthSvc.ensureSession(account);
-    res.json({ success: true, status: account.status });
-  },
-
-  async syncProfile(req, res) {
-    const account = await Account.findById(req.params.id);
-    if (!account) return res.status(404).json({ error: 'Account not found' });
-    const profile = await ActionSvc.syncProfile(account);
-    res.json({ profile });
-  },
-
-  async updateProfile(req, res) {
-    const account = await Account.findById(req.params.id);
-    if (!account) return res.status(404).json({ error: 'Account not found' });
-    const result = await ActionSvc.updateProfile(account, req.body);
-    res.json(result);
-  },
-
-  async suggestBio(req, res) {
-    const account = await Account.findById(req.params.id).select('-credentials').lean();
-    if (!account) return res.status(404).json({ error: 'Account not found' });
-    const result = await AISvc.suggestBio({
-      niche:    account.niche    || req.body.niche    || 'general',
-      name:     account.profile?.displayName || account.username,
-      keywords: req.body.keywords || [],
-    });
-    res.json(result);
-  },
-
-  async stats(req, res) {
-    const [total, byStatus, byRole] = await Promise.all([
-      Account.countDocuments({ isActive: true }),
-      Account.aggregate([{ $match: { isActive:true } }, { $group: { _id:'$status', count:{ $sum:1 } } }]),
-      Account.aggregate([{ $match: { isActive:true } }, { $group: { _id:'$role',   count:{ $sum:1 } } }]),
-    ]);
-    res.json({
-      total,
-      byStatus: byStatus.reduce((a,s)=>{ a[s._id]=s.count; return a; }, {}),
-      byRole:   byRole.reduce((a,r)=>{ a[r._id]=r.count; return a; }, {}),
-    });
-  },
-
-  // ── رفع الصور ──────────────────────────────────────────────────
-  async bulkCheck(req, res) {
-    const { accountIds, batchSize = 1 } = req.body;
-    const query = accountIds?.length ? { _id: { $in: accountIds }, isActive: true } : { isActive: true };
-    const accounts = await Account.find(query);
-    if (!accounts.length) return res.json({ total: 0 });
-
-    const queue = getQueue(QUEUE_NAMES.HEALTH_CHECK);
-    const parentJobId = `health-check-${Date.now()}`;
-    await queue.addBulk(accounts.map((account, idx) => ({
-      name: QUEUE_NAMES.HEALTH_CHECK,
-      data: { accountId: account._id.toString(), meta: { parentJobId, index: idx, total: accounts.length } },
-      opts: { delay: idx * 8000, jobId: `hc-${account._id}-${Date.now()}` },
-    })));
-    logger.info(`[bulkCheck] Queued ${accounts.length} health checks → ${parentJobId}`);
-    res.json({ started: true, total: accounts.length, jobId: parentJobId });
-  },
-  async bulkSyncProfiles(req, res) {
-    const { accountIds, batchSize = 3 } = req.body;
-    const query = accountIds?.length ? { _id: { $in: accountIds }, isActive: true } : { isActive: true, status: 'active' };
-    const accounts = await Account.find(query);
-    if (!accounts.length) return res.json({ total: 0 });
-
-    const queue = getQueue(QUEUE_NAMES.PROFILE_SYNC);
-    const parentJobId = `profile-sync-${Date.now()}`;
-    await queue.addBulk(accounts.map((account, idx) => ({
-      name: QUEUE_NAMES.PROFILE_SYNC,
-      data: { accountId: account._id.toString(), meta: { parentJobId, index: idx, total: accounts.length } },
-      opts: { delay: Math.floor(idx / batchSize) * 8000, jobId: `sync-${account._id}-${Date.now()}` },
-    })));
-    logger.info(`[bulkSyncProfiles] Queued ${accounts.length} sync jobs → ${parentJobId}`);
-    res.json({ started: true, total: accounts.length, jobId: parentJobId });
-  },
-  async bulkUpdateProfiles(req, res) {
-    const { accountIds, updates = {}, namesList = [], locationsList = [], useAI = false, niche, avatarPaths = [], bannerPaths = [], imageOrder = 'sequential', batchSize = 1 } = req.body;
-    const query = accountIds?.length ? { _id: { $in: accountIds }, isActive: true } : { isActive: true, status: 'active' };
-    const accounts = await Account.find(query);
-    if (!accounts.length) return res.json({ message: 'No accounts found', total: 0 });
-
-    const shuffled = arr => [...arr].sort(() => Math.random() - 0.5);
-    const avatars = imageOrder === 'random' ? shuffled(avatarPaths) : avatarPaths;
-    const banners = imageOrder === 'random' ? shuffled(bannerPaths) : bannerPaths;
-
-    const queue = getQueue(QUEUE_NAMES.PROFILE_UPDATE);
-    const parentJobId = `profile-update-${Date.now()}`;
-
-    await queue.addBulk(accounts.map((account, idx) => {
-      const jobUpdates = { ...updates };
-      if (namesList.length)     jobUpdates.displayName = namesList[idx % namesList.length];
-      if (locationsList.length) jobUpdates.location    = locationsList[idx % locationsList.length];
-      if (avatars.length)       jobUpdates.avatarPath  = avatars[idx % avatars.length];
-      if (banners.length)       jobUpdates.bannerPath  = banners[idx % banners.length];
+// ── BullMQ helper ─────────────────────────────────────────────
+async function queueBulkOp(queueName, accounts, jobDataFn, delayMinMs = 0, delayMaxMs = 0) {
+  const queue = getQueue(queueName);
+  const parentJobId = `${queueName}-${Date.now()}`;
+  const jobs = await queue.addBulk(
+    accounts.map((account, idx) => {
+      const delayMs = idx === 0 ? 0 : Math.round(
+        delayMinMs + Math.random() * Math.max(0, delayMaxMs - delayMinMs)
+      ) * idx;
       return {
-        name: QUEUE_NAMES.PROFILE_UPDATE,
-        data: { accountId: account._id.toString(), updates: jobUpdates, useAI, niche, meta: { parentJobId, index: idx, total: accounts.length } },
-        opts: { delay: Math.floor(idx / batchSize) * 12000, jobId: `upd-${account._id}-${Date.now()}` },
+        name: queueName,
+        data: { ...jobDataFn(account, idx), meta: { parentJobId, index: idx, total: accounts.length } },
+        opts: { delay: delayMs, jobId: `${queueName}-${account._id}-${Date.now()}` },
       };
+    })
+  );
+  return { parentJobId, jobCount: jobs.length, jobIds: jobs.map(j => j.id) };
+}
+
+// ── batch parallel helper ────────────────────────────────────
+async function runInBatches(items, batchSize, jobId, fn) {
+  for (let i = 0; i < items.length; i += batchSize) {
+    if (isCancelled(jobId)) break;
+    const batch = items.slice(i, i + batchSize);
+    await Promise.allSettled(batch.map(fn));
+    if (i + batchSize < items.length) await new Promise(r => setTimeout(r, 800));
+  }
+}
+
+// ── helper مشترك لعمليات follow/like/retweet الجماعية ───────
+// يضمن إغلاق contexts بعد كل دفعة لتحرير SEM قبل الدفعة التالية
+async function runMultiOp({ accounts, batchSize, delayMinMs, delayMaxMs, jobId, type, fn }) {
+  const Browser = require('../services/browser.service');
+  let done = 0;
+
+  for (let bi = 0; bi < accounts.length; bi += batchSize) {
+    if (isCancelled(jobId)) {
+      if (global.io) global.io.emit('job:cancelled', { jobId });
+      break;
+    }
+
+    const batch = accounts.slice(bi, bi + batchSize);
+
+    await Promise.allSettled(batch.map(async (account) => {
+      setJobCurrentAccount(jobId, account._id.toString());
+      try {
+        await fn(account);
+        done++;
+        updateJobProgress(jobId, done);
+        if (global.io) global.io.emit('job:progress', {
+          jobId, type, done, total: accounts.length,
+          username: account.username, success: true,
+        });
+      } catch (e) {
+        done++;
+        updateJobProgress(jobId, done);
+        if (global.io) global.io.emit('job:progress', {
+          jobId, type, done, total: accounts.length,
+          username: account.username, success: false, error: e.message,
+        });
+      }
     }));
 
-    logger.info(`[bulkUpdateProfiles] Queued ${accounts.length} update jobs → ${parentJobId}`);
-    res.json({ started: true, total: accounts.length, jobId: parentJobId });
+    // انتظر 500ms بعد allSettled قبل إغلاق الـ contexts
+    // يضمن إن page.close() في finally خلصت قبل closeContext
+    await new Promise(r => setTimeout(r, 500));
+    await Promise.all(batch.map(acc => Browser.closeContext(acc._id.toString()).catch(() => {})));
+
+    // تاخير بين الدفعات مع دعم الالغاء - يستخدم delayMin/Max بغض النظر عن batchSize
+    if (bi + batchSize < accounts.length && !isCancelled(jobId)) {
+      const delay = delayMinMs + Math.random() * (delayMaxMs - delayMinMs);
+      for (let s = 0; s < Math.ceil(delay / 1000); s++) {
+        if (isCancelled(jobId)) break;
+        await new Promise(r => setTimeout(r, Math.min(1000, delay - s * 1000)));
+      }
+    }
+  }
+
+  // safety net - اغلق اي context ما اتغلقش
+  for (const acc of accounts) {
+    await Browser.closeContext(acc._id.toString()).catch(() => {});
+  }
+
+  finishJob(jobId);
+  if (global.io) global.io.emit('job:done', { jobId, type });
+}
+
+const ActionCtrl = {
+
+  // ── Single tweet ──────────────────────────────────────────────
+  async tweet(req, res) {
+    const { accountId, text, mediaLocalPaths, replyToTweetId } = req.body;
+    if (!accountId || !text) return res.status(400).json({ error: 'accountId and text required' });
+    const account = await Account.findById(accountId);
+    if (!account?.isOperational) return res.status(400).json({ error: `Account not active: ${account?.status}` });
+
+    const result = await ActionSvc.tweet(account, { text, mediaLocalPaths, replyToTweetId });
+
+    await Content.create({
+      account: accountId, text, status: 'منشور',
+      publishedAt: new Date(), tweetId: result.tweetId, tweetUrl: result.tweetUrl,
+    });
+    res.json(result);
   },
-  async uploadImages(req, res) {
-    try {
-      const path  = require('path');
-      const fs    = require('fs');
-      const sharp = require('sharp').default || require('sharp');
-      const uploadDir = path.join(process.cwd(), 'data', 'uploads');
-      fs.mkdirSync(uploadDir, { recursive: true });
 
-      const avatarPaths = [];
-      const bannerPaths = [];
+  // ── Multi-account tweet ───────────────────────────────────────
+  // Post same text (or AI-varied text) to multiple accounts with delay
+  // ── Jobs ──────────────────────────────────────────────────────
+  listJobs(req, res) {
+    res.json({ jobs: getActiveJobs() });
+  },
 
-      for (const file of (req.files?.avatars || [])) {
-        const fname = `avatar_${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
-        const fpath = path.join(uploadDir, fname);
-        await sharp(file.buffer).resize(400, 400, { fit: 'cover' }).jpeg({ quality: 85 }).toFile(fpath);
-        avatarPaths.push(fpath);
-      }
-      for (const file of (req.files?.banners || [])) {
-        const fname = `banner_${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
-        const fpath = path.join(uploadDir, fname);
-        await sharp(file.buffer).resize(1500, 500, { fit: 'cover' }).jpeg({ quality: 85 }).toFile(fpath);
-        bannerPaths.push(fpath);
-      }
-      res.json({ avatarPaths, bannerPaths });
-    } catch(e) {
-      // fallback: save without processing
-      const path = require('path');
-      const fs   = require('fs');
-      const uploadDir = path.join(process.cwd(), 'data', 'uploads');
-      fs.mkdirSync(uploadDir, { recursive: true });
-      const avatarPaths = [], bannerPaths = [];
-      for (const file of (req.files?.avatars || [])) {
-        const fpath = path.join(uploadDir, `avatar_${Date.now()}.jpg`);
-        fs.writeFileSync(fpath, file.buffer);
-        avatarPaths.push(fpath);
-      }
-      for (const file of (req.files?.banners || [])) {
-        const fpath = path.join(uploadDir, `banner_${Date.now()}.jpg`);
-        fs.writeFileSync(fpath, file.buffer);
-        bannerPaths.push(fpath);
-      }
-      res.json({ avatarPaths, bannerPaths });
+  cancelJob(req, res) {
+    const { jobId } = req.params;
+    const ok = cancelJob(jobId);
+    if (ok) {
+      logger.info(`[Jobs] Job ${jobId} cancelled by user`);
+      res.json({ cancelled: true, jobId });
+    } else {
+      res.status(404).json({ error: 'Job not found or already finished' });
     }
   },
 
+  cancelAllJobs(req, res) {
+    const jobs = getActiveJobs();
+    jobs.forEach(j => cancelJob(j.id));
+    logger.info(`[Jobs] All ${jobs.length} jobs cancelled`);
+    res.json({ cancelled: jobs.length });
+  },
 
+  async uploadMedia(req, res) {
+    const fs   = require('fs');
+    const path = require('path');
+    const dir  = path.join(process.cwd(), 'data', 'media');
+    fs.mkdirSync(dir, { recursive: true });
+    const paths = [];
+    for (const file of (req.files?.images || [])) {
+      const ext  = file.originalname.split('.').pop();
+      const dest = path.join(dir, `media_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`);
+      fs.writeFileSync(dest, file.buffer);
+      paths.push(dest);
+    }
+    res.json({ paths });
+  },
+
+  async tweetMulti(req, res) {
+    const {
+      accountIds, text, mode = 'ai', varyText = false, manualTexts = [],
+      delayMinMs = 8000, delayMaxMs = 25000, topic, hashtags,
+      mediaPaths = [], imageOrder = 'same', batchSize = 1,
+      // Auto-engage options
+      autoEngage = false, engageAccountIds = [], engageActions = ['like'],
+      engageReplyTexts = [], engageDelayMinMs = 8000, engageDelayMaxMs = 25000,
+    } = req.body;
+    const actualTopic = topic || text;
+    if (!accountIds?.length) return res.status(400).json({ error: 'accountIds[] required' });
+    if (mode === 'ai' && !actualTopic) return res.status(400).json({ error: 'topic required for AI mode' });
+    if (mode === 'manual' && !manualTexts.length) return res.status(400).json({ error: 'manualTexts required for manual mode' });
+    if (mode === 'same' && !text) return res.status(400).json({ error: 'text required for same mode' });
+
+    const accounts = await Account.find({ _id: { $in: accountIds }, isActive: true, status: 'active' });
+    if (!accounts.length) return res.status(400).json({ error: 'No active accounts found' });
+
+    // Respond immediately, run in background
+    const jobId = createJob('tweet-multi', accounts);
+    res.json({ queued: true, jobId, accounts: accounts.map(a => a.username), total: accounts.length });
+
+    // Background execution
+    setImmediate(async () => {
+      // توزيع الصور — كل تغريدة تأخذ حتى 4 صور
+      const shuffled = arr => [...arr].sort(() => Math.random() - 0.5);
+      const mediaList = imageOrder === 'random' ? shuffled(mediaPaths) : mediaPaths;
+      const getMedia = (i) => {
+        if (!mediaList.length) return [];
+        if (imageOrder === 'same') {
+          // نفس المجموعة للكل (حتى 4 صور)
+          return mediaList.slice(0, 4);
+        }
+        if (imageOrder === 'sequential') {
+          // كل حساب يأخذ صورة مختلفة بالترتيب
+          return [mediaList[i % mediaList.length]];
+        }
+        // عشوائي — كل حساب يأخذ صورة عشوائية
+        return [mediaList[Math.floor(Math.random() * mediaList.length)]];
+      };
+
+      const textFn = async (account, i) => {
+        if (mode === 'manual') return manualTexts[i % manualTexts.length];
+        if (mode === 'same')   return text;
+        // AI mode
+        try {
+          const sugs = await AISvc.suggestTweets({ niche: account.niche || 'general', topic: actualTopic, count: 1 });
+          let generated = sugs[0]?.text || text || actualTopic;
+          if (hashtags && !generated.includes(hashtags.split(' ')[0])) {
+            generated = generated.trim() + '\n\n' + hashtags;
+          }
+          if (generated.length > 280) generated = generated.slice(0, 277) + '…';
+          return generated;
+        } catch { return actualTopic; }
+      };
+
+      const TMBrowser = require('../services/browser.service');
+      let done = 0;
+      const successTweetIds = []; // collect for auto-engage
+
+      for (let bi = 0; bi < accounts.length; bi += batchSize) {
+        if (isCancelled(jobId)) {
+          logger.info(`[TweetMulti] job ${jobId} cancelled at ${bi}/${accounts.length}`);
+          if (global.io) global.io.emit('job:cancelled', { jobId, type: 'tweet-multi', done: bi });
+          break;
+        }
+
+        const batch = accounts.slice(bi, bi + batchSize);
+
+        await Promise.allSettled(batch.map(async (account, localIdx) => {
+          const i = bi + localIdx;
+          setJobCurrentAccount(jobId, account._id.toString());
+          try {
+            const t = await textFn(account, i);
+            const mediaLocalPaths = getMedia(i);
+            const r = await ActionSvc.tweet(account, { text: t, mediaLocalPaths });
+            await Content.create({
+              account: account._id, text: t, status: 'منشور',
+              publishedAt: new Date(), tweetId: r.tweetId, tweetUrl: r.tweetUrl,
+            });
+            if (r.tweetUrl && !successTweetIds.includes(r.tweetUrl)) successTweetIds.push(r.tweetUrl);
+            done++;
+            updateJobProgress(jobId, done);
+            if (global.io) global.io.emit('tweet:multi:progress', { username: account.username, done, total: accounts.length, success: true, tweetId: r.tweetId });
+            if (global.io) global.io.emit('job:progress', { jobId, type: 'tweet-multi', username: account.username, done, total: accounts.length, eta: getJobETA(jobId), success: true });
+          } catch (e) {
+            done++;
+            updateJobProgress(jobId, done);
+            logger.error(`[TweetMulti] @${account.username}: ${e.message}`);
+            if (global.io) global.io.emit('tweet:multi:progress', { username: account.username, done, total: accounts.length, success: false, error: e.message.replace('SKIP:','') });
+            if (global.io) global.io.emit('job:progress', { jobId, type: 'tweet-multi', username: account.username, done, total: accounts.length, success: false, error: e.message.replace('SKIP:','') });
+          }
+        }));
+
+        // اغلق contexts الدفعة الحالية لتحرير SEM قبل الدفعة التالية
+        await Promise.all(batch.map(acc => TMBrowser.closeContext(acc._id.toString()).catch(() => {})));
+
+        if (bi + batchSize < accounts.length && !isCancelled(jobId)) {
+          const delay = delayMinMs + Math.random() * (delayMaxMs - delayMinMs);
+          const steps = Math.ceil(delay / 1000);
+          for (let s = 0; s < steps; s++) {
+            if (isCancelled(jobId)) break;
+            await new Promise(r => setTimeout(r, Math.min(1000, delay - s * 1000)));
+          }
+        }
+      }
+
+      // safety net
+      for (const acc of accounts) { TMBrowser.closeContext(acc._id.toString()).catch(() => {}); }
+      finishJob(jobId);
+      if (global.io) global.io.emit('tweet:multi:done', { total: accounts.length, jobId, successTweetIds });
+      logger.info(`[TweetMulti] Completed for ${accounts.length} accounts`);
+
+      // ── Auto-engage: launch campaign for each successful tweet ──
+      if (autoEngage && engageAccountIds.length && engageActions.length && successTweetIds.length) {
+        try {
+          const { EngageCampaign } = require('../models/index');
+          const { getQueue, QUEUE_NAMES } = require('../queues/queues');
+          const { registry } = require('../ops/operations.registry');
+
+          const engAccounts = await Account.find({
+            _id: { $in: engageAccountIds },
+            isActive: true,
+            status: 'active',
+          });
+
+          if (engAccounts.length) {
+            for (const tweetUrl of successTweetIds) {
+              const tweetId = tweetUrl.match(/status\/([\d]+)/)?.[1] || tweetUrl;
+              const campName = `Auto — ${tweetId.slice(-8)}`;
+
+              const campaign = await EngageCampaign.create({
+                name: campName, tweetUrl, tweetId,
+                accountIds: engageAccountIds,
+                actions: engageActions,
+                replyTexts: engageReplyTexts,
+                delayMinMs: engageDelayMinMs,
+                delayMaxMs: engageDelayMaxMs,
+                status: 'running',
+                startedAt: new Date(),
+              });
+
+              // Shuffle accounts — anti-pattern
+              const shuffleArr = arr => [...arr].sort(() => Math.random() - 0.5);
+              const queue = getQueue(QUEUE_NAMES.ENGAGEMENT);
+              const parentJobId = `engagement-auto-${campaign._id}-${Date.now()}`;
+              const jobs = [];
+
+              for (const action of engageActions) {
+                const ordered = shuffleArr(engAccounts);
+                for (let i = 0; i < ordered.length; i++) {
+                  const acc = ordered[i];
+                  const actionOffset = { like:0, retweet:5000, reply:10000, follow_author:15000 }[action] || 0;
+                  const baseDelay = i * (engageDelayMinMs + Math.random() * (engageDelayMaxMs - engageDelayMinMs));
+                  const replyText = action === 'reply' && engageReplyTexts.length
+                    ? engageReplyTexts[i % engageReplyTexts.length] : null;
+                  jobs.push({
+                    name: QUEUE_NAMES.ENGAGEMENT,
+                    data: {
+                      accountId: acc._id.toString(), campaignId: campaign._id.toString(),
+                      action, tweetId, tweetUrl, replyText,
+                      meta: { parentJobId, index: jobs.length, total: engageActions.length * ordered.length },
+                    },
+                    opts: { delay: Math.round(baseDelay + actionOffset), attempts: 2,
+                      jobId: `eng-auto-${campaign._id}-${action}-${acc._id}-${Date.now()}` },
+                  });
+                }
+              }
+
+              jobs.forEach((j,i) => { j.data.meta.index = i; j.data.meta.total = jobs.length; });
+              await queue.addBulk(jobs);
+
+              registry.create({ parentJobId, type:'engagement', total: jobs.length,
+                accountUsernames: engAccounts.map(a => a.username),
+                meta: { auto:true, campaignId: campaign._id.toString(), tweetId, actions: engageActions },
+              });
+              registry.registerJobs(parentJobId, jobs.map(j => j.opts.jobId));
+
+              logger.info(`[TweetMulti] Auto-engage launched for tweet ${tweetId} — ${jobs.length} jobs`);
+              if (global.io) global.io.emit('engagement:auto:started', { tweetId, campaignId: campaign._id, total: jobs.length });
+            }
+          }
+        } catch(e) {
+          logger.error(`[TweetMulti] Auto-engage error: ${e.message}`);
+        }
+      }
+    });
+  },
+
+  // ── Follow ────────────────────────────────────────────────────
+  async reportAccount(req, res) {
+    const { accountIds, targetHandle, reason = 'spam' } = req.body;
+    if (!accountIds?.length || !targetHandle) return res.status(400).json({ error: 'accountIds[] and targetHandle required' });
+    const accounts = await Account.find({ _id: { $in: accountIds }, isActive: true });
+    if (!accounts.length) return res.status(400).json({ error: 'No active accounts found' });
+
+    const jobId = createJob('report-account', accounts);
+    res.json({ started: true, jobId, total: accounts.length });
+
+    setImmediate(async () => {
+      const Browser = require('../services/browser.service');
+      let done = 0;
+      for (let i = 0; i < accounts.length; i++) {
+        if (isCancelled(jobId)) { if (global.io) global.io.emit('job:cancelled', { jobId }); break; }
+        const account = accounts[i];
+        setJobCurrentAccount(jobId, account._id.toString());
+        try {
+          await ActionSvc.reportAccount(account, targetHandle, reason);
+          done++;
+          updateJobProgress(jobId, done);
+          if (global.io) global.io.emit('job:progress', { jobId, type: 'report-account', done, total: accounts.length, username: account.username, success: true });
+        } catch (e) {
+          logger.warn(`[Report] @${account.username}: ${e.message}`);
+          done++;
+          updateJobProgress(jobId, done);
+          if (global.io) global.io.emit('job:progress', { jobId, type: 'report-account', done, total: accounts.length, username: account.username, success: false });
+          if (e.message.startsWith('SKIP:')) {
+            await Browser.closeContext(account._id.toString()).catch(() => {});
+            continue;
+          }
+        }
+        // اغلق context الحساب الحالي قبل الانتقال للتالي
+        await Browser.closeContext(account._id.toString()).catch(() => {});
+        if (i < accounts.length - 1) {
+          const delay = 15000 + Math.random() * 10000;
+          for (let s = 0; s < Math.ceil(delay/1000); s++) {
+            if (isCancelled(jobId)) break;
+            await new Promise(r => setTimeout(r, Math.min(1000, delay - s*1000)));
+          }
+        }
+      }
+      finishJob(jobId);
+      if (global.io) global.io.emit('job:done', { jobId, type: 'report-account', done });
+    });
+  },
+
+    async reportTweet(req, res) {
+    const { accountIds, tweetUrl, reason = 'spam' } = req.body;
+    if (!accountIds?.length || !tweetUrl) return res.status(400).json({ error: 'accountIds[] and tweetUrl required' });
+    const accounts = await Account.find({ _id: { $in: accountIds }, isActive: true });
+    if (!accounts.length) return res.status(400).json({ error: 'No active accounts found' });
+
+    const jobId = createJob('report-tweet', accounts);
+    res.json({ started: true, jobId, total: accounts.length });
+
+    setImmediate(async () => {
+      const Browser = require('../services/browser.service');
+      let done = 0;
+      for (let i = 0; i < accounts.length; i++) {
+        if (isCancelled(jobId)) { if (global.io) global.io.emit('job:cancelled', { jobId }); break; }
+        const account = accounts[i];
+        setJobCurrentAccount(jobId, account._id.toString());
+        try {
+          await ActionSvc.reportTweet(account, tweetUrl, reason);
+          done++;
+          updateJobProgress(jobId, done);
+          if (global.io) global.io.emit('job:progress', { jobId, type: 'report-tweet', done, total: accounts.length, username: account.username, success: true });
+        } catch (e) {
+          logger.warn(`[Report] @${account.username}: ${e.message}`);
+          done++;
+          updateJobProgress(jobId, done);
+          if (global.io) global.io.emit('job:progress', { jobId, type: 'report-tweet', done, total: accounts.length, username: account.username, success: false });
+          if (e.message.startsWith('SKIP:')) {
+            await Browser.closeContext(account._id.toString()).catch(() => {});
+            continue;
+          }
+        }
+        // اغلق context الحساب الحالي قبل الانتقال للتالي
+        await Browser.closeContext(account._id.toString()).catch(() => {});
+        if (i < accounts.length - 1) {
+          const delay = 15000 + Math.random() * 10000;
+          for (let s = 0; s < Math.ceil(delay/1000); s++) {
+            if (isCancelled(jobId)) break;
+            await new Promise(r => setTimeout(r, Math.min(1000, delay - s*1000)));
+          }
+        }
+      }
+      finishJob(jobId);
+      if (global.io) global.io.emit('job:done', { jobId, type: 'report-tweet', done });
+    });
+  },
+
+    async follow(req, res) {
+    const { accountId, targetHandle } = req.body;
+    if (!accountId || !targetHandle) return res.status(400).json({ error: 'accountId and targetHandle required' });
+    const account = await Account.findById(accountId);
+    if (!account?.isOperational) return res.status(400).json({ error: 'Account not active' });
+    const result = await ActionSvc.follow(account, targetHandle);
+    res.json(result);
+  },
+
+  // ── Like ──────────────────────────────────────────────────────
+  async like(req, res) {
+    const { accountId, tweetId } = req.body;
+    if (!accountId || !tweetId) return res.status(400).json({ error: 'accountId and tweetId required' });
+    const account = await Account.findById(accountId);
+    if (!account?.isOperational) return res.status(400).json({ error: 'Account not active' });
+    const result = await ActionSvc.like(account, tweetId);
+    res.json(result);
+  },
+
+  // ── Retweet ───────────────────────────────────────────────────
+  async retweet(req, res) {
+    const { accountId, tweetId } = req.body;
+    if (!accountId || !tweetId) return res.status(400).json({ error: 'accountId and tweetId required' });
+    const account = await Account.findById(accountId);
+    if (!account?.isOperational) return res.status(400).json({ error: 'Account not active' });
+    const result = await ActionSvc.retweet(account, tweetId);
+    res.json(result);
+  },
+
+  // ── Reply ─────────────────────────────────────────────────────
+  async reply(req, res) {
+    const { accountId, tweetId, text, useAI = false, aiHint } = req.body;
+    if (!accountId || !tweetId) return res.status(400).json({ error: 'accountId, tweetId required' });
+    if (!useAI && !text) return res.status(400).json({ error: 'text required when not using AI' });
+
+    const account = await Account.findById(accountId);
+    if (!account?.isOperational) return res.status(400).json({ error: 'Account not active' });
+
+    let replyText = text;
+
+    // توليد رد بالـ AI
+    if (useAI) {
+      try {
+        // جلب محتوى التغريدة أولاً
+        const tweetContent = await ActionSvc.getTweetText(account, tweetId).catch(() => '');
+        const prompt = `${aiHint ? aiHint + '. ' : ''}اكتب رداً طبيعياً ومناسباً على هذه التغريدة باللغة العربية (أقل من 200 حرف): "${tweetContent}"`;
+        const sugs = await AISvc.suggestTweets({
+          niche:  account.niche || 'general',
+          topic:  prompt,
+          count:  1,
+          style:  'تفاعلي',
+        });
+        replyText = sugs[0]?.text || aiHint || 'شكراً على المشاركة!';
+        if (replyText.length > 280) replyText = replyText.slice(0, 277) + '…';
+      } catch (e) {
+        logger.warn(`[Reply] AI failed: ${e.message}`);
+        replyText = aiHint || 'شكراً على المشاركة!';
+      }
+    }
+
+    const result = await ActionSvc.reply(account, tweetId, replyText);
+    res.json({ ...result, replyText });
+  },
+
+  // ── Follow Multi ──────────────────────────────────────────────
+  async followMulti(req, res) {
+    const { accountIds, targetHandle, delayMinMs = 20000, delayMaxMs = 40000, batchSize = 1 } = req.body;
+    if (!accountIds?.length || !targetHandle) return res.status(400).json({ error: 'accountIds[] and targetHandle required' });
+    const accounts = await Account.find({ _id: { $in: accountIds }, isActive: true });
+    if (!accounts.length) return res.status(400).json({ error: 'No active accounts' });
+    const { parentJobId, jobCount, jobIds } = await queueBulkOp(
+      QUEUE_NAMES.FOLLOW, accounts,
+      (account) => ({ accountId: account._id.toString(), targetHandle }),
+      delayMinMs, delayMaxMs
+    );
+    const op = registry.create({ parentJobId, type: 'follow', total: accounts.length, accountUsernames: accounts.map(a => a.username), meta: { targetHandle } });
+    registry.registerJobs(parentJobId, jobIds);
+    logger.info(`[followMulti] Queued ${jobCount} jobs → ${parentJobId}`);
+    res.json({ started: true, jobId: parentJobId, total: accounts.length });
+  },
+
+    // ── Like Multi ────────────────────────────────────────────
+  async likeMulti(req, res) {
+    const { accountIds, tweetId, delayMinMs = 15000, delayMaxMs = 30000, batchSize = 1 } = req.body;
+    if (!accountIds?.length || !tweetId) return res.status(400).json({ error: 'accountIds[] and tweetId required' });
+    const accounts = await Account.find({ _id: { $in: accountIds }, isActive: true });
+    if (!accounts.length) return res.status(400).json({ error: 'No active accounts' });
+    const { parentJobId, jobCount } = await queueBulkOp(
+      QUEUE_NAMES.LIKE, accounts,
+      (account) => ({ accountId: account._id.toString(), tweetId }),
+      delayMinMs, delayMaxMs
+    );
+    logger.info(`[likeMulti] Queued ${jobCount} jobs → ${parentJobId}`);
+    res.json({ started: true, jobId: parentJobId, total: accounts.length });
+  },
+
+    // ── Retweet Multi ───────────────────────────────────────────
+  async retweetMulti(req, res) {
+    const { accountIds, tweetId, delayMinMs = 15000, delayMaxMs = 30000, batchSize = 1 } = req.body;
+    if (!accountIds?.length || !tweetId) return res.status(400).json({ error: 'accountIds[] and tweetId required' });
+    const accounts = await Account.find({ _id: { $in: accountIds }, isActive: true });
+    if (!accounts.length) return res.status(400).json({ error: 'No active accounts' });
+    const jobId = createJob('retweet', accounts);
+    res.json({ started: true, jobId, total: accounts.length });
+    setImmediate(() => runMultiOp({
+      accounts, batchSize, delayMinMs, delayMaxMs, jobId, type: 'retweet',
+      fn: (account) => ActionSvc.retweet(account, tweetId),
+    }));
+  },
+
+    // ── متابعة تبادلية ───────────────────────────────────────────
+  async mutualFollow(req, res) {
+    const { accountIds, delayMinMs = 10000, delayMaxMs = 25000, batchSize = 1 } = req.body;
+    if (!accountIds?.length || accountIds.length < 2)
+      return res.status(400).json({ error: 'يلزم حسابان على الأقل' });
+
+    const accounts = await Account.find({ _id: { $in: accountIds }, isActive: true });
+    if (accounts.length < 2) return res.status(400).json({ error: 'لا توجد حسابات كافية' });
+
+    // حساب عدد العمليات الكلي: n*(n-1) متابعة
+    const total = accounts.length * (accounts.length - 1);
+    const jobId = createJob('mutual-follow', accounts);
+
+    res.json({ started: true, jobId, total, accounts: accounts.length });
+
+    setImmediate(async () => {
+      // بناء قائمة كل الأزواج (follower → target) مسبقاً
+      // كل حساب يتابع جميع الآخرين — نجمّع "صفوف" الحساب الواحد معاً
+      // حتى لا يُفتح context واحد بأكثر من صفحة في نفس الوقت
+      const rows = accounts.map(follower => ({
+        follower,
+        targets: accounts.filter(a => a._id.toString() !== follower._id.toString()),
+      }));
+
+      let done = 0;
+
+      // batchSize يعني: كم حساب يتابع بالتوازي في نفس اللحظة
+      // كل حساب يتابع الآخرين تسلسلياً داخل نفسه
+      for (let bi = 0; bi < rows.length; bi += batchSize) {
+        if (isCancelled(jobId)) {
+          if (global.io) global.io.emit('job:cancelled', { jobId });
+          finishJob(jobId);
+          return;
+        }
+
+        const batch = rows.slice(bi, bi + batchSize);
+
+        // تشغيل mBatchSize حسابات بالتوازي، كل منها يتابع الآخرين تسلسلياً
+        await Promise.allSettled(batch.map(async ({ follower, targets }) => {
+          setJobCurrentAccount(jobId, follower._id.toString());
+
+          for (const targetAcc of targets) {
+            if (isCancelled(jobId)) break;
+
+            const target = targetAcc.username;
+            try {
+              await ActionSvc.follow(follower, target);
+            } catch (e) {
+              logger.warn(`[MutualFollow] @${follower.username} → @${target}: ${e.message}`);
+            }
+
+            done++;
+            updateJobProgress(jobId, done);
+            if (global.io) global.io.emit('job:progress', {
+              jobId, type: 'mutual-follow', done, total,
+              username: follower.username,
+              target,
+            });
+
+            // تأخير بين كل متابعة داخل نفس الحساب
+            if (targetAcc !== targets[targets.length - 1]) {
+              const delay = delayMinMs + Math.random() * (delayMaxMs - delayMinMs);
+              for (let s = 0; s < Math.ceil(delay / 1000); s++) {
+                if (isCancelled(jobId)) break;
+                await new Promise(r => setTimeout(r, Math.min(1000, delay - s * 1000)));
+              }
+            }
+          }
+        }));
+
+        // اغلق contexts الـ batch الحالي لتحرير SEM قبل الدفعة التالية
+        const MFBrowser = require('../services/browser.service');
+        await Promise.all(batch.map(({ follower }) => MFBrowser.closeContext(follower._id.toString()).catch(() => {})));
+
+        // تأخير بين مجموعات الـ batchSize (ما عدا الأخيرة)
+        if (bi + batchSize < rows.length && !isCancelled(jobId)) {
+          await new Promise(r => setTimeout(r, 2000));
+        }
+      }
+
+      // safety net
+      const Browser = require('../services/browser.service');
+      for (const acc of accounts) {
+        await Browser.closeContext(acc._id.toString()).catch(() => {});
+      }
+      finishJob(jobId);
+      if (global.io) global.io.emit('job:done', { jobId, type: 'mutual-follow', done, total });
+      logger.info(`[MutualFollow] اكتمل: ${done}/${total}`);
+    });
+  },
+
+  // ── Search ────────────────────────────────────────────────────
+  async search(req, res) {
+    const { accountId, keyword, maxResults = 20 } = req.body;
+    if (!accountId || !keyword) return res.status(400).json({ error: 'accountId and keyword required' });
+    const account = await Account.findById(accountId);
+    if (!account?.isOperational) return res.status(400).json({ error: 'Account not active' });
+    const results = await ActionSvc.search(account, keyword, maxResults);
+    res.json({ results, total: results.length });
+  },
+
+  // ── Engagement Campaign ───────────────────────────────────────
+  // Create a campaign: add tweetUrl + select accounts + pick actions + set counts
+  async createCampaign(req, res) {
+    const {
+      name, tweetUrl,
+      accountIds, accountRole, accountTags,
+      actions, replyTexts,
+      targets, delayMinMs, delayMaxMs,
+    } = req.body;
+
+    if (!name || !tweetUrl || !actions?.length) {
+      return res.status(400).json({ error: 'name, tweetUrl, actions[] required' });
+    }
+
+    // Extract tweet ID from URL
+    const tweetId = (tweetUrl.match(/\/status\/(\d+)/) || [])[1] || null;
+    if (!tweetId) return res.status(400).json({ error: 'Invalid tweet URL — could not extract tweet ID' });
+
+    const campaign = await EngageCampaign.create({
+      name, tweetUrl, tweetId,
+      accountIds:   accountIds   || [],
+      accountRole:  accountRole  || null,
+      accountTags:  accountTags  || [],
+      actions,
+      replyTexts:   replyTexts   || [],
+      targets:      targets      || { likes:0, retweets:0, replies:0 },
+      delayMinMs:   delayMinMs   || 5000,
+      delayMaxMs:   delayMaxMs   || 15000,
+      createdBy: req.user._id,
+    });
+
+    res.status(201).json(campaign);
+  },
+
+  // ── Run campaign ──────────────────────────────────────────────
+  async runCampaign(req, res) {
+    const campaign = await EngageCampaign.findById(req.params.id);
+    if (!campaign) return res.status(404).json({ error: 'Campaign not found' });
+    if (campaign.status === 'running') return res.status(400).json({ error: 'Campaign already running' });
+
+    // Resolve accounts
+    let accountQuery = { isActive: true, status: 'active' };
+    if (campaign.accountIds?.length) {
+      accountQuery._id = { $in: campaign.accountIds };
+    } else if (campaign.accountRole) {
+      accountQuery.role = campaign.accountRole;
+    } else if (campaign.accountTags?.length) {
+      accountQuery.tags = { $in: campaign.accountTags };
+    }
+    const accounts = await Account.find(accountQuery);
+    if (!accounts.length) return res.status(400).json({ error: 'No active accounts match this campaign' });
+
+    campaign.status    = 'running';
+    campaign.startedAt = new Date();
+    await campaign.save();
+
+    res.json({ started: true, accounts: accounts.map(a => a.username), total: accounts.length });
+
+    // Background run
+    setImmediate(async () => {
+      try {
+        const results = await ActionSvc.engageTweet(
+          accounts, campaign.tweetId, campaign.actions,
+          { replyTexts: campaign.replyTexts, delayBetweenMs: [campaign.delayMinMs, campaign.delayMaxMs] }
+        );
+
+        campaign.status     = 'done';
+        campaign.finishedAt = new Date();
+        campaign.results    = results;
+        await campaign.save();
+
+        if (global.io) global.io.emit('campaign:done', { campaignId: campaign._id, name: campaign.name, results });
+        logger.info(`[Campaign] "${campaign.name}" done — ${accounts.length} accounts`);
+      } catch (e) {
+        campaign.status  = 'failed';
+        campaign.results = { error: e.message };
+        await campaign.save();
+        logger.error(`[Campaign] "${campaign.name}" failed: ${e.message}`);
+      }
+    });
+  },
+
+  async listCampaigns(req, res) {
+    const campaigns = await EngageCampaign.find().sort({ createdAt: -1 }).limit(100).lean();
+    res.json({ campaigns, total: campaigns.length });
+  },
+
+  async getCampaign(req, res) {
+    const campaign = await EngageCampaign.findById(req.params.id).lean();
+    if (!campaign) return res.status(404).json({ error: 'Not found' });
+    res.json(campaign);
+  },
+
+  async cancelCampaign(req, res) {
+    const campaign = await EngageCampaign.findByIdAndUpdate(req.params.id, { status: 'cancelled' }, { new: true });
+    res.json(campaign);
+  },
+
+  // ── AI suggestions ────────────────────────────────────────────
+  async suggestTweets(req, res) {
+    const { accountId, topic, count = 3, style } = req.body;
+    const account = await Account.findById(accountId).select('-credentials').lean();
+    if (!account) return res.status(404).json({ error: 'Account not found' });
+
+    const recent = (await Content.find({ account: accountId, status: 'منشور' })
+      .sort({ publishedAt: -1 }).limit(15).select('text').lean()).map(c => c.text);
+
+    const suggestions = await AISvc.suggestTweets({
+      niche: account.niche || 'general', style: style || 'educational',
+      topic, count, recentTweets: recent,
+    });
+
+    const drafts = await Promise.all(suggestions.map(s =>
+      Content.create({ account: accountId, text: s.text, status: 'مسودة', aiGenerated: true, qualityScore: s.qualityScore, riskScore: s.riskScore, aiSuggestion: s.note })
+    ));
+
+    res.json({ suggestions, drafts: drafts.map(d => d._id) });
+  },
+
+  async suggestReplies(req, res) {
+    const { accountId, originalText, count = 2 } = req.body;
+    const account = await Account.findById(accountId).select('-credentials').lean();
+    if (!account) return res.status(404).json({ error: 'Account not found' });
+    const suggestions = await AISvc.suggestReplies({ originalTweet: originalText, niche: account.niche || 'general', count });
+    res.json({ suggestions });
+  },
+
+  async scoreContent(req, res) {
+    const { text, accountId } = req.body;
+    if (!text) return res.status(400).json({ error: 'text required' });
+    const account = accountId ? await Account.findById(accountId).select('niche').lean() : null;
+    const result  = await AISvc.scoreContent(text, account?.niche);
+    res.json(result);
+  },
+
+  async analyzeRisk(req, res) {
+    const { accountId, plannedActions = [] } = req.body;
+    const account = await Account.findById(accountId).lean();
+    if (!account) return res.status(404).json({ error: 'Account not found' });
+    const oneHour   = new Date(Date.now() - 3_600_000);
+    const { ActivityLog } = require('../models/index');
+    const recent    = await ActivityLog.find({ account: accountId, category: 'engage', createdAt: { $gte: oneHour } }).lean();
+    const recentAct = recent.reduce((a,l) => { a[l.action]=(a[l.action]||0)+1; return a; }, {});
+    const result    = await AISvc.analyzeRisk({ username: account.username, recentActivity: recentAct, plannedActions });
+    res.json(result);
+  },
 };
 
-module.exports = AccountCtrl;
+module.exports = ActionCtrl;
