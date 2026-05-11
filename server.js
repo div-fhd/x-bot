@@ -63,6 +63,7 @@ app.use((req, res) => {
   if (req.path.startsWith('/api')) return res.status(404).json({ error: 'Route not found' });
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
+app.use('/console', express.static(path.join(__dirname, 'public/console')));
 app.use(errorHandler);
 
 
