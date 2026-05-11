@@ -209,7 +209,14 @@ const ActionCtrl = {
   },
 
   async tweetMulti(req, res) {
-    const { accountIds, text, mode = 'ai', varyText = false, manualTexts = [], delayMinMs = 8000, delayMaxMs = 25000, topic, hashtags, mediaPaths = [], imageOrder = 'same', batchSize = 1 } = req.body;
+    const {
+      accountIds, text, mode = 'ai', varyText = false, manualTexts = [],
+      delayMinMs = 8000, delayMaxMs = 25000, topic, hashtags,
+      mediaPaths = [], imageOrder = 'same', batchSize = 1,
+      // Auto-engage options
+      autoEngage = false, engageAccountIds = [], engageActions = ['like'],
+      engageReplyTexts = [], engageDelayMinMs = 8000, engageDelayMaxMs = 25000,
+    } = req.body;
     const actualTopic = topic || text;
     if (!accountIds?.length) return res.status(400).json({ error: 'accountIds[] required' });
     if (mode === 'ai' && !actualTopic) return res.status(400).json({ error: 'topic required for AI mode' });
@@ -259,6 +266,7 @@ const ActionCtrl = {
 
       const TMBrowser = require('../services/browser.service');
       let done = 0;
+      const successTweetIds = []; // collect for auto-engage
 
       for (let bi = 0; bi < accounts.length; bi += batchSize) {
         if (isCancelled(jobId)) {
@@ -280,6 +288,7 @@ const ActionCtrl = {
               account: account._id, text: t, status: 'منشور',
               publishedAt: new Date(), tweetId: r.tweetId, tweetUrl: r.tweetUrl,
             });
+            if (r.tweetUrl && !successTweetIds.includes(r.tweetUrl)) successTweetIds.push(r.tweetUrl);
             done++;
             updateJobProgress(jobId, done);
             if (global.io) global.io.emit('tweet:multi:progress', { username: account.username, done, total: accounts.length, success: true, tweetId: r.tweetId });
@@ -309,8 +318,82 @@ const ActionCtrl = {
       // safety net
       for (const acc of accounts) { TMBrowser.closeContext(acc._id.toString()).catch(() => {}); }
       finishJob(jobId);
-      if (global.io) global.io.emit('tweet:multi:done', { total: accounts.length, jobId });
+      if (global.io) global.io.emit('tweet:multi:done', { total: accounts.length, jobId, successTweetIds });
       logger.info(`[TweetMulti] Completed for ${accounts.length} accounts`);
+
+      // ── Auto-engage: launch campaign for each successful tweet ──
+      if (autoEngage && engageAccountIds.length && engageActions.length && successTweetIds.length) {
+        try {
+          const { EngageCampaign } = require('../models/index');
+          const { getQueue, QUEUE_NAMES } = require('../queues/queues');
+          const { registry } = require('../ops/operations.registry');
+
+          const engAccounts = await Account.find({
+            _id: { $in: engageAccountIds },
+            isActive: true,
+            status: 'active',
+          });
+
+          if (engAccounts.length) {
+            for (const tweetUrl of successTweetIds) {
+              const tweetId = tweetUrl.match(/status\/([\d]+)/)?.[1] || tweetUrl;
+              const campName = `Auto — ${tweetId.slice(-8)}`;
+
+              const campaign = await EngageCampaign.create({
+                name: campName, tweetUrl, tweetId,
+                accountIds: engageAccountIds,
+                actions: engageActions,
+                replyTexts: engageReplyTexts,
+                delayMinMs: engageDelayMinMs,
+                delayMaxMs: engageDelayMaxMs,
+                status: 'running',
+                startedAt: new Date(),
+              });
+
+              // Shuffle accounts — anti-pattern
+              const shuffleArr = arr => [...arr].sort(() => Math.random() - 0.5);
+              const queue = getQueue(QUEUE_NAMES.ENGAGEMENT);
+              const parentJobId = `engagement-auto-${campaign._id}-${Date.now()}`;
+              const jobs = [];
+
+              for (const action of engageActions) {
+                const ordered = shuffleArr(engAccounts);
+                for (let i = 0; i < ordered.length; i++) {
+                  const acc = ordered[i];
+                  const actionOffset = { like:0, retweet:5000, reply:10000, follow_author:15000 }[action] || 0;
+                  const baseDelay = i * (engageDelayMinMs + Math.random() * (engageDelayMaxMs - engageDelayMinMs));
+                  const replyText = action === 'reply' && engageReplyTexts.length
+                    ? engageReplyTexts[i % engageReplyTexts.length] : null;
+                  jobs.push({
+                    name: QUEUE_NAMES.ENGAGEMENT,
+                    data: {
+                      accountId: acc._id.toString(), campaignId: campaign._id.toString(),
+                      action, tweetId, tweetUrl, replyText,
+                      meta: { parentJobId, index: jobs.length, total: engageActions.length * ordered.length },
+                    },
+                    opts: { delay: Math.round(baseDelay + actionOffset), attempts: 2,
+                      jobId: `eng-auto-${campaign._id}-${action}-${acc._id}-${Date.now()}` },
+                  });
+                }
+              }
+
+              jobs.forEach((j,i) => { j.data.meta.index = i; j.data.meta.total = jobs.length; });
+              await queue.addBulk(jobs);
+
+              registry.create({ parentJobId, type:'engagement', total: jobs.length,
+                accountUsernames: engAccounts.map(a => a.username),
+                meta: { auto:true, campaignId: campaign._id.toString(), tweetId, actions: engageActions },
+              });
+              registry.registerJobs(parentJobId, jobs.map(j => j.opts.jobId));
+
+              logger.info(`[TweetMulti] Auto-engage launched for tweet ${tweetId} — ${jobs.length} jobs`);
+              if (global.io) global.io.emit('engagement:auto:started', { tweetId, campaignId: campaign._id, total: jobs.length });
+            }
+          }
+        } catch(e) {
+          logger.error(`[TweetMulti] Auto-engage error: ${e.message}`);
+        }
+      }
     });
   },
 
