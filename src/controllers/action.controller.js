@@ -226,11 +226,31 @@ const ActionCtrl = {
     const accounts = await Account.find({ _id: { $in: accountIds }, isActive: true, status: 'active' });
     if (!accounts.length) return res.status(400).json({ error: 'No active accounts found' });
 
-    // Respond immediately, run in background
-    const jobId = createJob('tweet-multi', accounts);
-    res.json({ queued: true, jobId, accounts: accounts.map(a => a.username), total: accounts.length });
+    // Queue via BullMQ
+    const { parentJobId, jobCount, jobIds } = await queueBulkOp(
+      QUEUE_NAMES.TWEET_MULTI, accounts,
+      (account, idx) => ({
+        accountId: account._id.toString(),
+        mode,
+        text: mode === 'same' ? text : topic,
+        topic, hashtags, manualTexts, mediaPaths,
+        imageOrder, accountIndex: idx,
+        autoEngage, engageAccountIds, engageActions,
+        engageReplyTexts, engageDelayMinMs, engageDelayMaxMs,
+      }),
+      delayMinMs, delayMaxMs
+    );
+    const op = registry.create({
+      parentJobId, type: 'tweet-multi', total: accounts.length,
+      accountUsernames: accounts.map(a => a.username),
+      meta: { mode, topic: topic || text },
+    });
+    registry.registerJobs(parentJobId, jobIds);
+    logger.info(`[tweetMulti] Queued ${jobCount} jobs → ${parentJobId}`);
+    res.json({ queued: true, jobId: parentJobId, total: accounts.length });
+    return; // rest is legacy setImmediate kept for fallback reference
 
-    // Background execution
+    // Legacy setImmediate (kept for reference, not executed)
     setImmediate(async () => {
       // توزيع الصور — كل تغريدة تأخذ حتى 4 صور
       const shuffled = arr => [...arr].sort(() => Math.random() - 0.5);
@@ -288,7 +308,8 @@ const ActionCtrl = {
               account: account._id, text: t, status: 'منشور',
               publishedAt: new Date(), tweetId: r.tweetId, tweetUrl: r.tweetUrl,
             });
-            if (r.tweetUrl && !successTweetIds.includes(r.tweetUrl)) successTweetIds.push(r.tweetUrl);
+            const tUrl = r.tweetUrl || (r.tweetId ? `https://x.com/${account.username}/status/${r.tweetId}` : null);
+            if (tUrl && !successTweetIds.includes(tUrl)) successTweetIds.push(tUrl);
             done++;
             updateJobProgress(jobId, done);
             if (global.io) global.io.emit('tweet:multi:progress', { username: account.username, done, total: accounts.length, success: true, tweetId: r.tweetId });

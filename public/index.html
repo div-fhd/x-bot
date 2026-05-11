@@ -1500,7 +1500,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
             <!-- Actions -->
             <div class="field" style="margin-bottom:12px">
               <label>إجراءات التفاعل</label>
-              <div id="tm-eng-actions" style="display:flex;gap:6px;flex-wrap:wrap"><button type="button" class="act-toggle on" data-action="like" data-prefix="tm-eng" onclick="toggleActionBtn(this, 'tm-eng')"><svg viewBox="0 0 16 16" fill="none" width="13" height="13"><path d="M8 13.5S1.5 9.8 1.5 5.5a3 3 0 0 1 5.5-1.7A3 3 0 0 1 12.5 5.5c0 4.3-4.5 8-4.5 8z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg> إعجاب</button><button type="button" class="act-toggle " data-action="retweet" data-prefix="tm-eng" onclick="toggleActionBtn(this, 'tm-eng')"><svg viewBox="0 0 16 16" fill="none" width="13" height="13"><path d="M2 5h9a2 2 0 0 1 2 2v1M14 11H5a2 2 0 0 1-2-2V8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M12 3l2 2-2 2M4 9l-2 2 2 2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg> ريتويت</button><button type="button" class="act-toggle " data-action="reply" data-prefix="tm-eng" onclick="toggleActionBtn(this, 'tm-eng'); toggleReplyWrap('tm-eng')"><svg viewBox="0 0 16 16" fill="none" width="13" height="13"><path d="M2 3h12a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H5l-3 3V4a1 1 0 0 1 1-1z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg> رد</button></div>
+              <div id="tm-eng-actions" style="display:flex;gap:6px;flex-wrap:wrap"><button type="button" class="act-toggle" data-on="1" style="background:rgba(242,86,104,.22);border-color:rgba(242,86,104,.5);color:#f47085" data-action="like" data-prefix="tm-eng" onclick="toggleActionBtn(this)"><svg viewBox="0 0 16 16" fill="none" width="13" height="13"><path d="M8 13.5S1.5 9.8 1.5 5.5a3 3 0 0 1 5.5-1.7A3 3 0 0 1 12.5 5.5c0 4.3-4.5 8-4.5 8z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg> إعجاب</button><button type="button" class="act-toggle" data-on="0" data-action="retweet" data-prefix="tm-eng" onclick="toggleActionBtn(this)"><svg viewBox="0 0 16 16" fill="none" width="13" height="13"><path d="M2 5h9a2 2 0 0 1 2 2v1M14 11H5a2 2 0 0 1-2-2V8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M12 3l2 2-2 2M4 9l-2 2 2 2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg> ريتويت</button><button type="button" class="act-toggle" data-on="0" data-action="reply" data-prefix="tm-eng" onclick="toggleActionBtn(this)"><svg viewBox="0 0 16 16" fill="none" width="13" height="13"><path d="M2 3h12a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H5l-3 3V4a1 1 0 0 1 1-1z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg> رد</button></div>
             </div>
 
             <!-- Reply texts -->
@@ -2226,7 +2226,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
     <!-- Actions -->
     <div class="field" style="margin-bottom:14px">
       <label>الإجراءات — اختر واحد أو أكثر</label>
-      <div id="eng-actions" style="display:flex;gap:6px;flex-wrap:wrap"><button type="button" class="act-toggle on" data-action="like" data-prefix="eng" onclick="toggleActionBtn(this, 'eng')"><svg viewBox="0 0 16 16" fill="none" width="13" height="13"><path d="M8 13.5S1.5 9.8 1.5 5.5a3 3 0 0 1 5.5-1.7A3 3 0 0 1 12.5 5.5c0 4.3-4.5 8-4.5 8z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg> إعجاب</button><button type="button" class="act-toggle " data-action="retweet" data-prefix="eng" onclick="toggleActionBtn(this, 'eng')"><svg viewBox="0 0 16 16" fill="none" width="13" height="13"><path d="M2 5h9a2 2 0 0 1 2 2v1M14 11H5a2 2 0 0 1-2-2V8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M12 3l2 2-2 2M4 9l-2 2 2 2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg> ريتويت</button><button type="button" class="act-toggle " data-action="reply" data-prefix="eng" onclick="toggleActionBtn(this, 'eng'); toggleReplyWrap('eng')"><svg viewBox="0 0 16 16" fill="none" width="13" height="13"><path d="M2 3h12a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H5l-3 3V4a1 1 0 0 1 1-1z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg> رد</button><button type="button" class="act-toggle " data-action="follow_author" data-prefix="eng" onclick="toggleActionBtn(this, 'eng')"><svg viewBox="0 0 16 16" fill="none" width="13" height="13"><circle cx="7" cy="5" r="3" stroke="currentColor" stroke-width="1.4"/><path d="M1 13c0-3 2.7-4 6-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M12 10v4M10 12h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg> متابعة</button></div>
+      <div id="eng-actions" style="display:flex;gap:6px;flex-wrap:wrap"><button type="button" class="act-toggle" data-on="1" style="background:rgba(242,86,104,.22);border-color:rgba(242,86,104,.5);color:#f47085" data-action="like" data-prefix="eng" onclick="toggleActionBtn(this)"><svg viewBox="0 0 16 16" fill="none" width="13" height="13"><path d="M8 13.5S1.5 9.8 1.5 5.5a3 3 0 0 1 5.5-1.7A3 3 0 0 1 12.5 5.5c0 4.3-4.5 8-4.5 8z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg> إعجاب</button><button type="button" class="act-toggle" data-on="0" data-action="retweet" data-prefix="eng" onclick="toggleActionBtn(this)"><svg viewBox="0 0 16 16" fill="none" width="13" height="13"><path d="M2 5h9a2 2 0 0 1 2 2v1M14 11H5a2 2 0 0 1-2-2V8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M12 3l2 2-2 2M4 9l-2 2 2 2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg> ريتويت</button><button type="button" class="act-toggle" data-on="0" data-action="reply" data-prefix="eng" onclick="toggleActionBtn(this)"><svg viewBox="0 0 16 16" fill="none" width="13" height="13"><path d="M2 3h12a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H5l-3 3V4a1 1 0 0 1 1-1z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg> رد</button><button type="button" class="act-toggle" data-on="0" data-action="follow_author" data-prefix="eng" onclick="toggleActionBtn(this)"><svg viewBox="0 0 16 16" fill="none" width="13" height="13"><circle cx="7" cy="5" r="3" stroke="currentColor" stroke-width="1.4"/><path d="M1 13c0-3 2.7-4 6-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M12 10v4M10 12h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg> متابعة</button></div>
     </div>
 
     <!-- Reply texts -->
@@ -4939,19 +4939,47 @@ async function openAssignTabInit() {
 
 // ── Bulk proxy import ────────────────────────────────────────
 // ── Action toggle buttons ───────────────────────────────────
-function toggleActionBtn(btn, prefix) {
-  btn.classList.toggle('on');
-  // show/hide reply wrap based on prefix
-  const hasReply = getSelectedActions(prefix).includes('reply');
-  const wrap = document.getElementById(prefix + '-reply-wrap') ||
-               document.getElementById(prefix === 'eng' ? 'eng-reply-wrap' : 'tm-eng-reply-wrap');
-  if (wrap) wrap.style.display = hasReply ? 'block' : 'none';
+const ACT_COLORS = {
+  like:'rgba(242,86,104,.22)', retweet:'rgba(91,141,249,.22)',
+  reply:'rgba(168,130,255,.22)', follow_author:'rgba(248,179,64,.22)'
+};
+const ACT_BORDER = {
+  like:'rgba(242,86,104,.5)', retweet:'rgba(91,141,249,.5)',
+  reply:'rgba(168,130,255,.5)', follow_author:'rgba(248,179,64,.5)'
+};
+const ACT_TEXT = {
+  like:'#f47085', retweet:'#8cb4ff',
+  reply:'#c4a8ff', follow_author:'#f8b340'
+};
+
+function toggleActionBtn(btn) {
+  const isOn = btn.dataset.on === '1';
+  const action = btn.dataset.action;
+  if (isOn) {
+    btn.dataset.on = '0';
+    btn.style.background = 'var(--s3)';
+    btn.style.borderColor = 'var(--bd2)';
+    btn.style.color = 'var(--t2)';
+  } else {
+    btn.dataset.on = '1';
+    btn.style.background = ACT_COLORS[action] || 'rgba(255,255,255,.1)';
+    btn.style.borderColor = ACT_BORDER[action] || 'rgba(255,255,255,.3)';
+    btn.style.color = ACT_TEXT[action] || 'var(--t0)';
+  }
+  // reply wrap
+  const prefix = btn.closest('[id$="-actions"]')?.id?.replace('-actions','');
+  if (prefix) {
+    const hasReply = getSelectedActions(prefix).includes('reply');
+    const wrapId = prefix === 'eng' ? 'eng-reply-wrap' : 'tm-eng-reply-wrap';
+    const wrap = document.getElementById(wrapId);
+    if (wrap) wrap.style.display = hasReply ? 'block' : 'none';
+  }
 }
 
 function getSelectedActions(prefix) {
   const container = document.getElementById(prefix + '-actions');
   if (!container) return [];
-  return [...container.querySelectorAll('.act-toggle.on')].map(b => b.dataset.action);
+  return [...container.querySelectorAll('[data-on="1"]')].map(b => b.dataset.action);
 }
 
 function toggleReplyWrap(prefix) {
