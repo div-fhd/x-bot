@@ -11,7 +11,12 @@ const logger     = require('../../utils/logger');
 module.exports = wrapProcessor(async function tweetMultiProcessor(job) {
   const { accountId, mode, text, topic, hashtags, manualTexts, mediaPaths, meta } = job.data;
   const account = await Account.findById(accountId);
-  if (!account?.isActive) throw new Error(`SKIP: @${account?.username} — inactive`);
+    if (!account.isActive)
+    throw new Error(`SKIP: @${account.username} — inactive`);
+  if (['suspended','locked','dead','auth_required'].includes(account.status))
+    throw new Error(`SKIP: @${account.username} — ${account.status}`);
+  if (!account.canDo('post'))
+    throw new Error(`SKIP: @{account.username} — daily post cap reached`);
   await job.updateProgress(10);
   try {
     let finalText = text;
@@ -22,6 +27,7 @@ module.exports = wrapProcessor(async function tweetMultiProcessor(job) {
       finalText = (manualTexts || [])[meta.index % (manualTexts?.length || 1)] || text;
     }
     const r = await ActionSvc.tweet(account, { text: finalText, mediaLocalPaths: mediaPaths || [] });
+    await account.bump('post').catch(() => {});
     await Content.create({ account: account._id, text: finalText, status: 'published', publishedAt: new Date(), tweetId: r.tweetId });
     await job.updateProgress(100);
     jobEvents.tweetProg({ username: account.username, done: meta.index + 1, total: meta.total, success: true, tweetId: r.tweetId });
