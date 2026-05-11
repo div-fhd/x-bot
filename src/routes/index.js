@@ -74,6 +74,9 @@ proxyRouter.post  ('/auto-distribute', proxyCtrl.autoDistribute);
 proxyRouter.post  ('/remove-from-accounts', proxyCtrl.removeFromAccounts);
 proxyRouter.post  ('/:id/check',            proxyCtrl.checkProxy);
 proxyRouter.post  ('/:id/check',           proxyCtrl.checkProxy);
+proxyRouter.post  ('/check-url',            proxyCtrl.checkUrl);
+proxyRouter.post  ('/bulk-import',         proxyCtrl.bulkImport);
+proxyRouter.post  ('/bulk-validate',       proxyCtrl.bulkValidate);
 
 // ── Operations Management ────────────────────────────────────
 const opsCtrl   = require('../ops/ops.controller');

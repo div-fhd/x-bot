@@ -213,4 +213,107 @@ module.exports = {
       res.json({ ok: false, error: e.message });
     }
   },
+
+  // ── Bulk import proxies ───────────────────────────────────
+  // ── Check proxy URL (no DB) ────────────────────────────────
+  async checkUrl(req, res) {
+    const { url } = req.body;
+    if (!url) return res.status(400).json({ error: 'url required' });
+    const net = require('net');
+    const start = Date.now();
+    try {
+      const pu   = new URL(url);
+      const host = pu.hostname;
+      const port = parseInt(pu.port) || 80;
+      await new Promise((resolve, reject) => {
+        const sock = net.createConnection({ host, port, timeout: 8000 });
+        sock.on('connect', () => { sock.destroy(); resolve(); });
+        sock.on('timeout', () => { sock.destroy(); reject(new Error('timeout')); });
+        sock.on('error', reject);
+      });
+      res.json({ ok: true, latency: Date.now() - start });
+    } catch(e) {
+      res.json({ ok: false, error: e.message });
+    }
+  },
+
+  async bulkImport(req, res) {
+    const { lines = [], autoAssign = false, assignTarget = 'no-proxy' } = req.body;
+    if (!lines.length) return res.status(400).json({ error: 'No proxies provided' });
+
+    const Proxy   = require('../models/index').Proxy;
+    const Account = require('../models/Account');
+
+    let added = 0, skipped = 0, failed = 0;
+    const addedProxies = [];
+
+    for (const { name, url } of lines) {
+      try {
+        const exists = await Proxy.findOne({ url });
+        if (exists) { skipped++; addedProxies.push(exists); continue; }
+        const proxy = await Proxy.create({ name, url });
+        addedProxies.push(proxy);
+        added++;
+      } catch { failed++; }
+    }
+
+    // Auto-assign after import
+    let assigned = 0;
+    if (autoAssign && addedProxies.length) {
+      const query = assignTarget === 'no-proxy'
+        ? { 'network.proxyUrl': { $in: [null, undefined, ''] } }
+        : assignTarget === 'active'
+          ? { status: 'active' }
+          : {};
+      const accounts = await Account.find(query).lean();
+
+      for (let i = 0; i < accounts.length; i++) {
+        const proxy = addedProxies[i % addedProxies.length];
+        await Account.updateOne(
+          { _id: accounts[i]._id },
+          { $set: { 'network.proxyUrl': proxy.url } }
+        );
+        assigned++;
+      }
+    }
+
+    logger.info(`[Proxy] Bulk import: +${added} added, ${skipped} skipped, ${failed} failed${assigned ? `, ${assigned} assigned` : ''}`);
+    res.json({ added, skipped, failed, assigned, total: lines.length });
+  },
+
+  // ── Bulk validate proxies ─────────────────────────────────
+  async bulkValidate(req, res) {
+    const { proxyIds = [] } = req.body;
+    const Proxy = require('../models/index').Proxy;
+    const net   = require('net');
+
+    const proxies = proxyIds.length
+      ? await Proxy.find({ _id: { $in: proxyIds } })
+      : await Proxy.find();
+
+    const results = await Promise.allSettled(proxies.map(async (proxy) => {
+      const start = Date.now();
+      try {
+        const url  = new URL(proxy.url);
+        const host = url.hostname;
+        const port = parseInt(url.port) || 80;
+        await new Promise((resolve, reject) => {
+          const sock = net.createConnection({ host, port, timeout: 8000 });
+          sock.on('connect', () => { sock.destroy(); resolve(); });
+          sock.on('timeout', () => { sock.destroy(); reject(new Error('timeout')); });
+          sock.on('error', reject);
+        });
+        const latency = Date.now() - start;
+        await Proxy.updateOne({ _id: proxy._id }, { $set: { status: 'active', latencyMs: latency, lastCheckedAt: new Date() } });
+        return { id: proxy._id, ok: true, latency };
+      } catch(e) {
+        await Proxy.updateOne({ _id: proxy._id }, { $set: { status: 'dead', lastCheckedAt: new Date() } });
+        return { id: proxy._id, ok: false, error: e.message };
+      }
+    }));
+
+    const out = results.map(r => r.status === 'fulfilled' ? r.value : { ok: false, error: r.reason?.message });
+    res.json({ results: out, healthy: out.filter(r=>r.ok).length, total: out.length });
+  },
+
 };

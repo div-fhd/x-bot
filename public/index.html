@@ -1110,33 +1110,93 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 
     <!-- Tab: Bulk Import -->
     <div id="proxy-tab-bulk" style="display:none">
-      <div class="notice notice-info" style="margin-bottom:12px">
+      <div class="notice notice-info" style="margin-bottom:14px">
         <span class="notice-ico">ℹ</span>
-        <span>الصيغة: <code style="background:var(--s4);padding:2px 6px;border-radius:4px;font-family:var(--m)">http://user:pass@host:port</code> — سطر لكل بروكسي. يمكن إضافة اسم اختياري: <code style="background:var(--s4);padding:2px 6px;border-radius:4px;font-family:var(--m)">اسم|http://user:pass@host:port</code></span>
-      </div>
-      <div class="card" style="margin-bottom:12px">
-        <div class="card-h"><span class="card-title">الصق البروكسيات</span></div>
-        <div class="card-b">
-          <textarea id="proxy-bulk-txt" rows="8" placeholder="SOAX-1|http://user:pass@proxy.soax.com:5000&#10;SOAX-2|http://user:pass@proxy.soax.com:5001&#10;http://user:pass@proxy.soax.com:5002" style="font-family:var(--m);font-size:12px;direction:ltr" oninput="parseBulkProxies()"></textarea>
+        <div>
+          <div style="margin-bottom:4px">الصيغ المدعومة — سطر لكل بروكسي:</div>
+          <code style="font-family:var(--m);font-size:11px;color:var(--blu2)">http://user:pass@host:port</code><br>
+          <code style="font-family:var(--m);font-size:11px;color:var(--blu2)">اسم|http://user:pass@host:port</code><br>
+          <code style="font-family:var(--m);font-size:11px;color:var(--t2)">socks5://user:pass@host:port</code>
         </div>
       </div>
-      <div id="proxy-bulk-preview" style="display:none;margin-bottom:12px">
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:10px">
-          <div class="istat"><div class="istat-num" id="pbulk-total">0</div><div class="istat-lbl">الإجمالي</div></div>
-          <div class="istat"><div class="istat-num" style="color:var(--grn)" id="pbulk-valid">0</div><div class="istat-lbl">صالح</div></div>
-          <div class="istat"><div class="istat-num" style="color:var(--red)" id="pbulk-err">0</div><div class="istat-lbl">خطأ</div></div>
+
+      <!-- Textarea + live preview -->
+      <div class="g2" style="margin-bottom:14px">
+        <div class="card">
+          <div class="card-h"><span class="card-title">الصق البروكسيات</span></div>
+          <div class="card-b">
+            <textarea id="proxy-bulk-txt" rows="10"
+              placeholder="DataImpulse-1|http://user:pass@gw.dataimpulse.com:823&#10;DataImpulse-2|http://user:pass@gw.dataimpulse.com:824&#10;http://user:pass@proxy.soax.com:5000"
+              style="font-family:var(--m);font-size:12px;direction:ltr;resize:vertical"
+              oninput="parseBulkProxies()"></textarea>
+          </div>
         </div>
-        <div class="card" style="overflow:auto;max-height:180px">
+        <div>
+          <!-- Stats -->
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px">
+            <div class="istat"><div class="istat-num" id="pbulk-total">0</div><div class="istat-lbl">الإجمالي</div></div>
+            <div class="istat"><div class="istat-num" style="color:var(--grn)" id="pbulk-valid">0</div><div class="istat-lbl">صالح</div></div>
+            <div class="istat"><div class="istat-num" style="color:var(--red)" id="pbulk-err">0</div><div class="istat-lbl">خطأ</div></div>
+          </div>
+
+          <!-- Options -->
+          <div class="card" style="margin-bottom:12px">
+            <div class="card-h"><span class="card-title">خيارات الاستيراد</span></div>
+            <div class="card-b" style="display:flex;flex-direction:column;gap:12px">
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;text-transform:none;letter-spacing:0;font-size:12.5px;font-weight:500">
+                <input type="checkbox" id="pbulk-auto-assign" style="width:14px;height:14px;accent-color:var(--blu)" checked>
+                تعيين تلقائي على الحسابات بعد الاستيراد
+              </label>
+              <div class="field" id="pbulk-assign-opts">
+                <label>الحسابات المستهدفة</label>
+                <select id="pbulk-assign-target">
+                  <option value="no-proxy" selected>بدون بروكسي فقط</option>
+                  <option value="active">كل الحسابات النشطة</option>
+                  <option value="all">كل الحسابات</option>
+                </select>
+              </div>
+              <div style="font-size:11px;color:var(--t2);background:var(--s3);border-radius:8px;padding:10px">
+                <span id="pbulk-distribution-info">أدخل البروكسيات لمعاينة التوزيع</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Preview table -->
+      <div id="proxy-bulk-preview" style="display:none;margin-bottom:14px">
+        <div class="card" style="max-height:200px;overflow:auto">
           <table class="tbl" id="pbulk-tbl">
             <thead><tr><th>#</th><th>الاسم</th><th>الرابط</th><th>الحالة</th></tr></thead>
             <tbody></tbody>
           </table>
         </div>
       </div>
-      <div style="display:flex;gap:10px;align-items:center">
-        <button class="btn btn-p" id="proxy-bulk-btn" onclick="doBulkImportProxies()" disabled style="opacity:.5">استيراد البروكسيات</button>
+
+      <!-- Actions -->
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <button class="btn btn-p" id="proxy-bulk-btn" onclick="doBulkImportProxies()" disabled style="opacity:.5">
+          📥 استيراد
+        </button>
+        <button class="btn" id="proxy-bulk-validate-btn" onclick="validateBulkProxies()" disabled style="opacity:.5">
+          🔍 فحص الاتصال
+        </button>
         <button class="btn" onclick="document.getElementById('proxy-bulk-txt').value='';parseBulkProxies()">مسح</button>
         <span id="proxy-bulk-status" style="font-size:12px;color:var(--t2)"></span>
+      </div>
+
+      <!-- Import progress -->
+      <div id="proxy-bulk-progress" style="display:none;margin-top:14px">
+        <div class="prog-wrap">
+          <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:10px">
+            <span id="pbulk-progress-label">جارٍ الاستيراد...</span>
+            <span id="pbulk-progress-count" style="font-family:var(--m);color:var(--t2)"></span>
+          </div>
+          <div style="height:4px;background:var(--s4);border-radius:2px;overflow:hidden">
+            <div id="pbulk-progress-bar" style="height:100%;width:0%;background:var(--grn);border-radius:2px;transition:width .3s"></div>
+          </div>
+          <div id="pbulk-result" style="margin-top:10px;font-size:12px;font-family:var(--m);display:none"></div>
+        </div>
       </div>
     </div>
 
@@ -4699,53 +4759,161 @@ async function openAssignTabInit() {
 }
 
 // ── Bulk proxy import ────────────────────────────────────────
+// ── Parse proxy lines ──────────────────────────────────────
+function parseProxyLine(line, idx) {
+  line = line.trim();
+  if (!line || line.startsWith('#')) return null;
+  let name = '', url = '';
+  if (line.includes('|')) {
+    const pipeIdx = line.indexOf('|');
+    name = line.slice(0, pipeIdx).trim();
+    url  = line.slice(pipeIdx + 1).trim();
+  } else {
+    url  = line;
+    // Auto-name from host
+    try { const u = new URL(url); name = u.hostname.split('.')[0] + '-' + (idx+1); }
+    catch { name = 'Proxy-' + (idx+1); }
+  }
+  const valid = url.startsWith('http://') || url.startsWith('https://') || url.startsWith('socks5://');
+  return { name, url, valid };
+}
+
 function parseBulkProxies() {
-  const raw = document.getElementById('proxy-bulk-txt').value.trim();
-  const lines = raw.split('\n').filter(l=>l.trim());
-  const prev = document.getElementById('proxy-bulk-preview');
-  if (!lines.length) { prev.style.display='none'; document.getElementById('proxy-bulk-btn').disabled=true; document.getElementById('proxy-bulk-btn').style.opacity='.5'; return; }
-  let valid=0,errors=0;
-  const rows = lines.map((line,i)=>{
-    let name='', url='';
-    if (line.includes('|')) { [name,...rest]=line.split('|'); url=rest.join('|').trim(); name=name.trim(); }
-    else { url=line.trim(); name=`Proxy-${i+1}`; }
-    const ok = url.startsWith('http://')||url.startsWith('https://')||url.startsWith('socks5://');
-    if (ok) valid++; else errors++;
-    return `<tr><td style="font-family:var(--m);color:var(--t2)">${i+1}</td><td>${name}</td><td style="font-family:var(--m);font-size:11px;direction:ltr;color:var(--t1)">${url.slice(0,40)}${url.length>40?'…':''}</td><td>${ok?'<span class="pill p-g">✓</span>':'<span class="pill p-r">خطأ</span>'}</td></tr>`;
+  const raw   = document.getElementById('proxy-bulk-txt').value.trim();
+  const lines = raw.split('\n').filter(l => l.trim() && !l.trim().startsWith('#'));
+  const prev  = document.getElementById('proxy-bulk-preview');
+
+  if (!lines.length) {
+    prev.style.display = 'none';
+    ['proxy-bulk-btn','proxy-bulk-validate-btn'].forEach(id => {
+      const el = document.getElementById(id);
+      if(el){el.disabled=true;el.style.opacity='.5';}
+    });
+    document.getElementById('pbulk-distribution-info').textContent = 'أدخل البروكسيات لمعاينة التوزيع';
+    return;
+  }
+
+  let valid = 0, errors = 0;
+  const parsed = lines.map((line, i) => parseProxyLine(line, i));
+  const rows = parsed.map((p, i) => {
+    if (!p) return '';
+    if (p.valid) valid++; else errors++;
+    const urlShow = p.url.length > 45 ? p.url.slice(0,45)+'…' : p.url;
+    return `<tr>
+      <td style="font-family:var(--m);color:var(--t2)">${i+1}</td>
+      <td style="font-weight:600">${p.name}</td>
+      <td style="font-family:var(--m);font-size:10.5px;direction:ltr;color:var(--t1)">${urlShow}</td>
+      <td>${p.valid ? '<span class="pill p-g">✓ صالح</span>' : '<span class="pill p-r">✕ خطأ</span>'}</td>
+    </tr>`;
   });
-  prev.style.display='block';
-  document.getElementById('pbulk-total').textContent=lines.length;
-  document.getElementById('pbulk-valid').textContent=valid;
-  document.getElementById('pbulk-err').textContent=errors;
-  document.getElementById('pbulk-tbl').querySelector('tbody').innerHTML=rows.join('');
-  const btn=document.getElementById('proxy-bulk-btn');
-  btn.disabled=valid===0; btn.style.opacity=valid>0?'1':'.5';
-  document.getElementById('proxy-bulk-status').textContent=`${valid} بروكسي صالح`;
+
+  prev.style.display = 'block';
+  document.getElementById('pbulk-total').textContent = lines.length;
+  document.getElementById('pbulk-valid').textContent = valid;
+  document.getElementById('pbulk-err').textContent   = errors;
+  document.getElementById('pbulk-tbl').querySelector('tbody').innerHTML = rows.join('');
+
+  const canImport = valid > 0;
+  ['proxy-bulk-btn','proxy-bulk-validate-btn'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el){el.disabled=!canImport;el.style.opacity=canImport?'1':'.5';}
+  });
+
+  // Distribution preview
+  const target = document.getElementById('pbulk-assign-target')?.value || 'no-proxy';
+  const infoEl = document.getElementById('pbulk-distribution-info');
+  if (infoEl) {
+    const mode = { 'no-proxy':'الحسابات بدون بروكسي', 'active':'الحسابات النشطة', 'all':'كل الحسابات' }[target] || '';
+    infoEl.textContent = `${valid} بروكسي × round-robin على ${mode}`;
+  }
 }
 
 async function doBulkImportProxies() {
-  const raw=document.getElementById('proxy-bulk-txt').value.trim();
-  const lines=raw.split('\n').filter(l=>l.trim());
-  const proxies = lines.map((line,i)=>{
-    let name='',url='';
-    if (line.includes('|')) { const parts=line.split('|'); name=parts[0].trim(); url=parts.slice(1).join('|').trim(); }
-    else { url=line.trim(); name=`Proxy-${i+1}`; }
-    return { name, url };
-  }).filter(p=>p.url.startsWith('http')||p.url.startsWith('socks'));
-  if (!proxies.length) return toast('لا توجد بروكسيات صالحة','warn');
-  const stat=document.getElementById('proxy-bulk-status');
-  stat.textContent='جارٍ الاستيراد...';
-  let added=0, failed=0;
-  for (const p of proxies) {
-    try { await api('/api/v1/proxies',{method:'POST',body:JSON.stringify(p)}); added++; }
-    catch { failed++; }
+  const raw    = document.getElementById('proxy-bulk-txt').value.trim();
+  const lines  = raw.split('\n').map((l,i) => parseProxyLine(l,i)).filter(p => p?.valid);
+  if (!lines.length) return toast('لا توجد بروكسيات صالحة','warn');
+
+  const autoAssign    = document.getElementById('pbulk-auto-assign')?.checked ?? true;
+  const assignTarget  = document.getElementById('pbulk-assign-target')?.value || 'no-proxy';
+
+  const prog  = document.getElementById('proxy-bulk-progress');
+  const bar   = document.getElementById('pbulk-progress-bar');
+  const label = document.getElementById('pbulk-progress-label');
+  const count = document.getElementById('pbulk-progress-count');
+  const result= document.getElementById('pbulk-result');
+
+  prog.style.display = 'block';
+  result.style.display = 'none';
+  label.textContent = 'جارٍ الاستيراد...';
+  count.textContent = `0/${lines.length}`;
+  bar.style.width = '0%';
+
+  try {
+    const d = await api('/api/v1/proxies/bulk-import', {
+      method: 'POST',
+      body: JSON.stringify({ lines, autoAssign, assignTarget }),
+    });
+
+    bar.style.width = '100%';
+    bar.style.background = 'var(--grn)';
+    label.textContent = '✅ اكتمل الاستيراد';
+    count.textContent = `${d.added + d.skipped}/${lines.length}`;
+
+    result.style.display = 'block';
+    result.innerHTML = `
+      <div style="display:flex;gap:16px;flex-wrap:wrap">
+        <span style="color:var(--grn)">✓ أُضيف: <strong>${d.added}</strong></span>
+        ${d.skipped ? `<span style="color:var(--t2)">↷ موجود مسبقاً: <strong>${d.skipped}</strong></span>` : ''}
+        ${d.failed  ? `<span style="color:var(--red)">✕ فشل: <strong>${d.failed}</strong></span>` : ''}
+        ${d.assigned ? `<span style="color:var(--blu2)">⚡ عُيّن على: <strong>${d.assigned}</strong> حساب</span>` : ''}
+      </div>`;
+
+    toast(`✅ ${d.added} بروكسي${d.assigned ? ` · عُيّن على ${d.assigned} حساب` : ''}`, 'ok');
+    document.getElementById('proxy-bulk-txt').value = '';
+    parseBulkProxies();
+    loadProxies();
+    // Switch to list tab after 1.5s
+    setTimeout(() => showProxyTab('list'), 1500);
+  } catch(e) {
+    bar.style.background = 'var(--red)';
+    label.textContent = '❌ فشل الاستيراد';
+    toast(e.message, 'err');
   }
-  toast(`✅ أضيف ${added} بروكسي${failed?` | فشل ${failed}`:''}`, added>0?'ok':'err');
-  stat.textContent='';
-  document.getElementById('proxy-bulk-txt').value='';
-  parseBulkProxies();
-  loadProxies();
-  showProxyTab('list');
+}
+
+async function validateBulkProxies() {
+  const raw   = document.getElementById('proxy-bulk-txt').value.trim();
+  const lines = raw.split('\n').map((l,i) => parseProxyLine(l,i)).filter(p => p?.valid);
+  if (!lines.length) return toast('لا توجد بروكسيات','warn');
+
+  const stat = document.getElementById('proxy-bulk-status');
+  stat.textContent = `🔍 جارٍ فحص ${lines.length} بروكسي...`;
+
+  // Test each proxy individually
+  let ok = 0, fail = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const p = lines[i];
+    stat.textContent = `🔍 فحص ${i+1}/${lines.length}: ${p.name}`;
+    try {
+      const r = await fetch('/api/v1/proxies/check-url', {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json', Authorization:`Bearer ${TOKEN}` },
+        body: JSON.stringify({ url: p.url }),
+      });
+      const d = await r.json();
+      // Update table row
+      const tbody = document.getElementById('pbulk-tbl').querySelector('tbody');
+      const row   = tbody.querySelectorAll('tr')[i];
+      if (row) {
+        const lastCell = row.querySelector('td:last-child');
+        if (lastCell) lastCell.innerHTML = d.ok
+          ? `<span class="pill p-g">✓ ${d.latency||'?'}ms</span>`
+          : `<span class="pill p-r">✕ ${(d.error||'').slice(0,20)}</span>`;
+      }
+      if (d.ok) ok++; else fail++;
+    } catch { fail++; }
+  }
+  stat.textContent = `فحص اكتمل: ✓ ${ok} يعمل · ✕ ${fail} فاشل`;
 }
 
 // ── Distribution preview ─────────────────────────────────────
