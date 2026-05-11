@@ -1019,11 +1019,11 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
       <input id="acc-q" type="text" placeholder="ابحث باسم المستخدم…" style="width:190px" oninput="loadAccounts()">
       <select id="acc-status" onchange="loadAccounts()" style="width:145px">
         <option value="">كل الحالات</option>
-        <option value="نشط">نشط</option>
-        <option value="يحتاج_مصادقة">يحتاج مصادقة</option>
-        <option value="نقطة_تحقق">نقطة تحقق</option>
-        <option value="محظور">محظور</option>
-        <option value="غير_نشط">غير نشط</option>
+        <option value="active">نشط</option>
+        <option value="auth_required">يحتاج مصادقة</option>
+        <option value="locked">نقطة تحقق</option>
+        <option value="suspended">محظور</option>
+        <option value="dead">غير نشط</option>
       </select>
       <select id="acc-role" onchange="loadAccounts()" style="width:125px">
         <option value="">كل الأدوار</option>
@@ -1081,30 +1081,137 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 
   <!-- ════════════ البروكسيات ════════════ -->
   <div class="panel" id="p-proxies">
-    <div style="display:flex;gap:10px;margin-bottom:16px;align-items:center;flex-wrap:wrap">
-      <button class="btn btn-p btn-sm" onclick="openProxyModal()">+ إضافة بروكسي</button>
-      <button class="btn btn-sm" onclick="openAssignModal()">⚡ تعيين جماعي</button>
+
+    <!-- Toolbar -->
+    <div style="display:flex;gap:8px;margin-bottom:16px;align-items:center;flex-wrap:wrap">
+      <button class="btn btn-p btn-sm" onclick="openProxyModal()">+ إضافة</button>
+      <button class="btn btn-sm" onclick="showProxyTab('bulk')">📋 استيراد جماعي</button>
       <button class="btn btn-sm" onclick="autoDistribute()">🔀 توزيع تلقائي</button>
       <button class="btn btn-sm" onclick="loadProxies()">↻ تحديث</button>
     </div>
 
-    <!-- قائمة البروكسيات -->
-    <div class="card" style="margin-bottom:16px">
-      <div class="card-h"><span class="card-title">البروكسيات المضافة</span></div>
-      <table class="tbl" id="proxies-table">
-        <thead><tr><th>البروكسي</th><th>الحسابات</th><th>الحالة</th><th>إجراءات</th></tr></thead>
-        <tbody id="proxies-tbody"><tr><td colspan="4" style="text-align:center;padding:20px;color:var(--t2)">لا توجد بروكسيات</td></tr></tbody>
-      </table>
+    <!-- Tabs -->
+    <div style="display:flex;border-bottom:1px solid var(--bd);margin-bottom:16px">
+      <button id="ptab-list" class="atab on" onclick="showProxyTab('list')">قائمة البروكسيات</button>
+      <button id="ptab-bulk" class="atab" onclick="showProxyTab('bulk')">استيراد جماعي</button>
+      <button id="ptab-assign" class="atab" onclick="showProxyTab('assign')">تعيين ذكي</button>
+      <button id="ptab-noProxy" class="atab" onclick="showProxyTab('noProxy')">بدون بروكسي <span id="no-proxy-count" style="font-size:10px;color:var(--red)"></span></button>
     </div>
 
-    <!-- حسابات بدون بروكسي -->
-    <div class="card">
-      <div class="card-h">
-        <span class="card-title">حسابات بدون بروكسي</span>
-        <span id="no-proxy-count" style="font-size:11px;color:var(--t2)"></span>
+    <!-- Tab: List -->
+    <div id="proxy-tab-list">
+      <div class="card">
+        <table class="tbl">
+          <thead><tr><th>الاسم</th><th>الرابط</th><th>الحسابات</th><th>الحالة</th><th>إجراءات</th></tr></thead>
+          <tbody id="proxies-tbody"><tr><td colspan="5" style="text-align:center;padding:20px;color:var(--t2)">لا توجد بروكسيات</td></tr></tbody>
+        </table>
       </div>
-      <div id="no-proxy-list" style="padding:10px 16px;font-size:12px;color:var(--t2)">جارٍ التحميل…</div>
     </div>
+
+    <!-- Tab: Bulk Import -->
+    <div id="proxy-tab-bulk" style="display:none">
+      <div class="notice notice-info" style="margin-bottom:12px">
+        <span class="notice-ico">ℹ</span>
+        <span>الصيغة: <code style="background:var(--s4);padding:2px 6px;border-radius:4px;font-family:var(--m)">http://user:pass@host:port</code> — سطر لكل بروكسي. يمكن إضافة اسم اختياري: <code style="background:var(--s4);padding:2px 6px;border-radius:4px;font-family:var(--m)">اسم|http://user:pass@host:port</code></span>
+      </div>
+      <div class="card" style="margin-bottom:12px">
+        <div class="card-h"><span class="card-title">الصق البروكسيات</span></div>
+        <div class="card-b">
+          <textarea id="proxy-bulk-txt" rows="8" placeholder="SOAX-1|http://user:pass@proxy.soax.com:5000&#10;SOAX-2|http://user:pass@proxy.soax.com:5001&#10;http://user:pass@proxy.soax.com:5002" style="font-family:var(--m);font-size:12px;direction:ltr" oninput="parseBulkProxies()"></textarea>
+        </div>
+      </div>
+      <div id="proxy-bulk-preview" style="display:none;margin-bottom:12px">
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:10px">
+          <div class="istat"><div class="istat-num" id="pbulk-total">0</div><div class="istat-lbl">الإجمالي</div></div>
+          <div class="istat"><div class="istat-num" style="color:var(--grn)" id="pbulk-valid">0</div><div class="istat-lbl">صالح</div></div>
+          <div class="istat"><div class="istat-num" style="color:var(--red)" id="pbulk-err">0</div><div class="istat-lbl">خطأ</div></div>
+        </div>
+        <div class="card" style="overflow:auto;max-height:180px">
+          <table class="tbl" id="pbulk-tbl">
+            <thead><tr><th>#</th><th>الاسم</th><th>الرابط</th><th>الحالة</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center">
+        <button class="btn btn-p" id="proxy-bulk-btn" onclick="doBulkImportProxies()" disabled style="opacity:.5">استيراد البروكسيات</button>
+        <button class="btn" onclick="document.getElementById('proxy-bulk-txt').value='';parseBulkProxies()">مسح</button>
+        <span id="proxy-bulk-status" style="font-size:12px;color:var(--t2)"></span>
+      </div>
+    </div>
+
+    <!-- Tab: Smart Assign -->
+    <div id="proxy-tab-assign" style="display:none">
+      <div class="g2">
+
+        <!-- Assign by proxy -->
+        <div class="card">
+          <div class="card-h"><span class="card-title">⚡ تعيين بروكسي على حسابات</span></div>
+          <div class="card-b">
+            <div class="field" style="margin-bottom:10px">
+              <label>البروكسي</label>
+              <select id="assign-proxy-sel"></select>
+            </div>
+            <div class="field" style="margin-bottom:10px">
+              <label>فلتر الحسابات</label>
+              <select id="assign-filter" onchange="loadAssignAccounts()">
+                <option value="all">كل الحسابات</option>
+                <option value="no-proxy" selected>بدون بروكسي</option>
+                <option value="active">النشطة فقط</option>
+              </select>
+            </div>
+            <div class="field" style="margin-bottom:10px">
+              <label>الحسابات <span id="assign-count" style="color:var(--blu2)"></span></label>
+              <select id="assign-accounts-sel" multiple style="height:140px;font-family:var(--m);font-size:12px"></select>
+            </div>
+            <div style="display:flex;gap:8px;margin-bottom:12px">
+              <button class="btn btn-sm" onclick="selectAllAssign()">تحديد الكل</button>
+              <button class="btn btn-sm" onclick="deselectAllAssign()">إلغاء الكل</button>
+            </div>
+            <button class="btn btn-p" onclick="doAssignProxy()">⚡ تعيين</button>
+          </div>
+        </div>
+
+        <!-- Auto distribute -->
+        <div class="card">
+          <div class="card-h"><span class="card-title">🔀 توزيع تلقائي ذكي</span></div>
+          <div class="card-b">
+            <div class="notice notice-info" style="margin-bottom:14px">
+              <span class="notice-ico">ℹ</span>
+              <span>يوزع البروكسيات بالتساوي على الحسابات — كل حساب يأخذ بروكسي منفصل. الحسابات الأكثر تُوزَّع round-robin.</span>
+            </div>
+            <div class="field" style="margin-bottom:12px">
+              <label>الحسابات المستهدفة</label>
+              <select id="dist-target">
+                <option value="all">كل الحسابات</option>
+                <option value="no-proxy" selected>بدون بروكسي فقط</option>
+                <option value="active">النشطة فقط</option>
+              </select>
+            </div>
+            <div style="background:var(--s3);border:1px solid var(--bd);border-radius:10px;padding:14px;margin-bottom:14px" id="dist-preview">
+              <div style="font-size:12px;color:var(--t2);text-align:center">اضغط "معاينة" لرؤية خطة التوزيع</div>
+            </div>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-sm" onclick="previewDistribution()">👁 معاينة</button>
+              <button class="btn btn-p" onclick="autoDistribute()">🔀 توزيع الآن</button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Tab: No Proxy -->
+    <div id="proxy-tab-noProxy" style="display:none">
+      <div class="card">
+        <div class="card-h">
+          <span class="card-title">حسابات بدون بروكسي</span>
+          <button class="btn btn-sm btn-p" onclick="showProxyTab('assign')">تعيين لهم ←</button>
+        </div>
+        <div id="no-proxy-list" style="padding:12px 16px;font-size:12px;color:var(--t2)">جارٍ التحميل…</div>
+      </div>
+    </div>
+
   </div>
 
   <!-- ════════════ استيراد جماعي ════════════ -->
@@ -1867,24 +1974,68 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 
     <!-- KPI Row -->
     <div class="krow" style="grid-template-columns:repeat(5,minmax(0,1fr));margin-bottom:16px">
-      <div class="kcard" style="--kc:var(--grn)"><div class="k-lbl">عمليات نشطة</div><div class="k-val" id="ops-k-active">0</div></div>
-      <div class="kcard" style="--kc:var(--blu)"><div class="k-lbl">مجموع Jobs</div><div class="k-val" id="ops-k-jobs">0</div></div>
-      <div class="kcard" style="--kc:var(--grn)"><div class="k-lbl">نجاح</div><div class="k-val" id="ops-k-success">0</div></div>
-      <div class="kcard" style="--kc:var(--red)"><div class="k-lbl">فشل</div><div class="k-val" id="ops-k-failed">0</div></div>
-      <div class="kcard" style="--kc:var(--amb)"><div class="k-lbl">Browser Contexts</div><div class="k-val" id="ops-k-browsers">0</div></div>
+      <div class="kcard" style="--kc:var(--grn)">
+        <div class="k-lbl">عمليات نشطة</div>
+        <div class="k-val" id="ops-k-active">0</div>
+      </div>
+      <div class="kcard" style="--kc:var(--blu)">
+        <div class="k-lbl">Jobs منفذة</div>
+        <div class="k-val" id="ops-k-jobs">0</div>
+      </div>
+      <div class="kcard" style="--kc:var(--grn)">
+        <div class="k-lbl">نجاح</div>
+        <div class="k-val" id="ops-k-success">0</div>
+      </div>
+      <div class="kcard" style="--kc:var(--red)">
+        <div class="k-lbl">فشل</div>
+        <div class="k-val" id="ops-k-failed">0</div>
+      </div>
+      <div class="kcard" style="--kc:var(--amb)">
+        <div class="k-lbl">Browser Contexts</div>
+        <div class="k-val" id="ops-k-browsers">0</div>
+      </div>
     </div>
 
-    <div class="g2" style="margin-bottom:14px">
-      <!-- Active Operations -->
-      <div class="card" style="grid-column:1/-1">
-        <div class="card-h">
-          <span class="card-title">العمليات النشطة</span>
-          <button class="btn btn-sm" onclick="loadOpsConsole()">↻ تحديث</button>
-          <button class="btn btn-sm btn-r" onclick="cancelAllOps()">⏹ إيقاف الكل</button>
-        </div>
-        <div id="ops-list">
-          <div style="text-align:center;padding:40px;color:var(--t2);font-size:13px">✓ لا توجد عمليات نشطة</div>
-        </div>
+    <!-- Controls bar -->
+    <div style="display:flex;gap:8px;margin-bottom:14px;align-items:center;flex-wrap:wrap">
+      <button class="btn btn-sm btn-p" onclick="loadOpsConsole()">↻ تحديث</button>
+      <button class="btn btn-sm btn-r" onclick="cancelAllOps()">⏹ إيقاف الكل</button>
+      <div class="tb-sep"></div>
+      <select id="ops-filter" onchange="renderOpsList()" style="font-size:12px;padding:5px 10px;border-radius:6px;background:var(--s3);border:1px solid var(--bd2);color:var(--t1)">
+        <option value="all">كل العمليات</option>
+        <option value="active" selected>النشطة فقط</option>
+        <option value="completed">المكتملة</option>
+        <option value="cancelled">الملغاة</option>
+        <option value="failed">الفاشلة</option>
+      </select>
+      <span id="ops-live-badge" style="display:none;align-items:center;gap:5px;font-size:11px;color:var(--grn);background:rgba(30,212,138,.08);border:1px solid rgba(30,212,138,.18);padding:3px 10px;border-radius:20px">
+        <span style="width:6px;height:6px;border-radius:50%;background:var(--grn);animation:blink 1.5s infinite;display:inline-block"></span>
+        Live
+      </span>
+    </div>
+
+    <!-- Active Operations List -->
+    <div id="ops-list" style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px">
+      <div style="text-align:center;padding:40px;color:var(--t2);font-size:13px">✓ لا توجد عمليات</div>
+    </div>
+
+    <!-- Live Logs -->
+    <div class="card" style="margin-bottom:14px">
+      <div class="card-h">
+        <span class="card-title">📋 Live Logs</span>
+        <select id="ops-log-filter" style="font-size:11px;padding:3px 8px;border-radius:5px;background:var(--s3);border:1px solid var(--bd2);color:var(--t1)">
+          <option value="all">كل الأنواع</option>
+          <option value="follow">متابعة</option>
+          <option value="like">إعجاب</option>
+          <option value="retweet">ريتويت</option>
+          <option value="tweet-multi">نشر</option>
+          <option value="mutual-follow">تبادلية</option>
+          <option value="profile-update">بروفايل</option>
+        </select>
+        <button class="btn btn-sm" onclick="document.getElementById('ops-logs-body').innerHTML=''" style="margin-right:auto">مسح</button>
+      </div>
+      <div id="ops-logs-body" style="max-height:220px;overflow-y:auto;font-family:var(--m);font-size:11.5px;padding:0">
+        <div style="text-align:center;padding:16px;color:var(--t3)">الـ logs ستظهر هنا عند تشغيل أي عملية</div>
       </div>
     </div>
 
@@ -2652,7 +2803,7 @@ async function loadAssignAccounts() {
   const allAcc = await api('/api/v1/accounts?limit=500');
   let accounts = allAcc.accounts || [];
   if (filter === 'no-proxy') accounts = accounts.filter(a => !a.proxy);
-  if (filter === 'active')   accounts = accounts.filter(a => a.status === 'نشط');
+  if (filter === 'active')   accounts = accounts.filter(a => a.status === 'active');
   const sel = document.getElementById('assign-accounts-sel');
   sel.innerHTML = accounts.map(a => `<option value="${a._id}">@${a.username} ${a.network?.proxyUrl ? '🔗' : ''}</option>`).join('');
   document.getElementById('assign-count').textContent = `(${accounts.length})`;
@@ -2857,15 +3008,15 @@ async function loadAccounts() {
     if (!d) return;
 
     const statusBadge = s => {
-      const m = { 'نشط':'p-g', 'يحتاج_مصادقة':'p-a', 'نقطة_تحقق':'p-p', 'محظور':'p-r', 'غير_نشط':'p-n', 'موقوف':'p-r' };
-      const dot = s === 'نشط' ? '<span class="dot dg"></span>' : s === 'يحتاج_مصادقة' ? '<span class="dot da"></span>' : s === 'محظور' ? '<span class="dot dr"></span>' : '';
+      const m = { 'active':'p-g', 'auth_required':'p-a', 'locked':'p-p', 'suspended':'p-r', 'dead':'p-n', 'suspended':'p-r' };
+      const dot = s === 'active' ? '<span class="dot dg"></span>' : s === 'auth_required' ? '<span class="dot da"></span>' : s === 'suspended' ? '<span class="dot dr"></span>' : '';
       return `<span class="pill ${m[s]||'p-n'}">${dot}${s.replace(/_/g,' ')}</span>`;
     };
 
     document.getElementById('acc-tbody').innerHTML = d.accounts.length
       ? d.accounts.map(a => {
           const isBad = ['محظور','موقوف'].includes(a.status);
-          const needsAuth = a.status === 'يحتاج_مصادقة';
+          const needsAuth = a.status === 'auth_required';
           const rowStyle = isBad ? 'background:rgba(242,86,104,.03);border-right:2px solid rgba(242,86,104,.2)' : needsAuth ? 'background:rgba(248,179,64,.03);border-right:2px solid rgba(248,179,64,.15)' : '';
           return `
         <tr style="${rowStyle}">
@@ -2900,7 +3051,7 @@ async function loadAccounts() {
 
 async function loadActiveAccounts() {
   try {
-    const d = await api('/api/v1/accounts?status=نشط&limit=200');
+    const d = await api('/api/v1/accounts?status=active&limit=200');
     if (d) allActiveAccounts = d.accounts;
     document.getElementById('nb-content').textContent = allActiveAccounts.length;
     fillAllActionSelects();
@@ -3113,7 +3264,7 @@ async function checkAccount(id) {
   toast('جارٍ فحص الجلسة…');
   try {
     const d = await api(`/api/v1/accounts/${id}/check`, { method:'POST' });
-    toast(`الحالة: ${d.status}`, d.status==='نشط'?'ok':'warn');
+    toast(`الحالة: ${d.status}`, d.status==='active'?'ok':'warn');
     loadAccounts();
   } catch(e) { toast(e.message, 'err'); }
 }
@@ -4255,61 +4406,74 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
 
 
 /* ═══════════════════════════════════════════════════════════════
-   Operations Console
+   Operations Console — Full
 ═══════════════════════════════════════════════════════════════ */
 const OP_TYPE_LABELS = {
   'follow':'متابعة','like':'إعجاب','retweet':'ريتويت','tweet-multi':'نشر جماعي',
   'mutual-follow':'تبادلية','report-account':'إبلاغ حساب','report-tweet':'إبلاغ تغريدة',
   'profile-update':'تحديث بروفايل','profile-sync':'مزامنة بروفايل','health-check':'فحص صحة',
 };
-const OP_STATE_PILL = {
-  'waiting':    ['p-n','انتظار'],
-  'active':     ['p-g','نشط'],
-  'paused':     ['p-a','موقوف مؤقتاً'],
-  'completed':  ['p-b','مكتمل'],
-  'cancelling': ['p-a','جارٍ الإلغاء'],
-  'cancelled':  ['p-r','ملغى'],
-  'failed':     ['p-r','فشل'],
-  'retrying':   ['p-p','إعادة المحاولة'],
+const OP_STATE_META = {
+  'waiting':    { cls:'p-n', lbl:'انتظار',         color:'var(--t3)' },
+  'active':     { cls:'p-g', lbl:'نشط',             color:'var(--grn)' },
+  'paused':     { cls:'p-a', lbl:'موقوف مؤقتاً',   color:'var(--amb)' },
+  'completed':  { cls:'p-b', lbl:'مكتمل',           color:'var(--blu2)' },
+  'cancelling': { cls:'p-a', lbl:'جارٍ الإلغاء',   color:'var(--amb)' },
+  'cancelled':  { cls:'p-r', lbl:'ملغى',            color:'var(--red)' },
+  'failed':     { cls:'p-r', lbl:'فشل',             color:'var(--red)' },
+  'retrying':   { cls:'p-p', lbl:'إعادة المحاولة', color:'var(--pur)' },
 };
 
 let _opsList = [];
 
 function renderOp(op) {
-  const [pillCls, pillLabel] = OP_STATE_PILL[op.state] || ['p-n', op.state];
-  const typeLabel = OP_TYPE_LABELS[op.type] || op.type;
-  const pct = op.pct || 0;
-  const eta = op.eta ? (op.eta > 60 ? `${Math.round(op.eta/60)}د` : `${op.eta}ث`) : '—';
-  const isActive = ['active','waiting','paused','retrying'].includes(op.state);
-  const isPaused = op.state === 'paused';
+  const sm   = OP_STATE_META[op.state] || { cls:'p-n', lbl:op.state, color:'var(--t3)' };
+  const type = OP_TYPE_LABELS[op.type] || op.type;
+  const pct  = op.pct || 0;
+  const eta  = op.eta ? (op.eta > 60 ? `${Math.round(op.eta/60)}د ${op.eta%60}ث` : `${op.eta}ث`) : '—';
+  const isActive  = ['active','waiting','paused','retrying'].includes(op.state);
+  const isPaused  = op.state === 'paused';
+  const barColor  = op.state === 'cancelled' ? 'var(--red)' : op.state === 'completed' ? 'var(--grn)' : op.state === 'paused' ? 'var(--amb)' : 'var(--blu)';
+  const dur = op.duration > 60 ? `${Math.round(op.duration/60)}د ${op.duration%60}ث` : `${op.duration}ث`;
+  const meta = op.meta || {};
+  const metaStr = Object.entries(meta).map(([k,v])=>`${k}: ${v}`).join(' · ');
 
-  return `<div class="card" style="margin:8px 16px;background:var(--s3)" id="op-card-${op.parentJobId}">
-    <div style="padding:14px 18px">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
-        <span class="pill p-b" style="font-size:11px">${typeLabel}</span>
-        <span class="pill ${pillCls}" style="font-size:10px">${pillLabel}</span>
-        <span style="font-size:11px;color:var(--t2);font-family:var(--m)">${op.parentJobId.slice(-12)}</span>
-        <span style="font-size:11px;color:var(--t2);margin-right:auto">${op.duration}ث مضت · ETA: ${eta}</span>
-        <div style="display:flex;gap:6px">
-          ${isActive ? `<button class="btn btn-sm" onclick="opPause('${op.parentJobId}')">${isPaused?'▶ استئناف':'⏸ إيقاف مؤقت'}</button>` : ''}
-          ${isActive ? `<button class="btn btn-sm btn-r" onclick="opCancel('${op.parentJobId}')">⏹ إلغاء</button>` : ''}
-          ${op.failed > 0 ? `<button class="btn btn-sm" onclick="opRetry('${op.parentJobId}')" style="color:var(--amb);border-color:rgba(248,179,64,.3)">↻ إعادة (${op.failed})</button>` : ''}
+  return `<div class="card" style="border-right:3px solid ${sm.color};position:relative;overflow:visible" id="op-card-${op.parentJobId}">
+    <div style="padding:16px 18px">
+      <!-- Header -->
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+        <span class="pill p-b" style="font-size:11px">${type}</span>
+        <span class="pill ${sm.cls}" style="font-size:10px">${sm.lbl}</span>
+        ${meta.targetHandle?`<span style="font-family:var(--m);font-size:11px;color:var(--t2)">→ @${meta.targetHandle}</span>`:''}
+        <span style="font-size:11px;font-family:var(--m);color:var(--t3)">${op.parentJobId.slice(-14)}</span>
+        <span style="margin-right:auto;font-size:11px;color:var(--t2)">⏱ ${dur} · ETA: <strong style="color:var(--t0)">${eta}</strong></span>
+        <!-- Controls -->
+        <div style="display:flex;gap:5px">
+          ${isActive ? `<button class="btn btn-sm" onclick="opPause('${op.parentJobId}')" title="${isPaused?'استئناف':'إيقاف مؤقت'}">${isPaused?'▶':'⏸'}</button>` : ''}
+          ${isActive ? `<button class="btn btn-sm btn-r" onclick="opCancel('${op.parentJobId}')">⏹</button>` : ''}
+          ${op.failed > 0 ? `<button class="btn btn-sm" onclick="opRetry('${op.parentJobId}')" style="color:var(--amb);border-color:rgba(248,179,64,.3)" title="إعادة ${op.failed} فاشل">↻ ${op.failed}</button>` : ''}
         </div>
       </div>
-      <!-- Progress -->
-      <div style="height:5px;background:var(--s5);border-radius:3px;overflow:hidden;margin-bottom:8px">
-        <div style="height:100%;width:${pct}%;background:${op.state==='cancelled'?'var(--red)':op.state==='completed'?'var(--grn)':'var(--blu)'};border-radius:3px;transition:width .4s"></div>
+
+      <!-- Progress bar -->
+      <div style="height:6px;background:var(--s5);border-radius:4px;overflow:hidden;margin-bottom:8px">
+        <div style="height:100%;width:${pct}%;background:${barColor};border-radius:4px;transition:width .5s cubic-bezier(.4,0,.2,1)"></div>
       </div>
-      <div style="display:flex;gap:16px;font-size:11px;font-family:var(--m)">
-        <span>${op.done}/${op.total} <span style="color:var(--t2)">jobs</span></span>
-        <span style="color:var(--grn)">✓ ${op.success}</span>
-        <span style="color:var(--red)">✕ ${op.failed}</span>
+
+      <!-- Stats row -->
+      <div style="display:flex;gap:16px;font-size:11.5px;font-family:var(--m);flex-wrap:wrap">
+        <span style="color:var(--t1);font-weight:600">${op.done}/${op.total}</span>
+        <span style="color:var(--grn)">✓ ${op.success} نجح</span>
+        ${op.failed  > 0 ? `<span style="color:var(--red)">✕ ${op.failed} فشل</span>` : ''}
         ${op.skipped > 0 ? `<span style="color:var(--t2)">↷ ${op.skipped} تخطي</span>` : ''}
-        ${op.successRate !== null ? `<span style="color:var(--t2);margin-right:auto">${op.successRate}% نجاح</span>` : ''}
+        ${op.successRate !== null ? `<span style="color:var(--t2);margin-right:auto">${op.successRate}%</span>` : '<span style="margin-right:auto"></span>'}
+        <span style="color:var(--t3)">${pct}%</span>
       </div>
+
       <!-- Active accounts -->
-      ${op.activeAccounts?.length ? `<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">
-        ${op.activeAccounts.map(u=>`<span style="font-size:10px;background:rgba(79,126,248,.1);border:1px solid rgba(79,126,248,.2);border-radius:4px;padding:2px 8px;font-family:var(--m);color:var(--blu2)">@${u} ●</span>`).join('')}
+      ${op.activeAccounts?.length ? `<div style="margin-top:10px;display:flex;gap:5px;flex-wrap:wrap;align-items:center">
+        <span style="font-size:10px;color:var(--t3)">جارٍ:</span>
+        ${op.activeAccounts.map(u=>`<span style="font-size:10px;background:rgba(79,126,248,.08);border:1px solid rgba(79,126,248,.18);border-radius:4px;padding:2px 8px;font-family:var(--m);color:var(--blu2)">@${u}</span>`).join('')}
       </div>` : ''}
     </div>
   </div>`;
@@ -4321,27 +4485,28 @@ async function loadOpsConsole() {
     _opsList = d.ops || [];
     renderOpsList();
     updateOpsKPIs();
-
-    // Load browser contexts
     const br = await api('/api/v1/ops/browsers');
     renderBrowsers(br);
-
-    // Load queue health
     const qh = await api('/api/v1/ops/queues');
     renderQueues(qh);
+    document.getElementById('ops-live-badge').style.display = 'inline-flex';
   } catch(e) { console.error('[OpsConsole]', e); }
 }
 
 function renderOpsList() {
   const el = document.getElementById('ops-list');
   if (!el) return;
-  if (!_opsList.length) {
-    el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--grn);font-size:13px">✓ لا توجد عمليات</div>';
-    return;
+  const filter = document.getElementById('ops-filter')?.value || 'active';
+  let list = [..._opsList].sort((a,b) => new Date(b.startedAt) - new Date(a.startedAt));
+  if (filter !== 'all') {
+    if (filter === 'active') list = list.filter(o => ['active','waiting','paused','retrying'].includes(o.state));
+    else list = list.filter(o => o.state === filter);
   }
-  const sorted = [..._opsList].sort((a,b) => new Date(b.startedAt) - new Date(a.startedAt));
-  el.innerHTML = sorted.map(op => renderOp(op)).join('');
-  // Update nb badge
+  if (!list.length) {
+    el.innerHTML = `<div style="text-align:center;padding:40px;color:var(--t2);font-size:13px">✓ لا توجد عمليات (${filter === 'active' ? 'نشطة' : filter})</div>`;
+  } else {
+    el.innerHTML = list.map(op => renderOp(op)).join('');
+  }
   const active = _opsList.filter(o => ['active','waiting','paused','retrying'].includes(o.state)).length;
   const nb = document.getElementById('nb-ops');
   if (nb) { nb.textContent = active; nb.style.display = active > 0 ? '' : 'none'; }
@@ -4349,13 +4514,39 @@ function renderOpsList() {
 
 function updateOpsKPIs() {
   const active  = _opsList.filter(o => ['active','waiting','paused','retrying'].includes(o.state));
-  const total   = _opsList.reduce((s,o) => s + o.done, 0);
-  const success = _opsList.reduce((s,o) => s + o.success, 0);
-  const failed  = _opsList.reduce((s,o) => s + o.failed, 0);
   document.getElementById('ops-k-active').textContent  = active.length;
-  document.getElementById('ops-k-jobs').textContent    = total;
-  document.getElementById('ops-k-success').textContent = success;
-  document.getElementById('ops-k-failed').textContent  = failed;
+  document.getElementById('ops-k-jobs').textContent    = _opsList.reduce((s,o)=>s+o.done,0);
+  document.getElementById('ops-k-success').textContent = _opsList.reduce((s,o)=>s+o.success,0);
+  document.getElementById('ops-k-failed').textContent  = _opsList.reduce((s,o)=>s+o.failed,0);
+}
+
+// ── Live log append ──────────────────────────────────────────
+function appendOpsLog(data) {
+  const filter = document.getElementById('ops-log-filter')?.value || 'all';
+  if (filter !== 'all' && data.type !== filter) return;
+  const el = document.getElementById('ops-logs-body');
+  if (!el) return;
+  // Remove placeholder
+  el.querySelector('[style*="الـ logs"]')?.remove();
+  const ok    = data.success !== false;
+  const skip  = data.error?.includes('SKIP:');
+  const color = skip ? 'var(--t2)' : ok ? 'var(--grn)' : 'var(--red)';
+  const icon  = skip ? '↷' : ok ? '✓' : '✕';
+  const err   = data.error && !skip ? ` <span style="color:var(--red);opacity:.7">— ${data.error.replace('SKIP:','').slice(0,40)}</span>` : '';
+  const time  = new Date().toLocaleTimeString('ar-SA', {hour12:false});
+  const typeLabel = OP_TYPE_LABELS[data.type] || data.type || '';
+  const row = document.createElement('div');
+  row.style.cssText = `display:flex;align-items:center;gap:10px;padding:6px 14px;border-bottom:1px solid var(--bd);transition:background .1s`;
+  row.innerHTML = `<span style="color:${color};font-weight:700;width:14px">${icon}</span>
+    <span style="color:var(--t3);width:60px;font-size:10px">${time}</span>
+    <span style="color:var(--t2);width:70px;font-size:10px">${typeLabel}</span>
+    <span style="color:var(--t1);font-weight:600">@${data.username||'—'}</span>
+    <span style="color:var(--t2)">${data.done||''}${data.total?'/'+data.total:''}</span>
+    ${err}`;
+  el.appendChild(row);
+  // Keep max 200 rows
+  while (el.children.length > 200) el.removeChild(el.firstChild);
+  el.scrollTop = el.scrollHeight;
 }
 
 function renderBrowsers(br) {
@@ -4366,289 +4557,267 @@ function renderBrowsers(br) {
   document.getElementById('ops-k-browsers').textContent = s.total || 0;
   if (!el) return;
   const ctxs = br?.contexts || [];
-  if (!ctxs.length) { el.innerHTML = '<div style="text-align:center;padding:16px;color:var(--t2);font-size:12px">لا توجد contexts نشطة</div>'; return; }
-  el.innerHTML = `
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
-      <span style="font-size:12px;background:rgba(30,212,138,.1);border:1px solid rgba(30,212,138,.2);padding:3px 10px;border-radius:6px;color:var(--grn)">جاهز: ${s.ready||0}</span>
-      <span style="font-size:12px;background:rgba(245,166,35,.1);border:1px solid rgba(245,166,35,.2);padding:3px 10px;border-radius:6px;color:var(--amb)">مشغول: ${s.busy||0}</span>
-      <span style="font-size:12px;background:rgba(79,126,248,.1);border:1px solid rgba(79,126,248,.2);padding:3px 10px;border-radius:6px;color:var(--blu2)">يفتح: ${s.opening||0}</span>
-    </div>
-    ${ctxs.map(ctx => `
-      <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--bd)">
-        <div style="width:6px;height:6px;border-radius:50%;background:${ctx.state==='busy'?'var(--amb)':ctx.state==='ready'?'var(--grn)':'var(--t3)'}"></div>
-        <span style="font-family:var(--m);font-size:12px;color:var(--t0)">@${ctx.username}</span>
-        <span style="font-size:11px;color:var(--t2)">${ctx.operationType||'—'}</span>
-        <span style="font-size:10px;color:var(--t3);margin-right:auto">${ctx.durationSec}ث</span>
-      </div>`).join('')}`;
+  if (!ctxs.length) { el.innerHTML = '<div style="text-align:center;padding:16px;color:var(--t2);font-size:12px">لا توجد contexts</div>'; return; }
+  const bar = `<div style="height:4px;background:var(--s5);border-radius:2px;margin-bottom:14px;overflow:hidden"><div style="height:100%;width:${s.utilization||0}%;background:${(s.utilization||0)>80?'var(--red)':(s.utilization||0)>50?'var(--amb)':'var(--grn)'};border-radius:2px;transition:width .4s"></div></div>`;
+  el.innerHTML = bar + `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
+    <span style="font-size:11px;background:rgba(30,212,138,.08);border:1px solid rgba(30,212,138,.18);padding:3px 9px;border-radius:6px;color:var(--grn)">جاهز ${s.ready||0}</span>
+    <span style="font-size:11px;background:rgba(245,166,35,.08);border:1px solid rgba(245,166,35,.18);padding:3px 9px;border-radius:6px;color:var(--amb)">مشغول ${s.busy||0}</span>
+    <span style="font-size:11px;background:rgba(79,126,248,.08);border:1px solid rgba(79,126,248,.18);padding:3px 9px;border-radius:6px;color:var(--blu2)">يفتح ${s.opening||0}</span>
+  </div>` +
+  ctxs.map(ctx=>`<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--bd)">
+    <div style="width:7px;height:7px;border-radius:50%;flex-shrink:0;background:${ctx.state==='busy'?'var(--amb)':ctx.state==='ready'?'var(--grn)':'var(--t3)'}"></div>
+    <span style="font-family:var(--m);font-size:12px;color:var(--t0)">@${ctx.username}</span>
+    <span style="font-size:11px;color:var(--t2)">${OP_TYPE_LABELS[ctx.operationType]||ctx.operationType||'—'}</span>
+    ${ctx.currentAction?`<span style="font-size:10px;color:var(--t3)">${ctx.currentAction.slice(0,20)}</span>`:''}
+    <span style="font-size:10px;color:var(--t3);margin-right:auto">${ctx.durationSec}ث</span>
+  </div>`).join('');
 }
 
 function renderQueues(qh) {
   const el = document.getElementById('ops-queues-panel');
   const hl = document.getElementById('ops-queue-healthy');
-  if (hl) { hl.textContent = qh?.healthy ? '✓ سليم' : `⚠ ${qh?.issues?.length} مشكلة`; hl.style.color = qh?.healthy ? 'var(--grn)' : 'var(--amb)'; }
+  if (hl) { hl.textContent = qh?.healthy ? '✓ سليم' : `⚠ ${qh?.issues?.length} تنبيه`; hl.style.color = qh?.healthy ? 'var(--grn)' : 'var(--amb)'; }
   if (!el) return;
   const stats = qh?.stats || {};
-  const keys  = Object.keys(stats).filter(k => !stats[k].error);
-  if (!keys.length) { el.innerHTML = '<div style="text-align:center;padding:12px;color:var(--t2);font-size:12px">لا يوجد Redis</div>'; return; }
+  const keys  = Object.keys(stats);
+  if (!keys.length) { el.innerHTML = '<div style="text-align:center;padding:12px;color:var(--t2);font-size:12px">Redis غير متصل</div>'; return; }
   el.innerHTML = keys.map(k => {
-    const q = stats[k];
+    const q = stats[k]; if (q.error) return '';
     const total = (q.waiting||0)+(q.active||0)+(q.failed||0)+(q.delayed||0);
-    if (!total && !q.active) return '';
-    return `<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--bd);font-size:11px">
-      <span style="color:var(--t2);min-width:120px;font-family:var(--m)">${q.name?.replace('xops-','')}</span>
-      ${q.active  ? `<span style="color:var(--grn)">●${q.active} نشط</span>` : ''}
-      ${q.waiting ? `<span style="color:var(--t2)">⏳${q.waiting}</span>` : ''}
-      ${q.failed  ? `<span style="color:var(--red)">✕${q.failed}</span>` : ''}
-      ${q.paused  ? `<span class="pill p-a" style="font-size:9px">موقوف</span>` : ''}
-      <div style="margin-right:auto;display:flex;gap:4px">
+    if (!total && !q.active && !q.paused) return '';
+    const name = q.name?.replace('xops-','') || k;
+    return `<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--bd)">
+      <span style="color:var(--t1);font-size:12px;font-family:var(--m);min-width:110px">${name}</span>
+      <div style="display:flex;gap:5px;flex:1;flex-wrap:wrap">
+        ${q.active   ? `<span class="pill p-g" style="font-size:9px">●${q.active}</span>` : ''}
+        ${q.waiting  ? `<span class="pill p-n" style="font-size:9px">⏳${q.waiting}</span>` : ''}
+        ${q.failed   ? `<span class="pill p-r" style="font-size:9px">✕${q.failed}</span>` : ''}
+        ${q.delayed  ? `<span class="pill p-a" style="font-size:9px">⏰${q.delayed}</span>` : ''}
+        ${q.paused   ? `<span class="pill p-a" style="font-size:9px">⏸</span>` : ''}
+      </div>
+      <div style="display:flex;gap:4px">
         ${q.paused
-          ? `<button class="btn btn-sm" onclick="resumeQueue('${k}')" style="padding:2px 7px;font-size:10px">▶</button>`
-          : `<button class="btn btn-sm" onclick="pauseQueue('${k}')" style="padding:2px 7px;font-size:10px">⏸</button>`}
-        ${q.failed > 0 ? `<button class="btn btn-sm btn-r" onclick="clearFailed('${k}')" style="padding:2px 7px;font-size:10px">✕ مسح</button>` : ''}
+          ? `<button class="btn btn-sm btn-g" onclick="resumeQueue('${k}')" style="padding:2px 8px;font-size:10px">▶</button>`
+          : `<button class="btn btn-sm" onclick="pauseQueue('${k}')" style="padding:2px 8px;font-size:10px">⏸</button>`}
+        ${q.failed > 0 ? `<button class="btn btn-sm btn-r" onclick="clearFailed('${k}')" style="padding:2px 8px;font-size:10px">✕</button>` : ''}
       </div>
     </div>`;
-  }).filter(Boolean).join('') || '<div style="text-align:center;padding:12px;color:var(--t2);font-size:12px">لا توجد jobs نشطة</div>';
+  }).filter(Boolean).join('') || '<div style="text-align:center;padding:12px;color:var(--t2);font-size:12px">لا توجد jobs</div>';
 }
 
 // ── Op Controls ──────────────────────────────────────────────
 async function opCancel(id) {
-  if (!confirm('إلغاء هذه العملية؟')) return;
-  try { await api(`/api/v1/ops/${id}/cancel`, { method:'POST' }); toast('⏹ جارٍ الإلغاء...', 'ok'); }
-  catch(e) { toast(e.message, 'err'); }
+  if (!confirm('إلغاء هذه العملية؟ الـ jobs الجارية ستكتمل لكن المنتظرة ستُلغى.')) return;
+  try { await withBtn(event.target.closest('button'), ()=>api(`/api/v1/ops/${id}/cancel`,{method:'POST'}), {successMsg:'⏹ ملغى'}); }
+  catch(e) { toast(e.message,'err'); }
 }
 async function opPause(id) {
-  const op = _opsList.find(o => o.parentJobId === id);
-  const isPaused = op?.state === 'paused';
-  try {
-    await api(`/api/v1/ops/${id}/${isPaused ? 'resume' : 'pause'}`, { method:'POST' });
-    toast(isPaused ? '▶ تم الاستئناف' : '⏸ تم الإيقاف المؤقت', 'ok');
-  } catch(e) { toast(e.message, 'err'); }
+  const op = _opsList.find(o=>o.parentJobId===id);
+  const isPaused = op?.state==='paused';
+  try { await api(`/api/v1/ops/${id}/${isPaused?'resume':'pause'}`,{method:'POST'}); toast(isPaused?'▶ استُؤنف':'⏸ موقوف مؤقتاً','ok'); }
+  catch(e) { toast(e.message,'err'); }
 }
 async function opRetry(id) {
-  try { const d = await api(`/api/v1/ops/${id}/retry`, { method:'POST' }); toast(`↻ إعادة ${d.retried} job`, 'ok'); }
-  catch(e) { toast(e.message, 'err'); }
+  try { const d=await api(`/api/v1/ops/${id}/retry`,{method:'POST'}); toast(`↻ إعادة ${d.retried} job`,'ok'); }
+  catch(e) { toast(e.message,'err'); }
 }
 async function cancelAllOps() {
-  const active = _opsList.filter(o => ['active','waiting','paused','retrying'].includes(o.state));
-  if (!active.length) return toast('لا توجد عمليات نشطة', 'warn');
+  const active=_opsList.filter(o=>['active','waiting','paused','retrying'].includes(o.state));
+  if (!active.length) return toast('لا توجد عمليات نشطة','warn');
   if (!confirm(`إلغاء ${active.length} عملية نشطة؟`)) return;
-  for (const op of active) await api(`/api/v1/ops/${op.parentJobId}/cancel`, { method:'POST' }).catch(() => {});
-  toast('⏹ تم إلغاء الكل', 'ok');
+  for (const op of active) await api(`/api/v1/ops/${op.parentJobId}/cancel`,{method:'POST'}).catch(()=>{});
+  toast('⏹ تم إلغاء الكل','ok');
 }
 async function pauseQueue(key) {
-  try { await api(`/api/v1/ops/queues/${key}/pause`, { method:'POST' }); toast('⏸ Queue موقوف', 'ok'); loadOpsConsole(); }
-  catch(e) { toast(e.message, 'err'); }
+  try { await api(`/api/v1/ops/queues/${key}/pause`,{method:'POST'}); toast('⏸ Queue موقوف','ok'); loadOpsConsole(); }
+  catch(e) { toast(e.message,'err'); }
 }
 async function resumeQueue(key) {
-  try { await api(`/api/v1/ops/queues/${key}/resume`, { method:'POST' }); toast('▶ Queue مستأنف', 'ok'); loadOpsConsole(); }
-  catch(e) { toast(e.message, 'err'); }
+  try { await api(`/api/v1/ops/queues/${key}/resume`,{method:'POST'}); toast('▶ Queue مستأنف','ok'); loadOpsConsole(); }
+  catch(e) { toast(e.message,'err'); }
 }
 async function clearFailed(key) {
-  if (!confirm('مسح كل الـ failed jobs في هذا الـ queue؟')) return;
-  try { await api(`/api/v1/ops/queues/${key}/failed`, { method:'DELETE' }); toast('✓ تم المسح', 'ok'); loadOpsConsole(); }
-  catch(e) { toast(e.message, 'err'); }
+  if (!confirm('مسح الـ failed jobs؟')) return;
+  try { await api(`/api/v1/ops/queues/${key}/failed`,{method:'DELETE'}); toast('✓ تم المسح','ok'); loadOpsConsole(); }
+  catch(e) { toast(e.message,'err'); }
 }
 
-// ── Socket.IO real-time updates ──────────────────────────────
+// ── Socket.IO bridge ─────────────────────────────────────────
 function initOpsSocketEvents(socket) {
   const updateOp = (data) => {
-    const idx = _opsList.findIndex(o => o.parentJobId === data.parentJobId);
-    if (idx >= 0) _opsList[idx] = { ..._opsList[idx], ...data };
-    else if (data.parentJobId) _opsList.push(data);
-    if (currentPanel === 'ops-console') { renderOpsList(); updateOpsKPIs(); }
-    const active = _opsList.filter(o => ['active','waiting','paused','retrying'].includes(o.state)).length;
+    if (!data?.parentJobId) return;
+    const idx = _opsList.findIndex(o=>o.parentJobId===data.parentJobId);
+    if (idx>=0) _opsList[idx] = {..._opsList[idx],...data};
+    else _opsList.push(data);
+    if (currentPanel==='ops-console') { renderOpsList(); updateOpsKPIs(); }
+    // update nb-jobs indicator
+    const active = _opsList.filter(o=>['active','waiting','paused','retrying'].includes(o.state)).length;
     const nb = document.getElementById('nb-ops');
-    if (nb) { nb.textContent = active; nb.style.display = active > 0 ? '' : 'none'; }
+    if (nb) { nb.textContent=active; nb.style.display=active>0?'':'none'; }
+    // Update nb-jobs topbar
+    const ind = document.getElementById('jobs-indicator');
+    if (ind) ind.style.display = active>0?'flex':'none';
   };
-
   ['op:created','op:progress','op:completed','op:cancelled','op:paused','op:resumed','op:retrying','op:cancelling']
-    .forEach(ev => socket.on(ev, updateOp));
+    .forEach(ev=>socket.on(ev,updateOp));
 
-  socket.on('browsers:snapshot', (br) => {
-    if (currentPanel === 'ops-console') renderBrowsers(br);
-    document.getElementById('ops-k-browsers').textContent = br?.stats?.total || 0;
+  // job:progress → live log
+  socket.on('job:progress', d => {
+    appendOpsLog(d);
+    updateOp({ parentJobId: d.jobId, done: d.done, total: d.total, success: d.success });
   });
 
-  socket.on('queues:health', (qh) => {
-    if (currentPanel === 'ops-console') renderQueues(qh);
+  socket.on('browsers:snapshot', br => {
+    if (currentPanel==='ops-console') renderBrowsers(br);
+    const el = document.getElementById('ops-k-browsers');
+    if (el) el.textContent = br?.stats?.total||0;
   });
+  socket.on('queues:health', qh => {
+    if (currentPanel==='ops-console') renderQueues(qh);
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Proxy — Tabs + Bulk Import + Smart Assign
+═══════════════════════════════════════════════════════════════ */
+function showProxyTab(tab) {
+  ['list','bulk','assign','noProxy'].forEach(t => {
+    const content = document.getElementById(`proxy-tab-${t}`);
+    const btn     = document.getElementById(`ptab-${t}`);
+    if (content) content.style.display = t===tab ? '' : 'none';
+    if (btn) btn.classList.toggle('on', t===tab);
+  });
+  if (tab==='noProxy') loadProxies(); // refresh no-proxy list
+  if (tab==='assign')  openAssignTabInit();
+}
+
+async function openAssignTabInit() {
+  const pd = await api('/api/v1/proxies').catch(()=>({proxies:[]}));
+  const sel = document.getElementById('assign-proxy-sel');
+  if (sel) sel.innerHTML = (pd.proxies||[]).map(p=>`<option value="${p._id}">${p.name} (${p.accountCount||0})</option>`).join('') || '<option>لا توجد بروكسيات</option>';
+  await loadAssignAccounts();
+}
+
+// ── Bulk proxy import ────────────────────────────────────────
+function parseBulkProxies() {
+  const raw = document.getElementById('proxy-bulk-txt').value.trim();
+  const lines = raw.split('\n').filter(l=>l.trim());
+  const prev = document.getElementById('proxy-bulk-preview');
+  if (!lines.length) { prev.style.display='none'; document.getElementById('proxy-bulk-btn').disabled=true; document.getElementById('proxy-bulk-btn').style.opacity='.5'; return; }
+  let valid=0,errors=0;
+  const rows = lines.map((line,i)=>{
+    let name='', url='';
+    if (line.includes('|')) { [name,...rest]=line.split('|'); url=rest.join('|').trim(); name=name.trim(); }
+    else { url=line.trim(); name=`Proxy-${i+1}`; }
+    const ok = url.startsWith('http://')||url.startsWith('https://')||url.startsWith('socks5://');
+    if (ok) valid++; else errors++;
+    return `<tr><td style="font-family:var(--m);color:var(--t2)">${i+1}</td><td>${name}</td><td style="font-family:var(--m);font-size:11px;direction:ltr;color:var(--t1)">${url.slice(0,40)}${url.length>40?'…':''}</td><td>${ok?'<span class="pill p-g">✓</span>':'<span class="pill p-r">خطأ</span>'}</td></tr>`;
+  });
+  prev.style.display='block';
+  document.getElementById('pbulk-total').textContent=lines.length;
+  document.getElementById('pbulk-valid').textContent=valid;
+  document.getElementById('pbulk-err').textContent=errors;
+  document.getElementById('pbulk-tbl').querySelector('tbody').innerHTML=rows.join('');
+  const btn=document.getElementById('proxy-bulk-btn');
+  btn.disabled=valid===0; btn.style.opacity=valid>0?'1':'.5';
+  document.getElementById('proxy-bulk-status').textContent=`${valid} بروكسي صالح`;
+}
+
+async function doBulkImportProxies() {
+  const raw=document.getElementById('proxy-bulk-txt').value.trim();
+  const lines=raw.split('\n').filter(l=>l.trim());
+  const proxies = lines.map((line,i)=>{
+    let name='',url='';
+    if (line.includes('|')) { const parts=line.split('|'); name=parts[0].trim(); url=parts.slice(1).join('|').trim(); }
+    else { url=line.trim(); name=`Proxy-${i+1}`; }
+    return { name, url };
+  }).filter(p=>p.url.startsWith('http')||p.url.startsWith('socks'));
+  if (!proxies.length) return toast('لا توجد بروكسيات صالحة','warn');
+  const stat=document.getElementById('proxy-bulk-status');
+  stat.textContent='جارٍ الاستيراد...';
+  let added=0, failed=0;
+  for (const p of proxies) {
+    try { await api('/api/v1/proxies',{method:'POST',body:JSON.stringify(p)}); added++; }
+    catch { failed++; }
+  }
+  toast(`✅ أضيف ${added} بروكسي${failed?` | فشل ${failed}`:''}`, added>0?'ok':'err');
+  stat.textContent='';
+  document.getElementById('proxy-bulk-txt').value='';
+  parseBulkProxies();
+  loadProxies();
+  showProxyTab('list');
+}
+
+// ── Distribution preview ─────────────────────────────────────
+async function previewDistribution() {
+  const target = document.getElementById('dist-target')?.value || 'no-proxy';
+  const el = document.getElementById('dist-preview');
+  try {
+    const pd = await api('/api/v1/proxies');
+    const proxies = pd.proxies || [];
+    if (!proxies.length) { el.innerHTML='<div style="color:var(--red);font-size:12px">لا توجد بروكسيات</div>'; return; }
+    const allAcc = await api('/api/v1/accounts?limit=500');
+    let accs = allAcc.accounts || [];
+    if (target==='no-proxy') accs=accs.filter(a=>!a.network?.proxyUrl);
+    if (target==='active')   accs=accs.filter(a=>a.status==='active');
+    const perProxy = Math.ceil(accs.length / proxies.length);
+    el.innerHTML = `<div style="font-size:12px;margin-bottom:10px;color:var(--t1)">${proxies.length} بروكسي على ${accs.length} حساب — <strong>${perProxy}</strong> حساب/بروكسي تقريباً</div>` +
+      proxies.slice(0,5).map(p=>`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--bd);font-size:11.5px">
+        <span style="color:var(--t0);font-weight:600">${p.name}</span>
+        <span style="color:var(--t2);font-size:10px">→ ~${perProxy} حساب</span>
+      </div>`).join('') + (proxies.length>5?`<div style="font-size:10px;color:var(--t3);padding:5px 0">+ ${proxies.length-5} بروكسيات أخرى...</div>`:'');
+  } catch(e) { el.innerHTML=`<div style="color:var(--red);font-size:12px">${e.message}</div>`; }
+}
+
+// ── Fix: autoDistribute uses dist-target ────────────────────
+async function autoDistribute() {
+  const pd = await api('/api/v1/proxies').catch(()=>({proxies:[]}));
+  if (!pd.proxies?.length) return toast('أضف بروكسيات أولاً','warn');
+  if (!confirm(`توزيع ${pd.proxies.length} بروكسي تلقائياً؟`)) return;
+  try {
+    const d = await api('/api/v1/proxies/auto-distribute',{method:'POST'});
+    toast(`✅ تم التوزيع على ${d.updated} حساب`,'ok');
+    loadProxies();
+  } catch(e) { toast(e.message,'err'); }
+}
+
+// ── Fix: loadProxies with updated columns ────────────────────
+async function loadProxies() {
+  try {
+    const d = await api('/api/v1/proxies');
+    const proxies = d.proxies || [];
+    const nb = document.getElementById('nb-proxies');
+    if (nb) nb.textContent = proxies.length;
+    const tbody = document.getElementById('proxies-tbody');
+    if (tbody) {
+      tbody.innerHTML = proxies.length ? proxies.map(p=>`
+        <tr>
+          <td><div style="font-weight:600">${p.name}</div></td>
+          <td style="font-family:var(--m);font-size:10.5px;color:var(--t2);max-width:160px;overflow:hidden;text-overflow:ellipsis" title="${p.url}">${maskProxy(p.url)}</td>
+          <td><span style="font-family:var(--m);color:var(--blu2);font-weight:700">${p.accountCount||0}</span></td>
+          <td><span class="pill ${(p.accountCount||0)>0?'p-g':'p-n'}">نشط</span></td>
+          <td>
+            <div style="display:flex;gap:5px;flex-wrap:wrap">
+              <button class="btn btn-sm" onclick="checkProxy('${p._id}',this)">فحص</button>
+              <button class="btn btn-sm" onclick="openProxyModal('${p._id}','${p.name}','${p.url}')">تعديل</button>
+              <button class="btn btn-sm btn-r" onclick="deleteProxy('${p._id}')">حذف</button>
+            </div>
+          </td>
+        </tr>`).join('') : '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--t2)">لا توجد بروكسيات</td></tr>';
+    }
+    const allAcc = await api('/api/v1/accounts?limit=500');
+    const noProxy = (allAcc.accounts||[]).filter(a=>!a.network?.proxyUrl);
+    const noProxyCount = document.getElementById('no-proxy-count');
+    const noProxyEl = document.getElementById('no-proxy-list');
+    if (noProxyCount) noProxyCount.textContent = noProxy.length>0 ? ` ${noProxy.length}` : '';
+    if (noProxyEl) {
+      noProxyEl.innerHTML = noProxy.length
+        ? noProxy.map(a=>`<span style="display:inline-flex;align-items:center;gap:5px;margin:3px;background:var(--s3);border:1px solid var(--bd);border-radius:6px;padding:3px 9px;font-family:var(--m);font-size:11px;cursor:pointer" onclick="showProxyTab('assign')">@${a.username}</span>`).join('')
+        : '<div style="color:var(--grn)">✓ كل الحسابات عندها بروكسي</div>';
+    }
+  } catch(e) { toast(e.message,'err'); }
 }
 
 </script>
 </body>
-</html><!-- تم حقنه تلقائياً — btn-interactions -->
-<style>
-@keyframes _btn-spin{to{transform:rotate(360deg)}}
-@keyframes _btn-pop{0%{transform:scale(1)}45%{transform:scale(.94)}80%{transform:scale(1.04)}100%{transform:scale(1)}}
-@keyframes _btn-shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-4px)}40%,80%{transform:translateX(4px)}}
-@keyframes _ripple{0%{transform:scale(0);opacity:.35}100%{transform:scale(4);opacity:0}}
-@keyframes _progress-fill{from{width:0}to{width:100%}}
-.btn{position:relative;overflow:hidden}
-.btn._loading{pointer-events:none!important;opacity:.72!important;cursor:not-allowed!important}
-.btn._loading::after{content:'';position:absolute;inset:0;margin:auto;width:13px;height:13px;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;animation:_btn-spin .7s linear infinite}
-.btn._loading ._btn-label{opacity:0}
-.btn._done{pointer-events:none;background:rgba(30,212,138,.13)!important;border-color:rgba(30,212,138,.32)!important;color:var(--grn)!important;animation:_btn-pop .35s ease}
-.btn._error{pointer-events:none;background:rgba(242,86,104,.11)!important;border-color:rgba(242,86,104,.28)!important;color:var(--red)!important;animation:_btn-shake .4s ease}
-._ripple-el{position:absolute;border-radius:50%;background:rgba(255,255,255,.18);width:80px;height:80px;margin-top:-40px;margin-right:-40px;animation:_ripple .6s ease-out forwards;pointer-events:none}
-</style>
-<script>
-(function(){
-/* ── helpers ── */
-function btnLoad(btn){
-  if(!btn)return;
-  btn._ot=btn._ot||btn.innerHTML;
-  btn._od=btn.disabled;
-  btn.disabled=true;
-  btn.classList.add('_loading');
-  btn.innerHTML='<span class="_btn-label">'+btn._ot+'</span>';
-}
-function btnDone(btn,msg){
-  if(!btn)return;
-  btn.classList.remove('_loading','_error');
-  btn.classList.add('_done');
-  btn.disabled=false;
-  btn.innerHTML='<span class="_btn-label">'+(msg||btn._ot||'✓')+'</span>';
-  setTimeout(()=>btnReset(btn),2200);
-}
-function btnError(btn,msg){
-  if(!btn)return;
-  btn.classList.remove('_loading','_done');
-  btn.classList.add('_error');
-  btn.disabled=false;
-  btn.innerHTML='<span class="_btn-label">'+(msg?'✕ '+msg:(btn._ot||'✕'))+'</span>';
-  setTimeout(()=>btnReset(btn),2500);
-}
-function btnReset(btn){
-  if(!btn)return;
-  btn.classList.remove('_loading','_done','_error');
-  btn.disabled=btn._od||false;
-  if(btn._ot){btn.innerHTML=btn._ot;delete btn._ot;}
-}
-window.withBtn=async function(btn,fn,opts){
-  opts=opts||{};
-  if(!btn||btn.classList.contains('_loading'))return;
-  btnLoad(btn);
-  try{
-    var r=await fn();
-    btnDone(btn,opts.successMsg||'');
-    return r;
-  }catch(e){
-    var m=opts.errorMsg||(e&&e.message&&!e.message.startsWith('SKIP:')?e.message.slice(0,28):'');
-    btnError(btn,m);
-    throw e;
-  }
-};
-
-/* ── Ripple ── */
-document.addEventListener('click',function(e){
-  var btn=e.target.closest('.btn');
-  if(!btn||btn.classList.contains('_loading'))return;
-  var rect=btn.getBoundingClientRect();
-  var rp=document.createElement('span');
-  rp.className='_ripple-el';
-  rp.style.top=(e.clientY-rect.top)+'px';
-  rp.style.right=(rect.right-e.clientX)+'px';
-  btn.appendChild(rp);
-  setTimeout(function(){rp.remove()},650);
-},true);
-
-/* ── ربط الأزرار الثابتة ── */
-function bindStatic(sel,fn,done){
-  var btn=document.querySelector(sel);
-  if(!btn)return;
-  btn.removeAttribute('onclick');
-  btn.addEventListener('click',async function(e){
-    e.preventDefault();
-    if(btn.classList.contains('_loading'))return;
-    try{await withBtn(btn,fn,{successMsg:done});}catch{}
-  });
-}
-
-document.addEventListener('DOMContentLoaded',function(){
-  var defs=[
-    ['button[onclick="doTweet()"]',          function(){return doTweet()},          '✓ نُشرت'],
-    ['button[onclick="doTweetMulti()"]',      function(){return doTweetMulti()},      '✓ بدأ النشر'],
-    ['button[onclick="doFollowMulti()"]',     function(){return doFollowMulti()},     '✓ بدأت المتابعة'],
-    ['button[onclick="doLikeMulti()"]',       function(){return doLikeMulti()},       '✓ بدأ الإعجاب'],
-    ['button[onclick="doRepostMulti()"]',     function(){return doRepostMulti()},     '✓ بدأت إعادة التغريد'],
-    ['button[onclick="doReplyMulti()"]',      function(){return doReplyMulti()},      '✓ بدأ الرد'],
-    ['button[onclick="doMutualFollow()"]',    function(){return doMutualFollow()},    '✓ بدأت التبادلية'],
-    ['button[onclick="doReport()"]',          function(){return doReport()},          '✓ بدأ الإبلاغ'],
-    ['button[onclick="doSyncProfiles()"]',    function(){return doSyncProfiles()},    '✓ بدأت المزامنة'],
-    ['button[onclick="doUpdateProfiles()"]',  function(){return doUpdateProfiles()},  '✓ بدأ التحديث'],
-    ['button[onclick="doImport()"]',          function(){return doImport()},          '✓ اكتمل'],
-    ['button[onclick="doAISuggest()"]',       function(){return doAISuggest()},       '✓ اكتمل'],
-    ['button[onclick="doScore()"]',           function(){return doScore()},           '✓ تم التقييم'],
-    ['button[onclick="doSchedule()"]',        function(){return doSchedule()},        '✓ تم الجدولة'],
-    ['button[onclick="saveProxy()"]',         function(){return saveProxy()},         '✓ تم الحفظ'],
-    ['button[onclick="autoDistribute()"]',    function(){return autoDistribute()},    '✓ تم التوزيع'],
-    ['button[onclick="doAssignProxy()"]',     function(){return doAssignProxy()},     '✓ تم التعيين'],
-    ['button[onclick="saveEditAccountFull()"]',function(){return saveEditAccountFull()},'✓ تم الحفظ'],
-    ['button[onclick="stopAllJobs()"]',       function(){return stopAllJobs()},       '✓ أُوقف'],
-    ['button[onclick="doLogin()"]',           function(){return doLogin()},           '✓ جارٍ الدخول'],
-    ['button[onclick="deleteSelectedAccounts()"]',function(){return deleteSelectedAccounts()},'✓ حُذف'],
-  ];
-  defs.forEach(function(d){bindStatic(d[0],d[1],d[2]);});
-
-  /* ── فحص جماعي ── */
-  var bkBtn=document.getElementById('bulk-check-btn');
-  if(bkBtn){
-    bkBtn.removeAttribute('onclick');
-    bkBtn.addEventListener('click',async function(){
-      if(bkBtn.classList.contains('_loading'))return;
-      btnLoad(bkBtn);
-      try{await doBulkCheckSelected();}
-      catch{btnError(bkBtn);}
-    });
-    document.addEventListener('_checkDone',function(){btnDone(bkBtn,'✓ اكتمل');});
-  }
-});
-
-/* ── Event delegation للأزرار الديناميكية ── */
-document.addEventListener('click',function(e){
-  var btn=e.target.closest('button');
-  if(!btn)return;
-  if(btn.classList.contains('_loading')){
-    e.preventDefault();e.stopImmediatePropagation();return;
-  }
-  var oc=btn.getAttribute('onclick')||'';
-
-  if(oc.includes('checkAccount(')){
-    e.preventDefault();btn.removeAttribute('onclick');
-    var m=oc.match(/'([^']+)'/);
-    if(m)withBtn(btn,function(){return checkAccount(m[1])},{successMsg:'✓ فُحص'});
-  }
-  if(oc.includes('deleteAccount(')){
-    e.preventDefault();btn.removeAttribute('onclick');
-    var m2=oc.match(/'([^']+)',\s*'([^']+)'/);
-    if(m2)withBtn(btn,function(){return deleteAccount(m2[1],m2[2])},{successMsg:'✓ حُذف',errorMsg:'خطأ'});
-  }
-  if(oc.includes('cancelJobById(')){
-    e.preventDefault();btn.removeAttribute('onclick');
-    var m3=oc.match(/\((\d+)\)/);
-    if(m3)withBtn(btn,function(){return cancelJobById(+m3[1])},{successMsg:'✓ أُوقف'});
-  }
-  if(oc.includes('resolveRisk(')){
-    e.preventDefault();btn.removeAttribute('onclick');
-    var m4=oc.match(/'([^']+)'/);
-    if(m4)withBtn(btn,function(){return resolveRisk(m4[1])},{successMsg:'✓ حُلّ'});
-  }
-  if(oc.includes('publishNow(')){
-    e.preventDefault();btn.removeAttribute('onclick');
-    var m5=oc.match(/'([^']+)'/);
-    if(m5)withBtn(btn,function(){return publishNow(m5[1])},{successMsg:'✓ نُشر'});
-  }
-  if(oc.includes('deleteProxy(')){
-    e.preventDefault();btn.removeAttribute('onclick');
-    var m6=oc.match(/'([^']+)'/);
-    if(m6)withBtn(btn,function(){return deleteProxy(m6[1])},{successMsg:'✓ حُذف'});
-  }
-  if(oc.includes('cancelSchedule(')){
-    e.preventDefault();btn.removeAttribute('onclick');
-    var m7=oc.match(/'([^']+)'/);
-    if(m7)withBtn(btn,function(){return cancelSchedule(m7[1])},{successMsg:'✓ أُلغي'});
-  }
-},true);
-
-})();
-</script>
+</html>
