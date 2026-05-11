@@ -825,6 +825,201 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .acc-role-pill.active-engage{ background:rgba(30,212,138,.1);color:var(--grn);border-color:rgba(30,212,138,.3) }
 .acc-role-pill.active-support{ background:rgba(245,166,35,.1);color:var(--amb);border-color:rgba(245,166,35,.3) }
 .acc-role-pill.active-mixed { background:rgba(255,255,255,.06);color:var(--t1);border-color:var(--bd2) }
+
+/* ═══════════════════════════════════════════════
+   UI POLISH v3 — injected
+═══════════════════════════════════════════════ */
+
+/* Brand refinements */
+.brand {
+  padding: 16px 14px 14px;
+  background: linear-gradient(180deg, rgba(79,126,248,.06) 0%, transparent 100%);
+  position: relative;
+}
+.brand::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 14px; right: 14px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--bd2), transparent);
+}
+.brand-mark {
+  width: 38px; height: 38px;
+  background: linear-gradient(135deg, #4f7ef8, #2a52d4);
+  border-radius: 11px;
+  box-shadow: 0 0 0 1px rgba(79,126,248,.4), 0 4px 16px rgba(79,126,248,.3), inset 0 1px 0 rgba(255,255,255,.2);
+  transition: box-shadow .2s;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.brand-mark:hover { box-shadow: 0 0 0 1px rgba(79,126,248,.6), 0 6px 20px rgba(79,126,248,.4), inset 0 1px 0 rgba(255,255,255,.2); }
+.brand-title { font-size: 15.5px; font-weight: 700; letter-spacing: -.03em; color: var(--t0); }
+.brand-sub { font-size: 10px; color: var(--t2); font-family: var(--m); letter-spacing: .04em; margin-top: 3px; display: flex; align-items: center; gap: 5px; }
+.brand-v {
+  background: linear-gradient(90deg, var(--blu), var(--pur));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  font-weight: 700; font-size: 10px;
+}
+
+/* Nav section headers */
+.nav-sec {
+  padding: 18px 14px 4px;
+  font-size: 8.5px;
+  font-weight: 700;
+  color: var(--t3);
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  display: flex; align-items: center; gap: 8px;
+}
+.nav-sec::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--bd);
+}
+
+/* Nav buttons — cleaner active state */
+.nav-btn {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8.5px 14px;
+  cursor: pointer;
+  color: var(--t2);
+  border: none;
+  background: none;
+  width: 100%;
+  text-align: right;
+  font-family: var(--r);
+  font-size: 13px;
+  font-weight: 500;
+  transition: background .1s, color .1s;
+  position: relative;
+  border-radius: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.nav-btn:hover {
+  background: rgba(255,255,255,.04);
+  color: var(--t1);
+}
+.nav-btn.on {
+  color: var(--blu2);
+  background: linear-gradient(90deg, rgba(79,126,248,.1), rgba(79,126,248,.04));
+}
+.nav-btn.on::before {
+  content: '';
+  position: absolute;
+  right: 0; top: 5px; bottom: 5px;
+  width: 3px;
+  background: linear-gradient(180deg, var(--blu2), var(--blu));
+  border-radius: 2px 0 0 2px;
+  box-shadow: 0 0 8px rgba(79,126,248,.5);
+}
+.nav-ico { width: 15px; height: 15px; flex-shrink: 0; opacity: .5; transition: opacity .15s; }
+.nav-btn:hover .nav-ico { opacity: .7; }
+.nav-btn.on .nav-ico { opacity: 1; color: var(--blu2); }
+
+/* Topbar polish */
+.topbar {
+  background: rgba(10,13,24,.92);
+  border-bottom: 1px solid var(--bd);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+.page-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--t0);
+  letter-spacing: -.015em;
+}
+
+/* Connection status dot in topbar */
+.ws-status {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 10px; font-weight: 600; font-family: var(--m);
+  color: var(--grn);
+  background: rgba(30,212,138,.07);
+  border: 1px solid rgba(30,212,138,.14);
+  border-radius: 20px;
+  padding: 3px 9px;
+  transition: all .3s;
+}
+.ws-status.disconnected { color: var(--red); background: rgba(242,86,104,.07); border-color: rgba(242,86,104,.14); }
+.ws-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; animation: blink 2s infinite; flex-shrink: 0; }
+
+/* Side footer refinements */
+.side-foot {
+  padding: 12px 14px;
+  background: rgba(0,0,0,.2);
+  border-top: 1px solid var(--bd);
+}
+.av {
+  background: linear-gradient(135deg, var(--blu3), var(--pur));
+  box-shadow: 0 2px 8px rgba(79,126,248,.25);
+  border: 1.5px solid rgba(79,126,248,.3);
+  transition: box-shadow .2s;
+}
+.av:hover { box-shadow: 0 2px 12px rgba(79,126,248,.4); }
+
+/* Smooth panel transitions */
+.panel { animation: panelIn .18s ease; }
+@keyframes panelIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* kcard subtle hover */
+.kcard {
+  transition: transform .15s, box-shadow .15s;
+}
+.kcard:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 24px rgba(0,0,0,.25);
+}
+
+/* nbadge refinement */
+.nbadge {
+  margin-right: auto;
+  font-size: 9.5px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 20px;
+  font-family: var(--m);
+  letter-spacing: .03em;
+  flex-shrink: 0;
+}
+
+/* Scrollbar inside sidebar */
+.side::-webkit-scrollbar { width: 3px; }
+.side::-webkit-scrollbar-thumb { background: var(--s4); }
+
+/* nav search box */
+.nav-search {
+  margin: 8px 10px 4px;
+  position: relative;
+}
+.nav-search input {
+  width: 100%;
+  background: rgba(255,255,255,.04);
+  border: 1px solid var(--bd);
+  border-radius: 8px;
+  padding: 6px 10px 6px 28px;
+  font-size: 11.5px;
+  color: var(--t1);
+  font-family: var(--r);
+  outline: none;
+  transition: border-color .15s, background .15s;
+}
+.nav-search input:focus { border-color: rgba(79,126,248,.4); background: rgba(79,126,248,.04); }
+.nav-search input::placeholder { color: var(--t3); }
+.nav-search-ico {
+  position: absolute;
+  left: 8px; top: 50%;
+  transform: translateY(-50%);
+  opacity: .4;
+  pointer-events: none;
+}
 </style>
 </style>
 </head>
@@ -857,10 +1052,19 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 <!-- شريط جانبي -->
 <aside class="side">
   <div class="brand">
-    <div class="brand-mark">XO</div>
-    <div><div class="brand-title">XOps</div><div class="brand-sub">v2.0 · AR</div></div>
+    <div class="brand-mark">
+      <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M3 3l5 6-5 6h2.5l3.75-4.5L13 15h2.5L10 9l5.5-6H13l-3.75 4.5L5.5 3H3z" fill="white" opacity=".95"/></svg>
+    </div>
+    <div>
+      <div class="brand-title">XOps</div>
+      <div class="brand-sub"><span class="brand-v">v3.0</span> · منصة إدارة X</div>
+    </div>
   </div>
   <nav>
+    <div class="nav-search">
+      <svg class="nav-search-ico" width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" stroke-width="1.4"/><path d="M10.5 10.5l3 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+      <input type="text" id="nav-search-input" placeholder="بحث... (Ctrl+K)" oninput="filterNav(this.value)">
+    </div>
     <div class="nav-sec">الرئيسية</div>
     <button class="nav-btn on" onclick="nav('overview',this)">
       <svg class="nav-ico" viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="6" height="6" rx="1" fill="currentColor" opacity=".9"/><rect x="9" y="1" width="6" height="6" rx="1" fill="currentColor" opacity=".5"/><rect x="1" y="9" width="6" height="6" rx="1" fill="currentColor" opacity=".5"/><rect x="9" y="9" width="6" height="6" rx="1" fill="currentColor" opacity=".5"/></svg>
@@ -947,7 +1151,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
     </button>
     <span class="page-title" id="ptitle">نظرة عامة</span>
     <div class="tb-sep"></div>
-    <div class="live-pill"><div class="live-dot"></div>مباشر</div>
+    <div class="ws-status" id="ws-status-pill"><div class="ws-dot"></div><span id="ws-status-txt">متصل</span></div>
     <div id="license-pill" style="display:none;align-items:center;gap:5px;border-radius:20px;padding:3px 10px;font-size:10.5px;font-weight:600;font-family:var(--m)"></div>
     <span class="tb-clock" id="clk">—</span>
     <div id="jobs-indicator" style="display:none;align-items:center;gap:6px;background:rgba(245,166,35,.08);border:1px solid rgba(245,166,35,.2);border-radius:8px;padding:4px 12px;cursor:pointer" onclick="nav('jobs')">
@@ -2478,6 +2682,17 @@ function init() {
   try {
     const socket = io();
     socket.on('action:done', d => toast(`✅ ${d.type} — @${d.account}`, 'ok'));
+
+  // ── Connection status pill ────────────────────────────────
+  function setWsStatus(connected) {
+    const pill = document.getElementById('ws-status-pill');
+    const txt  = document.getElementById('ws-status-txt');
+    if (!pill || !txt) return;
+    pill.className = 'ws-status' + (connected ? '' : ' disconnected');
+    txt.textContent = connected ? 'متصل' : 'منقطع';
+  }
+  socket.on('connect',    () => setWsStatus(true));
+  socket.on('disconnect', () => setWsStatus(false));
     socket.on('connect', () => console.log('[WS] متصل'));
     socket.on('health:progress', d => {
       const el = document.getElementById('bulk-check-counter');
@@ -4651,6 +4866,24 @@ function closeSidebar() {
   document.querySelector('.side').classList.remove('open');
   document.getElementById('sidebar-overlay').classList.remove('show');
 }
+function filterNav(q) {
+  q = q.trim().toLowerCase();
+  document.querySelectorAll('.nav-btn').forEach(btn => {
+    const txt = btn.textContent.trim().toLowerCase();
+    btn.style.display = (!q || txt.includes(q)) ? '' : 'none';
+  });
+  // Hide empty sections
+  document.querySelectorAll('.nav-sec').forEach(sec => {
+    let next = sec.nextElementSibling;
+    let hasVisible = false;
+    while (next && !next.classList.contains('nav-sec')) {
+      if (next.style.display !== 'none') hasVisible = true;
+      next = next.nextElementSibling;
+    }
+    sec.style.display = hasVisible ? '' : 'none';
+  });
+}
+
 // Close sidebar on nav click (mobile)
 document.querySelectorAll('.nav-btn').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -5452,6 +5685,19 @@ document.addEventListener('change', e => {
 });
 // Wire accounts load when panel opens
 document.addEventListener('DOMContentLoaded', () => {
+  // Ctrl+K / Cmd+K → focus nav search
+  document.addEventListener('keydown', e => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+      e.preventDefault();
+      const inp = document.getElementById('nav-search-input');
+      if (inp) { inp.focus(); inp.select(); }
+    }
+    if (e.key === 'Escape') {
+      const inp = document.getElementById('nav-search-input');
+      if (document.activeElement === inp) { inp.value=''; filterNav(''); inp.blur(); }
+    }
+  });
+
   const cb = document.getElementById('tm-auto-engage');
   if (cb) cb.addEventListener('change', () => {
     if (cb.checked && allActiveAccounts.length) fillEngTmAccounts();
