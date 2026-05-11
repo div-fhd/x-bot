@@ -178,11 +178,21 @@ async function getContext(account) {
         ...(storageState ? { storageState } : {}),
         ...(net.proxyUrl ? (() => {
           try {
-            const pu = new URL(net.proxyUrl);
-            const proxyOpts = { server: `${pu.protocol}//${pu.host}` };
-            if (pu.username) proxyOpts.username = decodeURIComponent(pu.username);
-            if (pu.password) proxyOpts.password = decodeURIComponent(pu.password);
-            return { proxy: proxyOpts };
+            // Manual parse — handles passwords containing @ (e.g. dataimpulse)
+            // Format: http://user:pass@host:port
+            const raw = net.proxyUrl;
+            const protoEnd = raw.indexOf('://');
+            const proto = raw.slice(0, protoEnd + 3); // "http://"
+            const rest  = raw.slice(protoEnd + 3);    // "user:pass@host:port"
+            // Find last @ to split credentials from host
+            const atIdx = rest.lastIndexOf('@');
+            if (atIdx === -1) return { proxy: { server: raw } };
+            const credentials = rest.slice(0, atIdx);   // "user:pass"
+            const hostPart    = rest.slice(atIdx + 1);  // "host:port"
+            const colonIdx    = credentials.indexOf(':');
+            const username    = colonIdx >= 0 ? credentials.slice(0, colonIdx) : credentials;
+            const password    = colonIdx >= 0 ? credentials.slice(colonIdx + 1) : '';
+            return { proxy: { server: `${proto}${hostPart}`, username, password } };
           } catch { return { proxy: { server: net.proxyUrl } }; }
         })() : {}),
       });
