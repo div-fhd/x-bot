@@ -1,3 +1,25 @@
+// ── Force Kill All — يوقف كل العمليات النشطة فوراً ─────────
+async function forceKillAll() {
+  const { cancelTokens } = require('./operations.registry');
+  const Browser = require('../services/browser.service');
+  const { browserRegistry } = require('./browser.registry');
+
+  // 1. أضف كل العمليات النشطة للـ cancel tokens
+  const active = registry.getActive();
+  for (const op of active) {
+    cancelTokens.add(op.parentJobId);
+    await registry.cancel(op.parentJobId).catch(() => {});
+  }
+
+  // 2. أغلق كل browser contexts مفتوحة
+  const contexts = browserRegistry.getAll();
+  await Promise.allSettled(
+    contexts.map(c => Browser.closeContext(c.accountId).catch(() => {}))
+  );
+
+  return { killed: active.length, browsers: contexts.length };
+}
+
 'use strict';
 const { registry }            = require('./operations.registry');
 const { browserRegistry }     = require('./browser.registry');
@@ -53,6 +75,13 @@ module.exports = {
     await getQueue(name).resume();
     res.json({ resumed: true, queue: name });
   },
+  // POST /api/v1/ops/force-kill — أوقف كل شيء فوراً
+  async forceKill(req, res) {
+    const result = await forceKillAll();
+    require('../utils/logger').warn(`[OpsCtrl] Force kill — ${result.killed} ops, ${result.browsers} browsers`);
+    res.json({ ok: true, ...result });
+  },
+
   async clearFailed(req, res) {
     const { getQueue, QUEUE_NAMES } = require('../queues/queues');
     const name = QUEUE_NAMES[req.params.key];

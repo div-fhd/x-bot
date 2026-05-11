@@ -8,7 +8,7 @@ const AISvc      = require('../../services/ai.service');
 const { jobEvents } = require('../events/job.events');
 const logger     = require('../../utils/logger');
 
-module.exports = wrapProcessor(async function tweetMultiProcessor(job) {
+module.exports = wrapProcessor(async function tweetMultiProcessor(job, { isCancelled }) {
   const {
     accountId, mode, text, topic, hashtags, manualTexts,
     mediaPaths, accountIndex,
@@ -67,6 +67,10 @@ module.exports = wrapProcessor(async function tweetMultiProcessor(job) {
     });
 
     // ── Auto-engage ─────────────────────────────────────────
+    if (isCancelled()) {
+      logger.warn(`[TweetMulti] Cancelled before auto-engage — @${account.username}`);
+      return { success: true, tweetId: r.tweetId, tweetUrl, autoEngageCancelled: true };
+    }
     if (autoEngage && tweetUrl && engageAccountIds?.length && engageActions?.length) {
       try {
         const { getQueue, QUEUE_NAMES } = require('../queues');

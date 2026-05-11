@@ -95,6 +95,7 @@ opsRouter.post  ('/:id/reprioritize',   opsCtrl.reprioritize);
 opsRouter.post  ('/queues/:key/pause',  opsCtrl.pauseQueue);
 opsRouter.post  ('/queues/:key/resume', opsCtrl.resumeQueue);
 opsRouter.delete('/queues/:key/failed', opsCtrl.clearFailed);
+opsRouter.post  ('/force-kill',          opsCtrl.forceKill);   // أوقف كل شيء فوراً
 
 // ── Engagement Campaigns ─────────────────────────────────────
 const engCtrl    = require('../controllers/engagement.controller');

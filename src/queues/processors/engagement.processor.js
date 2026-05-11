@@ -7,7 +7,7 @@ const { EngageCampaign, log } = require('../../models/index');
 const { jobEvents }     = require('../events/job.events');
 const logger            = require('../../utils/logger');
 
-module.exports = wrapProcessor(async function engagementProcessor(job) {
+module.exports = wrapProcessor(async function engagementProcessor(job, { isCancelled }) {
   const { accountId, campaignId, action, tweetId, tweetUrl, replyText, meta } = job.data;
 
   const account = await Account.findById(accountId);

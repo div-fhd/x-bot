@@ -3041,12 +3041,14 @@ async function cancelJobById(jobId) {
 }
 
 async function stopAllJobs() {
-  if (!confirm('إيقاف جميع العمليات الجارية؟')) return;
+  if (!confirm('⚠️ إيقاف فوري لكل العمليات وإغلاق المتصفحات؟')) return;
   try {
-    const d = await api('/api/v1/actions/jobs/cancel-all', { method: 'POST' });
-    toast(`⏹ أُوقفت ${d.cancelled} عملية`, 'ok');
-    pollJobs();
-  } catch(e) { toast(e.message, 'err'); }
+    const d = await api('/api/v1/ops/force-kill', { method: 'POST' });
+    toast(`⏹ أُوقفت ${d.killed} عملية وأُغلق ${d.browsers} متصفح`, 'ok');
+  } catch(e) {
+    await api('/api/v1/actions/jobs/cancel-all', { method: 'POST' }).catch(()=>{});
+    toast('⏹ تم إيقاف الكل', 'ok');
+  }
 }
 
 // pollJobs يبدأ من init() فقط بعد تسجيل الدخول
@@ -5111,9 +5113,16 @@ async function opRetry(id) {
 async function cancelAllOps() {
   const active=_opsList.filter(o=>['active','waiting','paused','retrying'].includes(o.state));
   if (!active.length) return toast('لا توجد عمليات نشطة','warn');
-  if (!confirm(`إلغاء ${active.length} عملية نشطة؟`)) return;
-  for (const op of active) await api(`/api/v1/ops/${op.parentJobId}/cancel`,{method:'POST'}).catch(()=>{});
-  toast('⏹ تم إلغاء الكل','ok');
+  if (!confirm(`⚠️ إيقاف فوري لـ ${active.length} عملية وإغلاق كل المتصفحات المفتوحة؟`)) return;
+  try {
+    const d = await api('/api/v1/ops/force-kill', { method: 'POST' });
+    toast(`⏹ أُوقفت ${d.killed} عملية وأُغلق ${d.browsers} متصفح`, 'ok');
+    setTimeout(() => { renderOpsList(); updateOpsKPIs(); }, 800);
+  } catch(e) {
+    // fallback: إلغاء فردي
+    for (const op of active) await api(`/api/v1/ops/${op.parentJobId}/cancel`,{method:'POST'}).catch(()=>{});
+    toast('⏹ تم إلغاء الكل','ok');
+  }
 }
 async function pauseQueue(key) {
   try { await api(`/api/v1/ops/queues/${key}/pause`,{method:'POST'}); toast('⏸ Queue موقوف','ok'); loadOpsConsole(); }

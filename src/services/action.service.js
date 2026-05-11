@@ -180,11 +180,19 @@ const ActionSvc = {
   // ── Like ─────────────────────────────────────────────────────
   async like(account, tweetId) {
     if (!account.canDo('like')) throw new Error(`@${account.username}: daily like cap reached`);
-    const page = await this._readyPage(account);
+    let page;
     try {
+      page = await this._readyPage(account);
+      if (page.isClosed()) throw new Error('SKIP: page closed before goto');
       await page.goto(`https://x.com/i/status/${tweetId}`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
-      await page.waitForSelector('[data-testid="like"], [data-testid="unlike"]', { timeout: 60_000 });
+      try {
+        await page.waitForSelector('[data-testid="like"], [data-testid="unlike"]', { timeout: 30_000 });
+      } catch {
+        if (page.isClosed()) throw new Error('SKIP: page closed while waiting for like button');
+        throw new Error('Like button not found');
+      }
       await sleep(800, 1200);
+      if (page.isClosed()) throw new Error('SKIP: page closed before like click');
       const already = await page.locator('[data-testid="unlike"]').count().catch(() => 0);
       if (already > 0) return { success: true, alreadyLiked: true };
       await page.locator('[data-testid="like"]').first().evaluate(el => el.click());
@@ -193,41 +201,64 @@ const ActionSvc = {
       await log(account._id, 'engage', 'like', 'success', { tweetId });
       return { success: true };
     } catch (e) {
-      await log(account._id, 'engage', 'like_failed', 'failure', { tweetId, error: e.message });
+      if (!e.message?.startsWith('SKIP:')) {
+        await log(account._id, 'engage', 'like_failed', 'failure', { tweetId, error: e.message });
+      }
       throw e;
-    } finally { await page.close().catch(() => {}); }
+    } finally { await page?.close().catch(() => {}); }
   },
 
   // ── Retweet ───────────────────────────────────────────────────
   async retweet(account, tweetId) {
     if (!account.canDo('repost')) throw new Error(`@${account.username}: daily retweet cap reached`);
-    const page = await this._readyPage(account);
+    let page;
     try {
-      await page.goto(`https://x.com/i/status/${tweetId}`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+      page = await this._readyPage(account);
 
-      // انتظر زر الريتويت أو unretweet مباشرة — نفس نهج like
-      await page.waitForSelector('[data-testid="retweet"], [data-testid="unretweet"]', { timeout: 60_000 });
+      // حماية: تحقق إن الـ page لسا حية بعد الانتظار
+      const guardedGoto = async () => {
+        if (page.isClosed()) throw new Error('SKIP: page closed before navigation');
+        await page.goto(`https://x.com/i/status/${tweetId}`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+        if (page.isClosed()) throw new Error('SKIP: page closed after navigation');
+      };
+      await guardedGoto();
+
+      // انتظر زر الريتويت مع retry لو الصفحة انغلقت
+      const retweetSel = '[data-testid="retweet"], [data-testid="unretweet"]';
+      try {
+        await page.waitForSelector(retweetSel, { timeout: 30_000 });
+      } catch (selErr) {
+        if (page.isClosed()) throw new Error('SKIP: page closed while waiting for retweet button');
+        throw selErr;
+      }
       await sleep(800, 1200);
 
+      if (page.isClosed()) throw new Error('SKIP: page closed before retweet click');
       const already = await page.locator('[data-testid="unretweet"]').count().catch(() => 0);
       if (already > 0) return { success: true, alreadyRetweeted: true };
 
-      // اضغط زر الريتويت عبر locator
       await page.locator('[data-testid="retweet"]').first().evaluate(el => el.click());
 
-      // انتظر dialog التأكيد قبل الضغط
-      await page.waitForSelector('[data-testid="retweetConfirm"]', { timeout: 10_000 });
+      try {
+        await page.waitForSelector('[data-testid="retweetConfirm"]', { timeout: 10_000 });
+      } catch {
+        if (page.isClosed()) throw new Error('SKIP: page closed before confirm dialog');
+        throw new Error('Retweet confirm dialog not found');
+      }
       await sleep(400, 700);
-      await page.locator('[data-testid="retweetConfirm"]').first().evaluate(el => el.click());
+      if (!page.isClosed()) await page.locator('[data-testid="retweetConfirm"]').first().evaluate(el => el.click());
       await sleep(1000, 1800);
 
       await account.bump('repost');
       await log(account._id, 'engage', 'retweet', 'success', { tweetId });
       return { success: true };
     } catch (e) {
-      await log(account._id, 'engage', 'retweet_failed', 'failure', { tweetId, error: e.message });
+      // page closed = context race condition، مش خطأ حقيقي
+      if (!e.message?.startsWith('SKIP:')) {
+        await log(account._id, 'engage', 'retweet_failed', 'failure', { tweetId, error: e.message });
+      }
       throw e;
-    } finally { await page.close().catch(() => {}); }
+    } finally { await page?.close().catch(() => {}); }
   },
 
     // ── Reply ─────────────────────────────────────────────────────

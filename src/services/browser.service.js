@@ -82,9 +82,13 @@ async function ensureBrowser() {
     ],
   });
   BROWSER.on('disconnected', () => {
-    logger.warn('[Browser] Browser process disconnected');
+    logger.warn('[Browser] Browser process disconnected — clearing stale pool');
     BROWSER = null;
-    // Don't clear POOL — contexts are already dead but we clean on next access
+    // Mark all pool entries as dead so next getContext() recreates them cleanly
+    for (const [id, entry] of POOL) {
+      clearTimeout(entry.timer);
+    }
+    POOL.clear();
     SEM = 0;
   });
   return BROWSER;

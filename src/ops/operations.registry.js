@@ -9,6 +9,10 @@ const OP_STATES = {
   FAILED: 'failed', RETRYING: 'retrying',
 };
 
+// ── Cancel Tokens ────────────────────────────────────────────
+// parentJobId يُضاف هنا عند الـ cancel → كل processor يتحقق قبل التنفيذ
+const cancelTokens = new Set();
+
 class OperationsRegistry extends EventEmitter {
   constructor() {
     super();
@@ -67,6 +71,10 @@ class OperationsRegistry extends EventEmitter {
     if (!op || op.state === OP_STATES.COMPLETED) return false;
     op.state = OP_STATES.CANCELLING;
     this.emit('op:cancelling', this._snap(op));
+
+    // ① signal لكل processor نشط إن العملية ملغاة
+    cancelTokens.add(parentJobId);
+
     try {
       const { getQueue } = require('../queues/queues');
       const qn = this._queueName(op.type);
@@ -75,13 +83,35 @@ class OperationsRegistry extends EventEmitter {
         let cancelled = 0;
         for (const jid of op.bullJobIds) {
           const job = await queue.getJob(jid).catch(() => null);
-          if (job) { const s = await job.getState(); if (['waiting','delayed'].includes(s)) { await job.remove(); cancelled++; } }
+          if (job) {
+            const s = await job.getState();
+            if (['waiting','delayed'].includes(s)) { await job.remove(); cancelled++; }
+            // محاولة إيقاف الـ active jobs أيضاً
+            if (s === 'active') { await job.discard().catch(() => {}); }
+          }
         }
-        logger.info(`[OpsRegistry] Cancelled ${cancelled} waiting jobs for ${parentJobId}`);
+        logger.info(`[OpsRegistry] Cancelled ${cancelled} queued jobs for ${parentJobId}`);
       }
     } catch(e) { logger.warn(`[OpsRegistry] Cancel error: ${e.message}`); }
+
+    // ② إغلاق كل browser contexts المرتبطة بهذه العملية
+    try {
+      const Browser = require('../services/browser.service');
+      const accounts = op.activeAccounts || [];
+      for (const username of accounts) {
+        // closeContext يأخذ accountId — نحاول عبر الـ registry
+        const { browserRegistry } = require('./browser.registry');
+        const ctx = browserRegistry.getAll().find(c => c.username === username);
+        if (ctx?.accountId) await Browser.closeContext(ctx.accountId).catch(() => {});
+      }
+    } catch(e) { logger.warn(`[OpsRegistry] Browser close error: ${e.message}`); }
+
     op.state = OP_STATES.CANCELLED;
+    op.completedAt = new Date();
     this.emit('op:cancelled', this._snap(op));
+
+    // نظّف الـ token بعد 30 ثانية (كافي لأي job نشط ينهي دورته)
+    setTimeout(() => cancelTokens.delete(parentJobId), 30_000);
     return true;
   }
 
@@ -164,4 +194,4 @@ class OperationsRegistry extends EventEmitter {
 
 const registry = new OperationsRegistry();
 setInterval(() => registry.gc(), 1_800_000).unref();
-module.exports = { registry, OP_STATES };
+module.exports = { registry, OP_STATES, cancelTokens };

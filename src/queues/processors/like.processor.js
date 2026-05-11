@@ -5,7 +5,7 @@ const ActionSvc  = require('../../services/action.service');
 const Browser    = require('../../services/browser.service');
 const { jobEvents } = require('../events/job.events');
 
-module.exports = wrapProcessor(async function likeProcessor(job) {
+module.exports = wrapProcessor(async function likeProcessor(job, { isCancelled }) {
   const { accountId, tweetId, meta } = job.data;
   const account = await Account.findById(accountId);
     if (!account.isActive)
