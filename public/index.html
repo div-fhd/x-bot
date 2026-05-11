@@ -4073,6 +4073,21 @@ async function doTweetMulti() {
       : [];
     const engDelayParts = document.getElementById('tm-eng-delay')?.value.split(',') || ['10000','25000'];
 
+    // ── validation قبل الإرسال ──────────────────────────────────
+    if (autoEngage && engageAccountIds.length === 0) {
+      toast('⚠️ التفاعل التلقائي مفعّل لكن لم تُحدَّد حسابات التفاعل', 'warn');
+      s.textContent = 'ابدأ النشر';
+      s.disabled = false;
+      return;
+    }
+    if (autoEngage && engageActions.length === 0) {
+      toast('⚠️ التفاعل التلقائي مفعّل لكن لم تُحدَّد أي إجراءات (إعجاب/ريتويت...)', 'warn');
+      s.textContent = 'ابدأ النشر';
+      s.disabled = false;
+      return;
+    }
+    console.log('[TweetMulti] Payload:', { autoEngage, engageAccountIds: engageAccountIds.length, engageActions });
+
     const d = await api('/api/v1/actions/tweet-multi', {
       method: 'POST',
       body: JSON.stringify({
@@ -5396,8 +5411,13 @@ function updateAutoEngageToggle() {
   const on  = document.getElementById('tm-auto-engage')?.checked;
   const body = document.getElementById('tm-auto-engage-body');
   if (body) body.style.display = on ? 'block' : 'none';
-  if (on && !document.querySelectorAll('#tm-eng-accounts option').length) {
+  if (on) {
     fillEngTmAccounts();
+    // تحديد كل الحسابات تلقائياً عند فتح التفاعل التلقائي
+    setTimeout(() => {
+      [...document.querySelectorAll('#tm-eng-accounts option')].forEach(o => o.selected = true);
+      updateEngTmCount();
+    }, 50);
   }
 }
 function fillEngTmAccounts() {
