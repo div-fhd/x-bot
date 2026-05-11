@@ -56,7 +56,7 @@ module.exports = wrapProcessor(async function tweetMultiProcessor(job) {
       (r.tweetId ? `https://x.com/${account.username}/status/${r.tweetId}` : null);
 
     await Content.create({
-      account: account._id, text: finalText, status: 'published',
+      account: account._id, text: finalText, status: 'منشور',
       publishedAt: new Date(), tweetId: r.tweetId, tweetUrl,
     });
 
