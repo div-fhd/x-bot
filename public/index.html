@@ -1500,17 +1500,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
             <!-- Actions -->
             <div class="field" style="margin-bottom:12px">
               <label>إجراءات التفاعل</label>
-              <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:6px">
-                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12.5px;font-weight:400;text-transform:none;letter-spacing:0">
-                  <input type="checkbox" class="tm-eng-action" value="like" style="accent-color:var(--grn)" checked> ❤️ إعجاب
-                </label>
-                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12.5px;font-weight:400;text-transform:none;letter-spacing:0">
-                  <input type="checkbox" class="tm-eng-action" value="retweet" style="accent-color:var(--blu)"> 🔁 ريتويت
-                </label>
-                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12.5px;font-weight:400;text-transform:none;letter-spacing:0">
-                  <input type="checkbox" class="tm-eng-action" value="reply" style="accent-color:var(--pur)" onchange="toggleEngReplyTexts()"> 💬 رد
-                </label>
-              </div>
+              <div id="tm-eng-actions" style="display:flex;gap:6px;flex-wrap:wrap"><button type="button" class="act-toggle on" data-action="like" data-prefix="tm-eng" onclick="toggleActionBtn(this, 'tm-eng')"><svg viewBox="0 0 16 16" fill="none" width="13" height="13"><path d="M8 13.5S1.5 9.8 1.5 5.5a3 3 0 0 1 5.5-1.7A3 3 0 0 1 12.5 5.5c0 4.3-4.5 8-4.5 8z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg> إعجاب</button><button type="button" class="act-toggle " data-action="retweet" data-prefix="tm-eng" onclick="toggleActionBtn(this, 'tm-eng')"><svg viewBox="0 0 16 16" fill="none" width="13" height="13"><path d="M2 5h9a2 2 0 0 1 2 2v1M14 11H5a2 2 0 0 1-2-2V8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M12 3l2 2-2 2M4 9l-2 2 2 2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg> ريتويت</button><button type="button" class="act-toggle " data-action="reply" data-prefix="tm-eng" onclick="toggleActionBtn(this, 'tm-eng'); toggleReplyWrap('tm-eng')"><svg viewBox="0 0 16 16" fill="none" width="13" height="13"><path d="M2 3h12a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H5l-3 3V4a1 1 0 0 1 1-1z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg> رد</button></div>
             </div>
 
             <!-- Reply texts -->
@@ -2235,21 +2225,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 
     <!-- Actions -->
     <div class="field" style="margin-bottom:14px">
-      <label>الإجراءات المطلوبة</label>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
-        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:400;text-transform:none;letter-spacing:0">
-          <input type="checkbox" class="eng-action-cb" value="like" style="accent-color:var(--grn)" checked> ❤️ إعجاب
-        </label>
-        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:400;text-transform:none;letter-spacing:0">
-          <input type="checkbox" class="eng-action-cb" value="retweet" style="accent-color:var(--blu)"> 🔁 ريتويت
-        </label>
-        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:400;text-transform:none;letter-spacing:0">
-          <input type="checkbox" class="eng-action-cb" value="reply" style="accent-color:var(--pur)"> 💬 رد
-        </label>
-        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:400;text-transform:none;letter-spacing:0">
-          <input type="checkbox" class="eng-action-cb" value="follow_author" style="accent-color:var(--amb)"> 👤 متابعة صاحب التغريدة
-        </label>
-      </div>
+      <label>الإجراءات — اختر واحد أو أكثر</label>
+      <div id="eng-actions" style="display:flex;gap:6px;flex-wrap:wrap"><button type="button" class="act-toggle on" data-action="like" data-prefix="eng" onclick="toggleActionBtn(this, 'eng')"><svg viewBox="0 0 16 16" fill="none" width="13" height="13"><path d="M8 13.5S1.5 9.8 1.5 5.5a3 3 0 0 1 5.5-1.7A3 3 0 0 1 12.5 5.5c0 4.3-4.5 8-4.5 8z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg> إعجاب</button><button type="button" class="act-toggle " data-action="retweet" data-prefix="eng" onclick="toggleActionBtn(this, 'eng')"><svg viewBox="0 0 16 16" fill="none" width="13" height="13"><path d="M2 5h9a2 2 0 0 1 2 2v1M14 11H5a2 2 0 0 1-2-2V8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M12 3l2 2-2 2M4 9l-2 2 2 2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg> ريتويت</button><button type="button" class="act-toggle " data-action="reply" data-prefix="eng" onclick="toggleActionBtn(this, 'eng'); toggleReplyWrap('eng')"><svg viewBox="0 0 16 16" fill="none" width="13" height="13"><path d="M2 3h12a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H5l-3 3V4a1 1 0 0 1 1-1z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg> رد</button><button type="button" class="act-toggle " data-action="follow_author" data-prefix="eng" onclick="toggleActionBtn(this, 'eng')"><svg viewBox="0 0 16 16" fill="none" width="13" height="13"><circle cx="7" cy="5" r="3" stroke="currentColor" stroke-width="1.4"/><path d="M1 13c0-3 2.7-4 6-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M12 10v4M10 12h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg> متابعة</button></div>
     </div>
 
     <!-- Reply texts -->
@@ -4090,9 +4067,7 @@ async function doTweetMulti() {
     // Auto-engage params
     const autoEngage = document.getElementById('tm-auto-engage')?.checked || false;
     const engageAccountIds = autoEngage ? getSelectedAccounts('tm-eng-accounts') : [];
-    const engageActions = autoEngage
-      ? [...document.querySelectorAll('.tm-eng-action:checked')].map(c => c.value)
-      : [];
+    const engageActions = autoEngage ? getSelectedActions('tm-eng') : [];
     const engageReplyTexts = autoEngage
       ? (document.getElementById('tm-eng-reply-texts')?.value.trim().split('\n').filter(Boolean) || [])
       : [];
@@ -4963,6 +4938,29 @@ async function openAssignTabInit() {
 }
 
 // ── Bulk proxy import ────────────────────────────────────────
+// ── Action toggle buttons ───────────────────────────────────
+function toggleActionBtn(btn, prefix) {
+  btn.classList.toggle('on');
+  // show/hide reply wrap based on prefix
+  const hasReply = getSelectedActions(prefix).includes('reply');
+  const wrap = document.getElementById(prefix + '-reply-wrap') ||
+               document.getElementById(prefix === 'eng' ? 'eng-reply-wrap' : 'tm-eng-reply-wrap');
+  if (wrap) wrap.style.display = hasReply ? 'block' : 'none';
+}
+
+function getSelectedActions(prefix) {
+  const container = document.getElementById(prefix + '-actions');
+  if (!container) return [];
+  return [...container.querySelectorAll('.act-toggle.on')].map(b => b.dataset.action);
+}
+
+function toggleReplyWrap(prefix) {
+  const hasReply = getSelectedActions(prefix).includes('reply');
+  const wrapId = prefix === 'eng' ? 'eng-reply-wrap' : 'tm-eng-reply-wrap';
+  const wrap = document.getElementById(wrapId);
+  if (wrap) wrap.style.display = hasReply ? 'block' : 'none';
+}
+
 // ── Parse proxy lines ──────────────────────────────────────
 function parseProxyLine(line, idx) {
   line = line.trim();
@@ -5259,12 +5257,7 @@ async function openEngModal() {
   updateEngAccCount();
 
   // Wire reply checkbox
-  document.querySelectorAll('.eng-action-cb').forEach(cb => {
-    cb.addEventListener('change', () => {
-      const hasReply = [...document.querySelectorAll('.eng-action-cb:checked')].some(c => c.value === 'reply');
-      document.getElementById('eng-reply-wrap').style.display = hasReply ? 'block' : 'none';
-    });
-  });
+  // action toggles handle their own state via toggleActionBtn()
 
   document.getElementById('eng-modal').style.display = 'flex';
 }
@@ -5303,7 +5296,7 @@ document.addEventListener('change', e => { if (e.target.closest('#eng-accounts')
 function buildEngPayload() {
   const name     = document.getElementById('eng-name').value.trim();
   const tweetUrl = document.getElementById('eng-tweet-url').value.trim();
-  const actions  = [...document.querySelectorAll('.eng-action-cb:checked')].map(c => c.value);
+  const actions  = getSelectedActions('eng');
   const accountIds = [...document.querySelectorAll('#eng-accounts option:checked')].map(o => o.value);
   const replyTexts = document.getElementById('eng-reply-texts').value.trim().split('\n').filter(Boolean);
   const delayParts = document.getElementById('eng-delay').value.split(',');
@@ -5405,11 +5398,7 @@ function updateEngTmCount() {
   const el = document.getElementById('tm-eng-acc-count');
   if (el) el.textContent = count > 0 ? `(${count} محدد)` : '';
 }
-function toggleEngReplyTexts() {
-  const has = [...document.querySelectorAll('.tm-eng-action:checked')].some(c => c.value === 'reply');
-  const wrap = document.getElementById('tm-eng-reply-wrap');
-  if (wrap) wrap.style.display = has ? 'block' : 'none';
-}
+// toggleEngReplyTexts replaced by toggleReplyWrap()
 document.addEventListener('change', e => {
   if (e.target.closest('#tm-eng-accounts')) updateEngTmCount();
 });
