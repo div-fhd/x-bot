@@ -3,11 +3,15 @@ const logger = require('../utils/logger');
 let client = null;
 
 async function connectRedis() {
-  const url = process.env.REDIS_URL;
+  const url = process.env.REDIS_URL
+    || (process.env.REDIS_HOST
+        ? `redis://${process.env.REDIS_HOST}:${process.env.REDIS_PORT || 6379}`
+        : null);
   if (!url) {
     logger.warn('[Redis] REDIS_URL not set — Redis disabled');
     return null;
   }
+  logger.info(`[Redis] Connecting to ${url}`);
   try {
     const Redis = require('ioredis');
     client = new Redis(url, {
