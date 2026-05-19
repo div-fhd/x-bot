@@ -242,8 +242,7 @@ module.exports = {
     const { lines = [], autoAssign = false, assignTarget = 'no-proxy' } = req.body;
     if (!lines.length) return res.status(400).json({ error: 'No proxies provided' });
 
-    const Proxy   = require('../models/index').Proxy;
-    const Account = require('../models/Account');
+    // Proxy is defined at top of this file, Account already imported
 
     let added = 0, skipped = 0, failed = 0;
     const addedProxies = [];
@@ -285,7 +284,6 @@ module.exports = {
   // ── Bulk validate proxies ─────────────────────────────────
   async bulkValidate(req, res) {
     const { proxyIds = [] } = req.body;
-    const Proxy = require('../models/index').Proxy;
     const net   = require('net');
 
     const proxies = proxyIds.length
