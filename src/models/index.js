@@ -98,7 +98,7 @@ const EngageCampaignSchema = new mongoose.Schema({
   // What to do
   actions: [{
     type: String,
-    enum: ['like', 'retweet', 'reply', 'follow_author'],
+    enum: ['like', 'retweet', 'reply', 'follow_author', 'bookmark', 'quote_tweet', 'tweet_dwell', 'profile_visit', 'share'],
   }],
 
   // Reply texts — rotated across accounts

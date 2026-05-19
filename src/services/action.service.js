@@ -180,19 +180,11 @@ const ActionSvc = {
   // ── Like ─────────────────────────────────────────────────────
   async like(account, tweetId) {
     if (!account.canDo('like')) throw new Error(`@${account.username}: daily like cap reached`);
-    let page;
+    const page = await this._readyPage(account);
     try {
-      page = await this._readyPage(account);
-      if (page.isClosed()) throw new Error('SKIP: page closed before goto');
       await page.goto(`https://x.com/i/status/${tweetId}`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
-      try {
-        await page.waitForSelector('[data-testid="like"], [data-testid="unlike"]', { timeout: 30_000 });
-      } catch {
-        if (page.isClosed()) throw new Error('SKIP: page closed while waiting for like button');
-        throw new Error('Like button not found');
-      }
+      await page.waitForSelector('[data-testid="like"], [data-testid="unlike"]', { timeout: 60_000 });
       await sleep(800, 1200);
-      if (page.isClosed()) throw new Error('SKIP: page closed before like click');
       const already = await page.locator('[data-testid="unlike"]').count().catch(() => 0);
       if (already > 0) return { success: true, alreadyLiked: true };
       await page.locator('[data-testid="like"]').first().evaluate(el => el.click());
@@ -201,64 +193,41 @@ const ActionSvc = {
       await log(account._id, 'engage', 'like', 'success', { tweetId });
       return { success: true };
     } catch (e) {
-      if (!e.message?.startsWith('SKIP:')) {
-        await log(account._id, 'engage', 'like_failed', 'failure', { tweetId, error: e.message });
-      }
+      await log(account._id, 'engage', 'like_failed', 'failure', { tweetId, error: e.message });
       throw e;
-    } finally { await page?.close().catch(() => {}); }
+    } finally { await page.close().catch(() => {}); }
   },
 
   // ── Retweet ───────────────────────────────────────────────────
   async retweet(account, tweetId) {
     if (!account.canDo('repost')) throw new Error(`@${account.username}: daily retweet cap reached`);
-    let page;
+    const page = await this._readyPage(account);
     try {
-      page = await this._readyPage(account);
+      await page.goto(`https://x.com/i/status/${tweetId}`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
 
-      // حماية: تحقق إن الـ page لسا حية بعد الانتظار
-      const guardedGoto = async () => {
-        if (page.isClosed()) throw new Error('SKIP: page closed before navigation');
-        await page.goto(`https://x.com/i/status/${tweetId}`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
-        if (page.isClosed()) throw new Error('SKIP: page closed after navigation');
-      };
-      await guardedGoto();
-
-      // انتظر زر الريتويت مع retry لو الصفحة انغلقت
-      const retweetSel = '[data-testid="retweet"], [data-testid="unretweet"]';
-      try {
-        await page.waitForSelector(retweetSel, { timeout: 30_000 });
-      } catch (selErr) {
-        if (page.isClosed()) throw new Error('SKIP: page closed while waiting for retweet button');
-        throw selErr;
-      }
+      // انتظر زر الريتويت أو unretweet مباشرة — نفس نهج like
+      await page.waitForSelector('[data-testid="retweet"], [data-testid="unretweet"]', { timeout: 60_000 });
       await sleep(800, 1200);
 
-      if (page.isClosed()) throw new Error('SKIP: page closed before retweet click');
       const already = await page.locator('[data-testid="unretweet"]').count().catch(() => 0);
       if (already > 0) return { success: true, alreadyRetweeted: true };
 
+      // اضغط زر الريتويت عبر locator
       await page.locator('[data-testid="retweet"]').first().evaluate(el => el.click());
 
-      try {
-        await page.waitForSelector('[data-testid="retweetConfirm"]', { timeout: 10_000 });
-      } catch {
-        if (page.isClosed()) throw new Error('SKIP: page closed before confirm dialog');
-        throw new Error('Retweet confirm dialog not found');
-      }
+      // انتظر dialog التأكيد قبل الضغط
+      await page.waitForSelector('[data-testid="retweetConfirm"]', { timeout: 10_000 });
       await sleep(400, 700);
-      if (!page.isClosed()) await page.locator('[data-testid="retweetConfirm"]').first().evaluate(el => el.click());
+      await page.locator('[data-testid="retweetConfirm"]').first().evaluate(el => el.click());
       await sleep(1000, 1800);
 
       await account.bump('repost');
       await log(account._id, 'engage', 'retweet', 'success', { tweetId });
       return { success: true };
     } catch (e) {
-      // page closed = context race condition، مش خطأ حقيقي
-      if (!e.message?.startsWith('SKIP:')) {
-        await log(account._id, 'engage', 'retweet_failed', 'failure', { tweetId, error: e.message });
-      }
+      await log(account._id, 'engage', 'retweet_failed', 'failure', { tweetId, error: e.message });
       throw e;
-    } finally { await page?.close().catch(() => {}); }
+    } finally { await page.close().catch(() => {}); }
   },
 
     // ── Reply ─────────────────────────────────────────────────────
@@ -975,6 +944,391 @@ const ActionSvc = {
       const text = await page.$eval('[data-testid="tweetText"]', el => el.textContent).catch(() => '');
       return text.trim();
     } finally { await page.close().catch(() => {}); }
+  },
+
+
+  // ── Bookmark ─────────────────────────────────────────────────
+  async bookmark(account, tweetId) {
+    const page = await this._readyPage(account);
+    try {
+      await page.goto(`https://x.com/i/status/${tweetId}`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+      // scroll to trigger full render
+      await sleep(1000, 1500);
+      await page.mouse.wheel(0, 200);
+      await sleep(500, 800);
+      await page.mouse.wheel(0, -200);
+      await page.waitForSelector('[data-testid="bookmark"], [data-testid="removeBookmark"]', { timeout: 45_000 });
+      await sleep(700, 1200);
+      const already = await page.locator('[data-testid="removeBookmark"]').count().catch(() => 0);
+      if (already > 0) return { success: true, alreadyBookmarked: true };
+      await page.locator('[data-testid="bookmark"]').first().evaluate(el => el.click());
+      await sleep(600, 1000);
+      await log(account._id, 'engage', 'bookmark', 'success', { tweetId });
+      return { success: true };
+    } catch(e) {
+      await log(account._id, 'engage', 'bookmark_failed', 'failure', { tweetId, error: e.message });
+      throw e;
+    } finally { await page.close().catch(() => {}); }
+  },
+
+  // ── Quote Tweet ───────────────────────────────────────────────
+  async quoteTweet(account, tweetId, text) {
+    if (!account.canDo('post')) throw new Error(`@${account.username}: daily post cap reached`);
+    if (!text?.trim()) throw new Error(`@${account.username}: quote text required`);
+    const page = await this._readyPage(account);
+    try {
+      await page.goto(`https://x.com/i/status/${tweetId}`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+      await page.waitForSelector('[data-testid="retweet"], [data-testid="unretweet"]', { timeout: 30_000 });
+      await sleep(800, 1300);
+
+      // Click retweet button to open menu
+      await page.locator('[data-testid="retweet"]').first().evaluate(el => el.click());
+      await page.waitForSelector('a[href="/compose/post"][role="menuitem"]', { timeout: 8_000 });
+      await sleep(400, 700);
+
+      // Click Quote
+      await page.locator('a[href="/compose/post"][role="menuitem"]').first().evaluate(el => el.click());
+      await page.waitForSelector('[data-testid="tweetTextarea_0"]', { timeout: 10_000 });
+      await sleep(600, 1000);
+
+      // Type text human-like
+      await page.locator('[data-testid="tweetTextarea_0"]').first().click();
+      await sleep(300, 600);
+      await this._humanType(page, text.slice(0, 280));
+      await sleep(800, 1500);
+
+      // Post
+      await page.locator('[data-testid="tweetButtonInline"]').first().evaluate(el => el.click());
+      await sleep(1500, 2500);
+
+      // Extract tweetId from URL if redirected
+      const url = page.url();
+      const m   = url.match(/status\/(\d+)/);
+      const quoteTweetId = m ? m[1] : null;
+
+      await account.bump('post').catch(() => {});
+      await log(account._id, 'engage', 'quote_tweet', 'success', { tweetId, quoteTweetId });
+      return { success: true, quoteTweetId, quoteTweetUrl: quoteTweetId ? `https://x.com/${account.username}/status/${quoteTweetId}` : null };
+    } catch(e) {
+      await log(account._id, 'engage', 'quote_tweet_failed', 'failure', { tweetId, error: e.message });
+      throw e;
+    } finally { await page.close().catch(() => {}); }
+  },
+
+  // ── Profile Visit + Dwell ────────────────────────────────────
+  async profileVisit(account, targetHandle, dwellSeconds = 8) {
+    const page = await this._readyPage(account);
+    try {
+      await page.goto(`https://x.com/${targetHandle}`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+      await page.waitForSelector('[data-testid="UserName"]', { timeout: 20_000 });
+
+      // Human-like dwell: scroll slowly through profile
+      const dwell = (dwellSeconds * 1000) + randInt(-1000, 2000);
+      const scrollSteps = Math.floor(dwell / 1500);
+      for (let i = 0; i < scrollSteps; i++) {
+        await page.mouse.wheel(0, randInt(120, 280));
+        await sleep(800, 1800);
+      }
+
+      await log(account._id, 'engage', 'profile_visit', 'success', { targetHandle, dwellSeconds });
+      return { success: true };
+    } catch(e) {
+      await log(account._id, 'engage', 'profile_visit_failed', 'failure', { targetHandle, error: e.message });
+      throw e;
+    } finally { await page.close().catch(() => {}); }
+  },
+
+  // ── Tweet Dwell (view time signal) ───────────────────────────
+  async tweetDwell(account, tweetId, dwellSeconds = 12) {
+    const page = await this._readyPage(account);
+    try {
+      await page.goto(`https://x.com/i/status/${tweetId}`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+      await page.waitForSelector('[data-testid="tweetText"], article, [data-testid="cellInnerDiv"]', { timeout: 30_000 });
+
+      // Scroll slowly — simulates reading
+      const dwell = (dwellSeconds * 1000) + randInt(-1000, 3000);
+      const steps = Math.floor(dwell / 2000);
+      for (let i = 0; i < steps; i++) {
+        await page.mouse.wheel(0, randInt(80, 180));
+        await sleep(1200, 2500);
+      }
+      // Scroll back up (natural behavior)
+      await page.mouse.wheel(0, -randInt(200, 400));
+      await sleep(500, 900);
+
+      await log(account._id, 'engage', 'tweet_dwell', 'success', { tweetId, dwellSeconds });
+      return { success: true };
+    } catch(e) {
+      await log(account._id, 'engage', 'tweet_dwell_failed', 'failure', { tweetId, error: e.message });
+      throw e;
+    } finally { await page.close().catch(() => {}); }
+  },
+
+  // ── Share (Copy Link signal) ─────────────────────────────────
+  async shareTweet(account, tweetId) {
+    const page = await this._readyPage(account);
+    try {
+      await page.goto(`https://x.com/i/status/${tweetId}`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+      const shareBtn = await page.waitForSelector(
+        '[aria-haspopup="menu"][aria-label="Share post"], [aria-haspopup="menu"][aria-label="Share"]',
+        { timeout: 30_000 }
+      );
+      await sleep(700, 1200);
+      await shareBtn.evaluate(el => el.click());
+      await page.waitForSelector('[data-testid="Dropdown"]', { timeout: 8_000 });
+      await sleep(400, 800);
+
+      // Click Copy link
+      const copyBtn = page.locator('[data-testid="Dropdown"] [role="menuitem"]').first();
+      await copyBtn.evaluate(el => el.click());
+      await sleep(600, 1000);
+
+      // Close dropdown if still open
+      await page.keyboard.press('Escape').catch(() => {});
+
+      await log(account._id, 'engage', 'share_tweet', 'success', { tweetId });
+      return { success: true };
+    } catch(e) {
+      await log(account._id, 'engage', 'share_tweet_failed', 'failure', { tweetId, error: e.message });
+      throw e;
+    } finally { await page.close().catch(() => {}); }
+  },
+
+
+  // ── Engage Tweet — single page session for all actions ───────
+  // Used by engagement processor to avoid reopening browser per action
+  async engageTweet(account, tweetId, actionList, opts = {}) {
+    const { replyText, quoteText, authorHandle, dwellSeconds = 8 } = opts;
+    const Browser = require('./browser.service');
+    const page = await Browser.getPage(account);
+
+    try {
+      // Load tweet ONCE — wait for interactive state
+      await page.goto(`https://x.com/i/status/${tweetId}`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+      // Wait for tweet actions to render
+      await page.waitForSelector('[data-testid="like"],[data-testid="unlike"],[data-testid="retweet"]', { timeout: 30_000 }).catch(() => {});
+      await sleep(800, 1400);
+
+      const results = [];
+
+      for (const act of actionList) {
+        try {
+          let r;
+          switch(act) {
+
+            case 'like': {
+              await page.waitForSelector('[data-testid="like"],[data-testid="unlike"]', { timeout: 20_000 });
+              const already = await page.locator('[data-testid="unlike"]').count().catch(() => 0);
+              if (already) { r = { alreadyLiked: true }; break; }
+              await page.locator('[data-testid="like"]').first().evaluate(el => el.click());
+              await sleep(600, 1000);
+              await account.bump('like').catch(() => {});
+              await log(account._id, 'engage', 'like', 'success', { tweetId });
+              r = { success: true };
+              break;
+            }
+
+            case 'retweet': {
+              await page.waitForSelector('[data-testid="retweet"],[data-testid="unretweet"]', { timeout: 20_000 });
+              const already = await page.locator('[data-testid="unretweet"]').count().catch(() => 0);
+              if (already) { r = { alreadyRetweeted: true }; break; }
+              await page.locator('[data-testid="retweet"]').first().evaluate(el => el.click());
+              await page.waitForSelector('[data-testid="retweetConfirm"]', { timeout: 8_000 });
+              await sleep(300, 600);
+              await page.locator('[data-testid="retweetConfirm"]').first().evaluate(el => el.click());
+              await sleep(800, 1400);
+              await account.bump('repost').catch(() => {});
+              await log(account._id, 'engage', 'retweet', 'success', { tweetId });
+              r = { success: true };
+              break;
+            }
+
+            case 'bookmark': {
+              // Scroll to trigger full render
+              await page.mouse.wheel(0, 150);
+              await sleep(400, 700);
+              await page.mouse.wheel(0, -150);
+              await page.waitForSelector('[data-testid="bookmark"],[data-testid="removeBookmark"]', { timeout: 20_000 });
+              const already = await page.locator('[data-testid="removeBookmark"]').count().catch(() => 0);
+              if (already) { r = { alreadyBookmarked: true }; break; }
+              await page.locator('[data-testid="bookmark"]').first().evaluate(el => el.click());
+              await sleep(500, 900);
+              await log(account._id, 'engage', 'bookmark', 'success', { tweetId });
+              r = { success: true };
+              break;
+            }
+
+            case 'reply': {
+              if (!replyText) { r = { skipped: true, reason: 'no reply text' }; break; }
+              const replyBox = page.locator('[data-testid="reply"]').first();
+              await replyBox.waitFor({ timeout: 15_000 });
+              await replyBox.evaluate(el => el.click());
+              await page.waitForSelector('[data-testid="tweetTextarea_0"]', { timeout: 10_000 });
+              await sleep(400, 700);
+              await page.locator('[data-testid="tweetTextarea_0"]').first().click();
+              await this._humanType(page, replyText.slice(0, 280));
+              await sleep(600, 1000);
+              await page.locator('[data-testid="tweetButtonInline"]').first().evaluate(el => el.click());
+              await sleep(1200, 2000);
+              await account.bump('reply').catch(() => {});
+              await log(account._id, 'engage', 'reply', 'success', { tweetId });
+              r = { success: true };
+              break;
+            }
+
+            case 'quote_tweet': {
+              if (!quoteText) { r = { skipped: true, reason: 'no quote text' }; break; }
+              // Click Retweet → Quote on main page
+              await page.waitForSelector('[data-testid="retweet"],[data-testid="unretweet"]', { timeout: 15_000 });
+              await page.locator('[data-testid="retweet"]').first().evaluate(el => el.click());
+              // Wait for dropdown
+              const quoteLink = await page.waitForSelector(
+                'a[href="/compose/post"][role="menuitem"], [data-testid="retweetConfirm"] + * a',
+                { timeout: 8_000 }
+              ).catch(() => null);
+              if (!quoteLink) {
+                // Close dropdown and skip
+                await page.keyboard.press('Escape').catch(() => {});
+                r = { skipped: true, reason: 'quote button not found' };
+                break;
+              }
+              // Get href and open in new page
+              const href = await quoteLink.getAttribute('href');
+              await page.keyboard.press('Escape').catch(() => {});
+              await sleep(300, 500);
+
+              const ctx = page.context();
+              const composePage = await ctx.newPage();
+              try {
+                // Build quote URL manually
+                const quoteTweetUrl = `https://x.com/${account.username}/status/${tweetId}`;
+                await composePage.goto(
+                  `https://x.com/compose/post?url=${encodeURIComponent(quoteTweetUrl)}`,
+                  { waitUntil: 'domcontentloaded', timeout: 30_000 }
+                );
+                // Wait for textarea
+                await composePage.waitForSelector('[data-testid="tweetTextarea_0"]', { timeout: 15_000 });
+                await sleep(600, 1000);
+                await composePage.locator('[data-testid="tweetTextarea_0"]').first().click();
+                await sleep(300, 500);
+                await this._humanType(composePage, quoteText.slice(0, 280));
+                await sleep(700, 1200);
+
+                // Verify tweet card appeared (confirms quote attachment)
+                await composePage.waitForSelector('[data-testid="card.wrapper"], [data-testid="attachments"]', { timeout: 8_000 }).catch(() => {});
+
+                const postBtn = composePage.locator('[data-testid="tweetButtonInline"]').first();
+                await postBtn.waitFor({ timeout: 8_000 });
+                await postBtn.evaluate(el => el.click());
+                await sleep(2000, 3000);
+
+                await account.bump('post').catch(() => {});
+                await log(account._id, 'engage', 'quote_tweet', 'success', { tweetId });
+                r = { success: true };
+              } finally {
+                await composePage.close().catch(() => {});
+              }
+              // Back to tweet page
+              await page.goto(`https://x.com/i/status/${tweetId}`, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+              await page.waitForSelector('[data-testid="like"],[data-testid="unlike"]', { timeout: 15_000 }).catch(() => {});
+              await sleep(800, 1200);
+              break;
+            }
+
+            case 'tweet_dwell': {
+              // Already on the tweet — just scroll and wait
+              const steps = Math.floor((dwellSeconds * 1000) / 1800);
+              for (let i = 0; i < steps; i++) {
+                await page.mouse.wheel(0, randInt(80, 180));
+                await sleep(1000, 2000);
+              }
+              await page.mouse.wheel(0, -randInt(200, 350));
+              await log(account._id, 'engage', 'tweet_dwell', 'success', { tweetId });
+              r = { success: true };
+              break;
+            }
+
+            case 'profile_visit': {
+              if (!authorHandle) { r = { skipped: true, reason: 'no authorHandle' }; break; }
+              const handle = authorHandle.replace('@', '');
+              await page.goto(`https://x.com/${handle}`, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+              await page.waitForSelector('[data-testid="UserName"]', { timeout: 15_000 }).catch(() => {});
+              const steps = Math.floor(((dwellSeconds || 8) * 1000) / 1500);
+              for (let i = 0; i < steps; i++) {
+                await page.mouse.wheel(0, randInt(100, 250));
+                await sleep(800, 1600);
+              }
+              // Go back to tweet for remaining actions
+              await page.goto(`https://x.com/i/status/${tweetId}`, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+              await sleep(600, 1000);
+              await log(account._id, 'engage', 'profile_visit', 'success', { authorHandle: handle });
+              r = { success: true };
+              break;
+            }
+
+            case 'follow_author': {
+              if (!authorHandle) { r = { skipped: true, reason: 'no authorHandle' }; break; }
+              const handle = authorHandle.replace('@', '');
+              // Navigate to profile
+              await page.goto(`https://x.com/${handle}`, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+              await page.waitForSelector('[data-testid="placementTracking"]', { timeout: 15_000 }).catch(() => {});
+              await sleep(600, 1000);
+              const followBtn = page.locator('[data-testid="placementTracking"] [data-testid$="-follow"]').first();
+              const count = await followBtn.count().catch(() => 0);
+              if (!count) { r = { skipped: true, reason: 'already following or not found' }; break; }
+              await followBtn.evaluate(el => el.click());
+              await sleep(800, 1400);
+              // Back to tweet
+              await page.goto(`https://x.com/i/status/${tweetId}`, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+              await sleep(600, 1000);
+              await account.bump('follow').catch(() => {});
+              await log(account._id, 'engage', 'follow_author', 'success', { authorHandle: handle });
+              r = { success: true };
+              break;
+            }
+
+            case 'share': {
+              const shareBtn = await page.waitForSelector(
+                '[aria-haspopup="menu"][aria-label="Share post"], [aria-haspopup="menu"][aria-label="Share"]',
+                { timeout: 15_000 }
+              );
+              await shareBtn.evaluate(el => el.click());
+              await page.waitForSelector('[data-testid="Dropdown"]', { timeout: 8_000 });
+              await sleep(400, 700);
+              await page.locator('[data-testid="Dropdown"] [role="menuitem"]').first().evaluate(el => el.click());
+              await sleep(500, 900);
+              await page.keyboard.press('Escape').catch(() => {});
+              await log(account._id, 'engage', 'share', 'success', { tweetId });
+              r = { success: true };
+              break;
+            }
+
+            default:
+              r = { skipped: true, reason: `unknown action: ${act}` };
+          }
+
+          results.push({ action: act, ...(r || { success: true }) });
+          logger.info(`[EngageTweet] @${account.username} — ${act} ✓`);
+
+        } catch(e) {
+          logger.warn(`[EngageTweet] @${account.username} — ${act} failed: ${e.message}`);
+          results.push({ action: act, success: false, error: e.message });
+          // Try to reload tweet page for next action
+          if (!['profile_visit','follow_author','quote_tweet'].includes(act)) {
+            await page.goto(`https://x.com/i/status/${tweetId}`, { waitUntil: 'domcontentloaded', timeout: 30_000 }).catch(() => {});
+            await sleep(800, 1200);
+          }
+        }
+
+        // Human-like delay between actions
+        await sleep(1200, 2800);
+      }
+
+      return { success: true, results };
+
+    } finally {
+      await page.close().catch(() => {});
+    }
   },
 
   async _humanType(page, text) {

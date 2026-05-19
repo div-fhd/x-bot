@@ -37,7 +37,7 @@ module.exports = {
 
   // POST /api/v1/engagement
   async create(req, res) {
-    const { name, tweetUrl, accountIds, accountRole, actions, replyTexts = [], delayMinMs = 8000, delayMaxMs = 25000, scheduleAt } = req.body;
+    const { name, tweetUrl, accountIds, accountRole, actions, replyTexts = [], quoteMode = 'manual', quoteTexts = [], quotePrompt = '', delayMinMs = 8000, delayMaxMs = 25000, scheduleAt, authorHandle } = req.body;
     if (!name || !tweetUrl || !actions?.length)
       return res.status(400).json({ error: 'name, tweetUrl, actions required' });
 
@@ -46,7 +46,9 @@ module.exports = {
 
     const campaign = await EngageCampaign.create({
       name, tweetUrl, tweetId, accountIds, accountRole, actions,
-      replyTexts, delayMinMs, delayMaxMs, scheduleAt,
+      replyTexts, quoteMode, quoteTexts, quotePrompt,
+      delayMinMs, delayMaxMs, scheduleAt,
+      meta: { authorHandle },
       createdBy: req.user?._id,
     });
 

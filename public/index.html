@@ -8,26 +8,26 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg:  #070B14;
-  --s1:  #0A0F1E;
-  --s2:  #0F172A;
-  --s3:  #111827;
-  --s4:  #1A2336;
-  --s5:  #1E293B;
-  --bd:  #1E293B;
-  --bd2: #263348;
-  --bd3: #334155;
-  --t0:  #E2E8F0;
-  --t1:  #CBD5E1;
-  --t2:  #94A3B8;
-  --t3:  #64748B;
-  --blu:  #3B82F6;
-  --blu2: #60A5FA;
-  --blu3: #2563EB;
-  --grn:  #10B981;
-  --grn2: #059669;
-  --amb:  #F59E0B;
-  --red:  #EF4444;
+  --bg:  #060810;
+  --s1:  #0a0d18;
+  --s2:  #0e1120;
+  --s3:  #131727;
+  --s4:  #181d2e;
+  --s5:  #1d2235;
+  --bd:  rgba(255,255,255,.055);
+  --bd2: rgba(255,255,255,.1);
+  --bd3: rgba(255,255,255,.17);
+  --t0:  #dde3f5;
+  --t1:  #7f8bae;
+  --t2:  #434d68;
+  --t3:  #252c44;
+  --blu:  #5b8df9;
+  --blu2: #8cb4ff;
+  --blu3: #3366e8;
+  --grn:  #22dfa0;
+  --grn2: #12c586;
+  --amb:  #f8b340;
+  --red:  #f25668;
   --pur:  #a882ff;
   --cyn:  #22d4e8;
   --r: 'IBM Plex Sans Arabic', sans-serif;
@@ -825,423 +825,6 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .acc-role-pill.active-engage{ background:rgba(30,212,138,.1);color:var(--grn);border-color:rgba(30,212,138,.3) }
 .acc-role-pill.active-support{ background:rgba(245,166,35,.1);color:var(--amb);border-color:rgba(245,166,35,.3) }
 .acc-role-pill.active-mixed { background:rgba(255,255,255,.06);color:var(--t1);border-color:var(--bd2) }
-
-/* ═══════════════════════════════════════════════
-   UI POLISH v3 — injected
-═══════════════════════════════════════════════ */
-
-/* Brand refinements */
-.brand {
-  padding: 16px 14px 14px;
-  background: linear-gradient(180deg, rgba(79,126,248,.06) 0%, transparent 100%);
-  position: relative;
-}
-.brand::after {
-  content: '';
-  position: absolute;
-  bottom: 0; left: 14px; right: 14px;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, var(--bd2), transparent);
-}
-.brand-mark {
-  width: 38px; height: 38px;
-  background: linear-gradient(135deg, #4f7ef8, #2a52d4);
-  border-radius: 11px;
-  box-shadow: 0 0 0 1px rgba(79,126,248,.4), 0 4px 16px rgba(79,126,248,.3), inset 0 1px 0 rgba(255,255,255,.2);
-  transition: box-shadow .2s;
-  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-}
-.brand-mark:hover { box-shadow: 0 0 0 1px rgba(79,126,248,.6), 0 6px 20px rgba(79,126,248,.4), inset 0 1px 0 rgba(255,255,255,.2); }
-.brand-title { font-size: 15.5px; font-weight: 700; letter-spacing: -.03em; color: var(--t0); }
-.brand-sub { font-size: 10px; color: var(--t2); font-family: var(--m); letter-spacing: .04em; margin-top: 3px; display: flex; align-items: center; gap: 5px; }
-.brand-v {
-  background: linear-gradient(90deg, var(--blu), var(--pur));
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-  font-weight: 700; font-size: 10px;
-}
-
-/* Nav section headers */
-.nav-sec {
-  padding: 18px 14px 4px;
-  font-size: 8.5px;
-  font-weight: 700;
-  color: var(--t3);
-  letter-spacing: .18em;
-  text-transform: uppercase;
-  display: flex; align-items: center; gap: 8px;
-}
-.nav-sec::after {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background: var(--bd);
-}
-
-/* Nav buttons — cleaner active state */
-.nav-btn {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 8.5px 14px;
-  cursor: pointer;
-  color: var(--t2);
-  border: none;
-  background: none;
-  width: 100%;
-  text-align: right;
-  font-family: var(--r);
-  font-size: 13px;
-  font-weight: 500;
-  transition: background .1s, color .1s;
-  position: relative;
-  border-radius: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.nav-btn:hover {
-  background: rgba(255,255,255,.04);
-  color: var(--t1);
-}
-.nav-btn.on {
-  color: var(--blu2);
-  background: linear-gradient(90deg, rgba(79,126,248,.1), rgba(79,126,248,.04));
-}
-.nav-btn.on::before {
-  content: '';
-  position: absolute;
-  right: 0; top: 5px; bottom: 5px;
-  width: 3px;
-  background: linear-gradient(180deg, var(--blu2), var(--blu));
-  border-radius: 2px 0 0 2px;
-  box-shadow: 0 0 8px rgba(79,126,248,.5);
-}
-.nav-ico { width: 15px; height: 15px; flex-shrink: 0; opacity: .5; transition: opacity .15s; }
-.nav-btn:hover .nav-ico { opacity: .7; }
-.nav-btn.on .nav-ico { opacity: 1; color: var(--blu2); }
-
-/* Topbar polish */
-.topbar {
-  background: rgba(10,13,24,.92);
-  border-bottom: 1px solid var(--bd);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-}
-.page-title {
-  font-size: 13.5px;
-  font-weight: 600;
-  color: var(--t0);
-  letter-spacing: -.015em;
-}
-
-/* Connection status dot in topbar */
-.ws-status {
-  display: flex; align-items: center; gap: 5px;
-  font-size: 10px; font-weight: 600; font-family: var(--m);
-  color: var(--grn);
-  background: rgba(30,212,138,.07);
-  border: 1px solid rgba(30,212,138,.14);
-  border-radius: 20px;
-  padding: 3px 9px;
-  transition: all .3s;
-}
-.ws-status.disconnected { color: var(--red); background: rgba(242,86,104,.07); border-color: rgba(242,86,104,.14); }
-.ws-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; animation: blink 2s infinite; flex-shrink: 0; }
-
-/* Side footer refinements */
-.side-foot {
-  padding: 12px 14px;
-  background: rgba(0,0,0,.2);
-  border-top: 1px solid var(--bd);
-}
-.av {
-  background: linear-gradient(135deg, var(--blu3), var(--pur));
-  box-shadow: 0 2px 8px rgba(79,126,248,.25);
-  border: 1.5px solid rgba(79,126,248,.3);
-  transition: box-shadow .2s;
-}
-.av:hover { box-shadow: 0 2px 12px rgba(79,126,248,.4); }
-
-/* Smooth panel transitions */
-.panel { animation: panelIn .18s ease; }
-@keyframes panelIn {
-  from { opacity: 0; transform: translateY(6px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
-/* kcard subtle hover */
-.kcard {
-  transition: transform .15s, box-shadow .15s;
-}
-.kcard:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 24px rgba(0,0,0,.25);
-}
-
-/* nbadge refinement */
-.nbadge {
-  margin-right: auto;
-  font-size: 9.5px;
-  font-weight: 700;
-  padding: 2px 7px;
-  border-radius: 20px;
-  font-family: var(--m);
-  letter-spacing: .03em;
-  flex-shrink: 0;
-}
-
-/* Scrollbar inside sidebar */
-.side::-webkit-scrollbar { width: 3px; }
-.side::-webkit-scrollbar-thumb { background: var(--s4); }
-
-/* nav search box */
-.nav-search {
-  margin: 8px 10px 4px;
-  position: relative;
-}
-.nav-search input {
-  width: 100%;
-  background: rgba(255,255,255,.04);
-  border: 1px solid var(--bd);
-  border-radius: 8px;
-  padding: 6px 10px 6px 28px;
-  font-size: 11.5px;
-  color: var(--t1);
-  font-family: var(--r);
-  outline: none;
-  transition: border-color .15s, background .15s;
-}
-.nav-search input:focus { border-color: rgba(79,126,248,.4); background: rgba(79,126,248,.04); }
-.nav-search input::placeholder { color: var(--t3); }
-.nav-search-ico {
-  position: absolute;
-  left: 8px; top: 50%;
-  transform: translateY(-50%);
-  opacity: .4;
-  pointer-events: none;
-}
-
-/* ═══════════════════════════════════════════════
-   XOPS v3 — UI SYSTEM REFRESH
-   Palette: Linear/Vercel/Supabase/Datadog aesthetic
-═══════════════════════════════════════════════ */
-
-/* ── Typography hierarchy ── */
-body { font-size: 13.5px; letter-spacing: -.01em; }
-
-.page-title  { font-size: 14px; font-weight: 600; color: var(--t0); letter-spacing: -.02em; }
-.card-title  { font-size: 12.5px; font-weight: 600; color: var(--t0); }
-.k-lbl       { font-size: 10px; font-weight: 600; color: var(--t3); letter-spacing: .08em; text-transform: uppercase; font-family: var(--m); }
-.k-val       { font-size: 26px; font-weight: 700; color: var(--t0); font-family: var(--m); letter-spacing: -.04em; line-height: 1; }
-.k-sub       { font-size: 11px; color: var(--t2); margin-top: 6px; }
-.tbl th      { font-size: 10px; font-weight: 600; color: var(--t3); letter-spacing: .06em; }
-.tbl td      { font-size: 12.5px; color: var(--t1); }
-label        { font-size: 11px; font-weight: 600; color: var(--t2); letter-spacing: .04em; text-transform: uppercase; }
-
-/* ── Sidebar refinements ── */
-.side { background: var(--s1); border-left: 1px solid var(--bd); }
-.nav-sec {
-  padding: 16px 14px 5px;
-  font-size: 9.5px; font-weight: 700;
-  color: var(--t3);
-  letter-spacing: .14em; text-transform: uppercase;
-}
-.nav-btn { color: var(--t2); font-size: 13px; padding: 8px 14px; }
-.nav-btn:hover { background: rgba(255,255,255,.04); color: var(--t0); }
-.nav-btn.on { color: var(--blu2); background: rgba(59,130,246,.1); }
-.nav-btn.on::before { background: var(--blu); width: 3px; box-shadow: none; }
-.nav-ico { opacity: .45; }
-.nav-btn:hover .nav-ico { opacity: .7; }
-.nav-btn.on .nav-ico { opacity: 1; color: var(--blu2); }
-.nbadge { font-size: 10px; font-weight: 600; }
-
-/* ── Topbar ── */
-.topbar { background: rgba(7,11,20,.96); border-bottom: 1px solid var(--bd); }
-
-/* ── Cards ── */
-.card { background: var(--s2); border: 1px solid var(--bd); }
-.card-h { padding: 11px 16px; border-bottom: 1px solid var(--bd); background: transparent; }
-.card-b { padding: 14px 16px; }
-.kcard { background: var(--s2); border: 1px solid var(--bd); border-radius: 10px; }
-.kcard:hover { border-color: var(--bd2); box-shadow: 0 4px 16px rgba(0,0,0,.25); }
-
-/* ── Buttons ── */
-.btn { font-size: 12px; font-weight: 500; padding: 6px 13px; color: var(--t1); border-color: var(--bd2); background: rgba(255,255,255,.04); }
-.btn:hover { background: var(--s4); color: var(--t0); border-color: var(--bd3); }
-.btn-p { background: var(--blu); color: #fff; border-color: transparent; box-shadow: 0 1px 3px rgba(0,0,0,.3); }
-.btn-p:hover { background: #4F8FFF; border-color: transparent; }
-.btn-r { background: rgba(239,68,68,.08); border-color: rgba(239,68,68,.2); color: #F87171; }
-.btn-r:hover { background: rgba(239,68,68,.14); }
-.btn-g { background: rgba(16,185,129,.08); border-color: rgba(16,185,129,.2); color: #34D399; }
-
-/* ── Forms ── */
-input, textarea {
-  background: var(--s3);
-  border: 1px solid var(--bd2);
-  color: var(--t0);
-  font-size: 13px;
-}
-input:hover, textarea:hover { border-color: var(--bd3); background: var(--s4); }
-input:focus, textarea:focus { border-color: var(--blu); background: var(--s4); box-shadow: 0 0 0 3px rgba(59,130,246,.12); }
-input::placeholder, textarea::placeholder { color: var(--t3); }
-
-/* ── Custom Select ── */
-/* Only hide selects that are paired with an xsel wrapper */
-.xsel > select,
-select.xsel-hidden { display: none !important; }
-.xsel {
-  position: relative;
-  display: inline-block;
-  width: 100%;
-}
-.xsel-trigger {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  background: var(--s3);
-  border: 1px solid var(--bd2);
-  border-radius: 8px;
-  padding: 8px 12px;
-  color: var(--t0);
-  font-size: 13px;
-  font-family: var(--r);
-  cursor: pointer;
-  user-select: none;
-  transition: border-color .15s, background .15s, box-shadow .15s;
-  white-space: nowrap;
-  min-height: 36px;
-}
-.xsel-trigger:hover { border-color: var(--bd3); background: var(--s4); }
-.xsel-trigger.open  { border-color: var(--blu); background: var(--s4); box-shadow: 0 0 0 3px rgba(59,130,246,.12); }
-.xsel-trigger.sm { padding: 4px 10px; font-size: 11.5px; min-height: 28px; border-radius: 6px; }
-.xsel-arrow {
-  width: 14px; height: 14px; flex-shrink: 0; color: var(--t3);
-  transition: transform .2s;
-}
-.xsel-trigger.open .xsel-arrow { transform: rotate(180deg); }
-.xsel-drop {
-  position: absolute;
-  top: calc(100% + 4px);
-  right: 0; left: 0;
-  background: var(--s2);
-  border: 1px solid var(--bd2);
-  border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(0,0,0,.4), 0 2px 8px rgba(0,0,0,.3);
-  z-index: 999;
-  overflow: hidden;
-  display: none;
-  animation: dropIn .12s ease;
-  max-height: 220px;
-  overflow-y: auto;
-}
-.xsel-drop.open { display: block; }
-@keyframes dropIn { from { opacity:0; transform:translateY(-4px); } to { opacity:1; transform:translateY(0); } }
-.xsel-opt {
-  padding: 8px 12px;
-  font-size: 12.5px;
-  color: var(--t1);
-  cursor: pointer;
-  display: flex; align-items: center; gap: 8px;
-  transition: background .1s, color .1s;
-  font-family: var(--r);
-}
-.xsel-opt:hover { background: rgba(255,255,255,.05); color: var(--t0); }
-.xsel-opt.active { background: rgba(59,130,246,.1); color: var(--blu2); }
-.xsel-opt.active::after {
-  content: '';
-  width: 6px; height: 6px; border-radius: 50%;
-  background: var(--blu);
-  margin-right: auto;
-  flex-shrink: 0;
-}
-.xsel-drop::-webkit-scrollbar { width: 3px; }
-.xsel-drop::-webkit-scrollbar-thumb { background: var(--bd3); border-radius: 3px; }
-
-/* ── Logs panel — terminal style ── */
-#ops-logs-body {
-  max-height: 280px;
-  overflow-y: auto;
-  font-family: var(--m);
-  font-size: 11.5px;
-  padding: 0;
-  background: #070B14;
-  border-radius: 0 0 10px 10px;
-  scroll-behavior: smooth;
-}
-#ops-logs-body::-webkit-scrollbar { width: 4px; }
-#ops-logs-body::-webkit-scrollbar-thumb { background: var(--s5); border-radius: 4px; }
-
-.log-entry {
-  display: grid;
-  grid-template-columns: 14px 58px 72px 110px 1fr;
-  align-items: center;
-  gap: 10px;
-  padding: 5px 14px;
-  border-bottom: 1px solid rgba(30,41,59,.8);
-  transition: background .08s;
-  line-height: 1.4;
-}
-.log-entry:last-child { border-bottom: none; }
-.log-entry:hover { background: rgba(255,255,255,.025); }
-.log-entry.le-ok   .le-icon { color: #10B981; }
-.log-entry.le-err  .le-icon { color: #EF4444; }
-.log-entry.le-skip .le-icon { color: #64748B; }
-.le-icon  { font-size: 12px; font-weight: 700; text-align: center; flex-shrink: 0; }
-.le-time  { color: #475569; font-size: 10px; }
-.le-type  { color: #64748B; font-size: 10px; }
-.le-user  { color: #CBD5E1; font-weight: 600; font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.le-msg   { color: #94A3B8; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.le-err-txt { color: #F87171; }
-
-/* ── Pills ── */
-.p-g { background: rgba(16,185,129,.1);  color: #34D399; border: 1px solid rgba(16,185,129,.15); }
-.p-r { background: rgba(239,68,68,.1);   color: #F87171; border: 1px solid rgba(239,68,68,.15); }
-.p-a { background: rgba(245,158,11,.1);  color: #FCD34D; border: 1px solid rgba(245,158,11,.15); }
-.p-b { background: rgba(59,130,246,.1);  color: #93C5FD; border: 1px solid rgba(59,130,246,.15); }
-.p-p { background: rgba(139,92,246,.1);  color: #C4B5FD; border: 1px solid rgba(139,92,246,.15); }
-.p-n { background: rgba(100,116,139,.1); color: #94A3B8; border: 1px solid rgba(100,116,139,.15); }
-
-/* ── Tables ── */
-.tbl th { background: rgba(255,255,255,.015); color: var(--t3); }
-.tbl td { color: var(--t1); border-color: var(--bd); }
-.tbl tbody tr:hover td { background: rgba(255,255,255,.02); }
-.uname { color: var(--t0); }
-
-/* ── Notices ── */
-.notice { font-size: 12.5px; color: var(--t1); }
-.notice-info { background: rgba(59,130,246,.06); border-color: rgba(59,130,246,.18); }
-.notice-warn { background: rgba(245,158,11,.06); border-color: rgba(245,158,11,.18); }
-
-/* ── Action tabs ── */
-.atab { color: var(--t2); font-size: 12.5px; }
-.atab:hover { color: var(--t1); }
-.atab.on { color: var(--blu2); border-bottom-color: var(--blu); }
-
-/* ── Live pill ── */
-.live-pill, .ws-status {
-  background: rgba(16,185,129,.07);
-  border: 1px solid rgba(16,185,129,.18);
-  color: #34D399;
-  font-size: 10.5px;
-}
-.ws-status.disconnected { color: #F87171; background: rgba(239,68,68,.07); border-color: rgba(239,68,68,.18); }
-
-/* ── Queue bars ── */
-.ql { color: var(--t2); font-size: 11px; }
-.qt { background: var(--s4); }
-
-/* ── Feed rows ── */
-.feed-t { color: var(--t0); font-size: 12.5px; }
-.feed-m { color: var(--t3); font-size: 10.5px; }
-
-/* ── nav-search ── */
-.nav-search input { background: rgba(255,255,255,.04); border-color: var(--bd); color: var(--t1); font-size: 11.5px; }
-.nav-search input:focus { border-color: rgba(59,130,246,.5); background: rgba(59,130,246,.04); }
-.nav-search input::placeholder { color: var(--t3); }
-
-/* ── Side footer ── */
-.side-foot { border-top-color: var(--bd); }
 </style>
 </style>
 </head>
@@ -1274,19 +857,10 @@ select.xsel-hidden { display: none !important; }
 <!-- شريط جانبي -->
 <aside class="side">
   <div class="brand">
-    <div class="brand-mark">
-      <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M3 3l5 6-5 6h2.5l3.75-4.5L13 15h2.5L10 9l5.5-6H13l-3.75 4.5L5.5 3H3z" fill="white" opacity=".95"/></svg>
-    </div>
-    <div>
-      <div class="brand-title">XOps</div>
-      <div class="brand-sub"><span class="brand-v">v3.0</span> · منصة إدارة X</div>
-    </div>
+    <div class="brand-mark">XO</div>
+    <div><div class="brand-title">XOps</div><div class="brand-sub">v2.0 · AR</div></div>
   </div>
   <nav>
-    <div class="nav-search">
-      <svg class="nav-search-ico" width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" stroke-width="1.4"/><path d="M10.5 10.5l3 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
-      <input type="text" id="nav-search-input" placeholder="بحث... (Ctrl+K)" oninput="filterNav(this.value)">
-    </div>
     <div class="nav-sec">الرئيسية</div>
     <button class="nav-btn on" onclick="nav('overview',this)">
       <svg class="nav-ico" viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="6" height="6" rx="1" fill="currentColor" opacity=".9"/><rect x="9" y="1" width="6" height="6" rx="1" fill="currentColor" opacity=".5"/><rect x="1" y="9" width="6" height="6" rx="1" fill="currentColor" opacity=".5"/><rect x="9" y="9" width="6" height="6" rx="1" fill="currentColor" opacity=".5"/></svg>
@@ -1373,7 +947,7 @@ select.xsel-hidden { display: none !important; }
     </button>
     <span class="page-title" id="ptitle">نظرة عامة</span>
     <div class="tb-sep"></div>
-    <div class="ws-status" id="ws-status-pill"><div class="ws-dot"></div><span id="ws-status-txt">متصل</span></div>
+    <div class="live-pill"><div class="live-dot"></div>مباشر</div>
     <div id="license-pill" style="display:none;align-items:center;gap:5px;border-radius:20px;padding:3px 10px;font-size:10.5px;font-weight:600;font-family:var(--m)"></div>
     <span class="tb-clock" id="clk">—</span>
     <div id="jobs-indicator" style="display:none;align-items:center;gap:6px;background:rgba(245,166,35,.08);border:1px solid rgba(245,166,35,.2);border-radius:8px;padding:4px 12px;cursor:pointer" onclick="nav('jobs')">
@@ -1474,7 +1048,7 @@ select.xsel-hidden { display: none !important; }
             <option value="10">10 — متوازي</option>
           </select>
       <button class="btn btn-sm" id="bulk-check-btn" onclick="doBulkCheckSelected()" style="border-color:rgba(168,130,255,.35);color:var(--pur)">🔍 فحص المحدد</button>
-      <button class="btn btn-sm btn-r" onclick="deleteSelectedAccounts()"> حذف المحدد</button>
+      <button class="btn btn-sm btn-r" onclick="deleteSelectedAccounts()">🗑 حذف المحدد</button>
     </div>
     <!-- شريط تحديد سريع -->
     <div style="display:flex;gap:6px;margin-bottom:12px;align-items:center;padding:8px 12px;background:var(--s2);border-radius:10px;border:1px solid var(--bd)">
@@ -1516,7 +1090,7 @@ select.xsel-hidden { display: none !important; }
     <!-- Toolbar -->
     <div style="display:flex;gap:8px;margin-bottom:16px;align-items:center;flex-wrap:wrap">
       <button class="btn btn-p btn-sm" onclick="openProxyModal()">+ إضافة</button>
-      <button class="btn btn-sm" onclick="showProxyTab('bulk')"> استيراد جماعي</button>
+      <button class="btn btn-sm" onclick="showProxyTab('bulk')">📋 استيراد جماعي</button>
       <button class="btn btn-sm" onclick="autoDistribute()">🔀 توزيع تلقائي</button>
       <button class="btn btn-sm" onclick="loadProxies()">↻ تحديث</button>
     </div>
@@ -1637,7 +1211,7 @@ select.xsel-hidden { display: none !important; }
 
         <!-- Assign by proxy -->
         <div class="card">
-          <div class="card-h"><span class="card-title"> تعيين بروكسي على حسابات</span></div>
+          <div class="card-h"><span class="card-title">⚡ تعيين بروكسي على حسابات</span></div>
           <div class="card-b">
             <div class="field" style="margin-bottom:10px">
               <label>البروكسي</label>
@@ -1659,7 +1233,7 @@ select.xsel-hidden { display: none !important; }
               <button class="btn btn-sm" onclick="selectAllAssign()">تحديد الكل</button>
               <button class="btn btn-sm" onclick="deselectAllAssign()">إلغاء الكل</button>
             </div>
-            <button class="btn btn-p" onclick="doAssignProxy()"> تعيين</button>
+            <button class="btn btn-p" onclick="doAssignProxy()">⚡ تعيين</button>
           </div>
         </div>
 
@@ -1769,7 +1343,7 @@ select.xsel-hidden { display: none !important; }
           <option value="staggered">فحص تلقائي — 30 ثانية بين كل حساب</option>
           <option value="safe">فحص تلقائي آمن — دقيقتين بين كل حساب</option>
         </select>
-        <div style="font-size:11px;color:var(--amb);margin-top:5px">تحذير: الفحص التلقائي يطيل وقت الاستيراد — موصى باليدوي بعد الاستيراد</div>
+        <div style="font-size:11px;color:var(--amb);margin-top:5px">⚠️ الفحص التلقائي يطيل وقت الاستيراد — موصى باليدوي بعد الاستيراد</div>
       </div>
       <div class="field" style="grid-column:1/-1">
         <label style="display:flex;align-items:center;gap:8px;cursor:pointer;text-transform:none;letter-spacing:0;font-size:12.5px;font-weight:500">
@@ -1841,7 +1415,7 @@ select.xsel-hidden { display: none !important; }
           <select id="tm-mode" onchange="onTweetModeChange(this.value)">
             <option value="ai">🤖 AI — يولّد محتوى مختلف لكل حساب</option>
             <option value="manual">✍️ يدوي — تغريدة لكل حساب بالترتيب</option>
-            <option value="same"> نفس النص — للكل</option>
+            <option value="same">📋 نفس النص — للكل</option>
           </select>
         </div>
 
@@ -1918,7 +1492,7 @@ select.xsel-hidden { display: none !important; }
         <div style="margin:14px 0;border:1px solid var(--bd2);border-radius:10px;overflow:hidden">
           <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--s3);cursor:pointer" onclick="toggleAutoEngage()">
             <input type="checkbox" id="tm-auto-engage" style="width:15px;height:15px;accent-color:var(--grn)" onchange="event.stopPropagation();updateAutoEngageToggle()">
-            <span style="font-size:13px;font-weight:600"> تفاعل تلقائي بعد النشر</span>
+            <span style="font-size:13px;font-weight:600">⚡ تفاعل تلقائي بعد النشر</span>
             <span style="font-size:11px;color:var(--t2);margin-right:auto">حسابات مخصصة تتفاعل فور نجاح كل تغريدة</span>
           </div>
           <div id="tm-auto-engage-body" style="display:none;padding:14px">
@@ -2468,7 +2042,7 @@ select.xsel-hidden { display: none !important; }
   <div class="panel" id="p-jobs">
     <div style="display:flex;gap:10px;margin-bottom:16px;align-items:center">
       <button class="btn btn-sm" onclick="loadJobs()">↻ تحديث</button>
-      <button class="btn btn-sm btn-r" onclick="stopAllJobs()">إيقاف الكل</button>
+      <button class="btn btn-sm btn-r" onclick="stopAllJobs()">⏹ إيقاف الكل</button>
       <span id="jobs-summary" style="font-size:12px;color:var(--t2);margin-right:auto"></span>
     </div>
     <div id="jobs-panel-list">
@@ -2542,7 +2116,7 @@ select.xsel-hidden { display: none !important; }
     <!-- Controls bar -->
     <div style="display:flex;gap:8px;margin-bottom:14px;align-items:center;flex-wrap:wrap">
       <button class="btn btn-sm btn-p" onclick="loadOpsConsole()">↻ تحديث</button>
-      <button class="btn btn-sm btn-r" onclick="cancelAllOps()">إيقاف الكل</button>
+      <button class="btn btn-sm btn-r" onclick="cancelAllOps()">⏹ إيقاف الكل</button>
       <div class="tb-sep"></div>
       <select id="ops-filter" onchange="renderOpsList()" style="font-size:12px;padding:5px 10px;border-radius:6px;background:var(--s3);border:1px solid var(--bd2);color:var(--t1)">
         <option value="all">كل العمليات</option>
@@ -2559,38 +2133,26 @@ select.xsel-hidden { display: none !important; }
 
     <!-- Active Operations List -->
     <div id="ops-list" style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px">
-      <div style="text-align:center;padding:40px;color:var(--t2);font-size:13px">— لا توجد عمليات</div>
+      <div style="text-align:center;padding:40px;color:var(--t2);font-size:13px">✓ لا توجد عمليات</div>
     </div>
 
     <!-- Live Logs -->
     <div class="card" style="margin-bottom:14px">
-      <div class="card-h" style="background:rgba(7,11,20,.6)">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
-        <span class="card-title">Live Logs</span>
-        <div class="xsel" style="width:130px;flex-shrink:0" id="log-filter-sel">
-          <div class="xsel-trigger sm" onclick="toggleXsel('log-filter-sel')">
-            <span id="log-filter-label">كل الأنواع</span>
-            <svg class="xsel-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
-          </div>
-          <div class="xsel-drop" id="log-filter-sel-drop">
-            <div class="xsel-opt active" data-val="all" onclick="setLogFilter('all',this)">كل الأنواع</div>
-            <div class="xsel-opt" data-val="follow"       onclick="setLogFilter('follow',this)">متابعة</div>
-            <div class="xsel-opt" data-val="like"         onclick="setLogFilter('like',this)">إعجاب</div>
-            <div class="xsel-opt" data-val="retweet"      onclick="setLogFilter('retweet',this)">ريتويت</div>
-            <div class="xsel-opt" data-val="tweet-multi"  onclick="setLogFilter('tweet-multi',this)">نشر</div>
-            <div class="xsel-opt" data-val="mutual-follow" onclick="setLogFilter('mutual-follow',this)">تبادلية</div>
-            <div class="xsel-opt" data-val="profile-update" onclick="setLogFilter('profile-update',this)">بروفايل</div>
-          </div>
-        </div>
-        <button class="btn btn-sm" onclick="clearOpsLogs()" style="margin-right:auto;flex-shrink:0">مسح</button>
-        <div id="log-autoscroll-toggle" onclick="toggleLogAutoscroll()" title="تمرير تلقائي"
-          style="cursor:pointer;padding:3px 8px;border-radius:5px;border:1px solid var(--bd2);background:rgba(16,185,129,.08);color:#34D399;font-size:10px;font-family:var(--m);flex-shrink:0;display:flex;align-items:center;gap:4px">
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-          <span id="log-autoscroll-label">تلقائي</span>
-        </div>
+      <div class="card-h">
+        <span class="card-title">📋 Live Logs</span>
+        <select id="ops-log-filter" style="font-size:11px;padding:3px 8px;border-radius:5px;background:var(--s3);border:1px solid var(--bd2);color:var(--t1)">
+          <option value="all">كل الأنواع</option>
+          <option value="follow">متابعة</option>
+          <option value="like">إعجاب</option>
+          <option value="retweet">ريتويت</option>
+          <option value="tweet-multi">نشر</option>
+          <option value="mutual-follow">تبادلية</option>
+          <option value="profile-update">بروفايل</option>
+        </select>
+        <button class="btn btn-sm" onclick="document.getElementById('ops-logs-body').innerHTML=''" style="margin-right:auto">مسح</button>
       </div>
-      <div id="ops-logs-body">
-        <div style="text-align:center;padding:20px;color:var(--t3);font-family:var(--m);font-size:11px">— جاهز · الـ logs ستظهر عند تشغيل أي عملية —</div>
+      <div id="ops-logs-body" style="max-height:220px;overflow-y:auto;font-family:var(--m);font-size:11.5px;padding:0">
+        <div style="text-align:center;padding:16px;color:var(--t3)">الـ logs ستظهر هنا عند تشغيل أي عملية</div>
       </div>
     </div>
 
@@ -2598,7 +2160,7 @@ select.xsel-hidden { display: none !important; }
     <div class="g2">
       <div class="card">
         <div class="card-h">
-          <span class="card-title"><span style="display:inline-flex;align-items:center;vertical-align:middle;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></span> Browser Contexts</span>
+          <span class="card-title">🖥 Browser Contexts</span>
           <span id="ops-browser-util" style="font-size:11px;color:var(--t2)"></span>
         </div>
         <div class="card-b" id="ops-browsers-panel">
@@ -2608,8 +2170,8 @@ select.xsel-hidden { display: none !important; }
 
       <div class="card">
         <div class="card-h">
-          <span class="card-title"><span style="display:inline-flex;align-items:center;vertical-align:middle;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span> Queue Health</span>
-          <span id="ops-queue-healthy" style="font-size:11px;color:var(--grn)">سليم</span>
+          <span class="card-title">📊 Queue Health</span>
+          <span id="ops-queue-healthy" style="font-size:11px;color:var(--grn)">✓ سليم</span>
         </div>
         <div class="card-b" id="ops-queues-panel">
           <div style="text-align:center;padding:20px;color:var(--t2);font-size:12px">جارٍ التحميل...</div>
@@ -2658,13 +2220,67 @@ select.xsel-hidden { display: none !important; }
     </div>
     <div class="form-grid">
       <div class="field fg-full"><label>اسم الحملة</label><input id="eng-name" type="text" placeholder="مثال: دعم تغريدة الفهد #1"></div>
-      <div class="field fg-full"><label>رابط التغريدة</label><input id="eng-tweet-url" type="text" placeholder="https://x.com/user/status/123456789" style="direction:ltr;font-family:var(--m)"></div>
+      <div class="field fg-full"><label>رابط التغريدة</label><input id="eng-tweet-url" type="text" placeholder="https://x.com/user/status/123456789" style="direction:ltr;font-family:var(--m)" oninput="autoFillAuthorHandle(this.value)"></div>
+    <div class="field fg-full"><label>هاندل صاحب التغريدة <small style="color:var(--t2);font-weight:400">— مطلوب لـ متابعة / زيارة البروفايل</small></label><input id="eng-author-handle" type="text" placeholder="@username" style="direction:ltr;font-family:var(--m)"></div>
     </div>
 
     <!-- Actions -->
     <div class="field" style="margin-bottom:14px">
       <label>الإجراءات — اختر واحد أو أكثر</label>
-      <div id="eng-actions" style="display:flex;gap:6px;flex-wrap:wrap"><button type="button" class="act-toggle" data-on="1" style="background:rgba(242,86,104,.22);border-color:rgba(242,86,104,.5);color:#f47085" data-action="like" data-prefix="eng" onclick="toggleActionBtn(this)"><svg viewBox="0 0 16 16" fill="none" width="13" height="13"><path d="M8 13.5S1.5 9.8 1.5 5.5a3 3 0 0 1 5.5-1.7A3 3 0 0 1 12.5 5.5c0 4.3-4.5 8-4.5 8z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg> إعجاب</button><button type="button" class="act-toggle" data-on="0" data-action="retweet" data-prefix="eng" onclick="toggleActionBtn(this)"><svg viewBox="0 0 16 16" fill="none" width="13" height="13"><path d="M2 5h9a2 2 0 0 1 2 2v1M14 11H5a2 2 0 0 1-2-2V8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M12 3l2 2-2 2M4 9l-2 2 2 2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg> ريتويت</button><button type="button" class="act-toggle" data-on="0" data-action="reply" data-prefix="eng" onclick="toggleActionBtn(this)"><svg viewBox="0 0 16 16" fill="none" width="13" height="13"><path d="M2 3h12a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H5l-3 3V4a1 1 0 0 1 1-1z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg> رد</button><button type="button" class="act-toggle" data-on="0" data-action="follow_author" data-prefix="eng" onclick="toggleActionBtn(this)"><svg viewBox="0 0 16 16" fill="none" width="13" height="13"><circle cx="7" cy="5" r="3" stroke="currentColor" stroke-width="1.4"/><path d="M1 13c0-3 2.7-4 6-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M12 10v4M10 12h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg> متابعة</button></div>
+      <div id="eng-actions" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
+        <button type="button" class="act-toggle" data-on="1" style="background:rgba(242,86,104,.22);border-color:rgba(242,86,104,.5);color:#f47085" data-action="like" onclick="toggleActionBtn(this)">
+          <svg viewBox="0 0 16 16" fill="none" width="12" height="12"><path d="M8 13.5S1.5 9.8 1.5 5.5a3 3 0 0 1 5.5-1.7A3 3 0 0 1 12.5 5.5c0 4.3-4.5 8-4.5 8z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg> إعجاب
+        </button>
+        <button type="button" class="act-toggle" data-on="0" data-action="retweet" onclick="toggleActionBtn(this)">
+          <svg viewBox="0 0 16 16" fill="none" width="12" height="12"><path d="M2 5h9a2 2 0 0 1 2 2v1M14 11H5a2 2 0 0 1-2-2V8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M12 3l2 2-2 2M4 9l-2 2 2 2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg> ريتويت
+        </button>
+        <button type="button" class="act-toggle" data-on="0" data-action="bookmark" onclick="toggleActionBtn(this)">
+          <svg viewBox="0 0 16 16" fill="none" width="12" height="12"><path d="M3 2h10a1 1 0 0 1 1 1v11l-6-3-6 3V3a1 1 0 0 1 1-1z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg> حفظ
+        </button>
+        <button type="button" class="act-toggle" data-on="0" data-action="quote_tweet" onclick="toggleActionBtn(this); toggleQuoteWrap('eng')">
+          <svg viewBox="0 0 16 16" fill="none" width="12" height="12"><path d="M2 5h9a2 2 0 0 1 2 2v1M14 11H5a2 2 0 0 1-2-2V8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M12 3l2 2-2 2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="5" cy="13" r="1" fill="currentColor"/><circle cx="9" cy="13" r="1" fill="currentColor"/></svg> اقتباس
+        </button>
+        <button type="button" class="act-toggle" data-on="0" data-action="reply" onclick="toggleActionBtn(this)">
+          <svg viewBox="0 0 16 16" fill="none" width="12" height="12"><path d="M2 3h12a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H5l-3 3V4a1 1 0 0 1 1-1z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg> رد
+        </button>
+        <button type="button" class="act-toggle" data-on="0" data-action="tweet_dwell" onclick="toggleActionBtn(this)">
+          <svg viewBox="0 0 16 16" fill="none" width="12" height="12"><circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.4"/><path d="M8 5v3l2 2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg> مشاهدة
+        </button>
+        <button type="button" class="act-toggle" data-on="0" data-action="profile_visit" onclick="toggleActionBtn(this)">
+          <svg viewBox="0 0 16 16" fill="none" width="12" height="12"><circle cx="8" cy="5" r="3" stroke="currentColor" stroke-width="1.4"/><path d="M2 14c0-3.3 2.7-5 6-5s6 1.7 6 5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg> زيارة
+        </button>
+        <button type="button" class="act-toggle" data-on="0" data-action="follow_author" onclick="toggleActionBtn(this)">
+          <svg viewBox="0 0 16 16" fill="none" width="12" height="12"><circle cx="7" cy="5" r="3" stroke="currentColor" stroke-width="1.4"/><path d="M1 13c0-3 2.7-4 6-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M12 10v4M10 12h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg> متابعة
+        </button>
+        <button type="button" class="act-toggle" data-on="0" data-action="share" onclick="toggleActionBtn(this)">
+          <svg viewBox="0 0 16 16" fill="none" width="12" height="12"><path d="M13 4l-5-3-5 3M8 1v9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 7H2a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1h-2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg> مشاركة
+        </button>
+      </div>
+    </div>
+
+    <!-- Quote options — يظهر لما تختار اقتباس -->
+    <div id="eng-quote-wrap" style="display:none;margin-bottom:14px">
+      <div class="card" style="background:var(--s3);border:1px solid var(--bd2);border-radius:10px;padding:14px">
+        <div class="field" style="margin-bottom:10px">
+          <label>نوع نص الاقتباس</label>
+          <div style="display:flex;gap:8px">
+            <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:400;text-transform:none;letter-spacing:0;cursor:pointer">
+              <input type="radio" name="eng-quote-mode" value="manual" checked> يدوي
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:400;text-transform:none;letter-spacing:0;cursor:pointer">
+              <input type="radio" name="eng-quote-mode" value="ai"> ذكاء اصطناعي
+            </label>
+          </div>
+        </div>
+        <div id="eng-quote-manual" class="field" style="margin-bottom:8px">
+          <label>نصوص الاقتباس <small style="color:var(--t2);font-weight:400">— سطر لكل حساب</small></label>
+          <textarea id="eng-quote-texts" placeholder="ما شاء الله على هذا المحتوى!&#10;نشر مفيد جداً 👏&#10;يستحق التفاعل" style="min-height:70px;font-size:12px;resize:vertical"></textarea>
+        </div>
+        <div id="eng-quote-ai" class="field" style="display:none">
+          <label>توجيه الـ AI <small style="color:var(--t2);font-weight:400">— تعليمات لتوليد الاقتباس</small></label>
+          <input type="text" id="eng-quote-prompt" placeholder="مثال: اقتبس بأسلوب متحمس ومشجع، لا تتجاوز 100 حرف">
+        </div>
+      </div>
     </div>
 
     <!-- Reply texts -->
@@ -2783,7 +2399,7 @@ select.xsel-hidden { display: none !important; }
     </div>
     <div style="display:flex;gap:10px;justify-content:flex-end">
       <button class="btn" onclick="closeAssignModal()">إلغاء</button>
-      <button class="btn btn-p" onclick="doAssignProxy()"> تعيين</button>
+      <button class="btn btn-p" onclick="doAssignProxy()">⚡ تعيين</button>
     </div>
   </div>
 </div>
@@ -2916,17 +2532,6 @@ function init() {
   try {
     const socket = io();
     socket.on('action:done', d => toast(`✅ ${d.type} — @${d.account}`, 'ok'));
-
-  // ── Connection status pill ────────────────────────────────
-  function setWsStatus(connected) {
-    const pill = document.getElementById('ws-status-pill');
-    const txt  = document.getElementById('ws-status-txt');
-    if (!pill || !txt) return;
-    pill.className = 'ws-status' + (connected ? '' : ' disconnected');
-    txt.textContent = connected ? 'متصل' : 'منقطع';
-  }
-  socket.on('connect',    () => setWsStatus(true));
-  socket.on('disconnect', () => setWsStatus(false));
     socket.on('connect', () => console.log('[WS] متصل'));
     socket.on('health:progress', d => {
       const el = document.getElementById('bulk-check-counter');
@@ -2957,7 +2562,7 @@ function init() {
       const prog = document.getElementById('report-progress');
       if (prog) {
         const color = d.success ? 'var(--grn)' : 'var(--red)';
-        prog.innerHTML += `<div style="color:${color}">${d.done}/${d.total} @${d.username}: ${d.success ? 'تم' : '✕ ' + (d.error||'فشل')}</div>`;
+        prog.innerHTML += `<div style="color:${color}">${d.done}/${d.total} @${d.username}: ${d.success ? '✓ تم' : '✕ ' + (d.error||'فشل')}</div>`;
         prog.scrollTop = prog.scrollHeight;
       }
     });
@@ -2968,7 +2573,7 @@ function init() {
     socket.on('risk:new', d => {
       const lvlColors = { critical:'var(--red)', high:'var(--red)', medium:'var(--amb)', low:'var(--grn)' };
       const color = lvlColors[d.level] || 'var(--amb)';
-      toast(`تحذير: @${d.username}: ${d.description}`, d.level === 'critical' || d.level === 'high' ? 'err' : 'warn');
+      toast(`⚠️ @${d.username}: ${d.description}`, d.level === 'critical' || d.level === 'high' ? 'err' : 'warn');
       const badge = document.getElementById('nb-risks');
       if (badge) badge.textContent = (+badge.textContent || 0) + 1;
       if (currentPanel === 'risks') loadRisks();
@@ -3224,7 +2829,7 @@ function renderJobsPanel(jobs) {
   if (!el) return;
 
   if (!jobs.length) {
-    el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--grn);font-size:13px">— لا توجد عمليات نشطة الآن</div>';
+    el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--grn);font-size:13px">✓ لا توجد عمليات نشطة الآن</div>';
     if (summary) summary.textContent = '';
     return;
   }
@@ -3275,14 +2880,12 @@ async function cancelJobById(jobId) {
 }
 
 async function stopAllJobs() {
-  if (!confirm('تحذير: إيقاف فوري لكل العمليات وإغلاق المتصفحات؟')) return;
+  if (!confirm('إيقاف جميع العمليات الجارية؟')) return;
   try {
-    const d = await api('/api/v1/ops/force-kill', { method: 'POST' });
-    toast(`أُوقفت ${d.killed} عملية وأُغلق ${d.browsers} متصفح`, 'ok');
-  } catch(e) {
-    await api('/api/v1/actions/jobs/cancel-all', { method: 'POST' }).catch(()=>{});
-    toast('⏹ تم إيقاف الكل', 'ok');
-  }
+    const d = await api('/api/v1/actions/jobs/cancel-all', { method: 'POST' });
+    toast(`⏹ أُوقفت ${d.cancelled} عملية`, 'ok');
+    pollJobs();
+  } catch(e) { toast(e.message, 'err'); }
 }
 
 // pollJobs يبدأ من init() فقط بعد تسجيل الدخول
@@ -3479,7 +3082,7 @@ async function loadAssignAccounts() {
   if (filter === 'no-proxy') accounts = accounts.filter(a => !a.proxy);
   if (filter === 'active')   accounts = accounts.filter(a => a.status === 'active');
   const sel = document.getElementById('assign-accounts-sel');
-  sel.innerHTML = accounts.map(a => `<option value="${a._id}">@${a.username} ${a.network?.proxyUrl ? '' : ''}</option>`).join('');
+  sel.innerHTML = accounts.map(a => `<option value="${a._id}">@${a.username} ${a.network?.proxyUrl ? '🔗' : ''}</option>`).join('');
   document.getElementById('assign-count').textContent = `(${accounts.length})`;
 }
 
@@ -3629,7 +3232,7 @@ async function loadOverview() {
     document.getElementById('br-bar').style.background = pct > 80 ? 'var(--red)' : pct > 50 ? 'var(--amb)' : 'var(--grn)';
 
     // Feed
-    const icons = { مصادقة:'', نشر:'✦', تفاعل:'↑', ذكاء_اصطناعي:'✧', نظام:'⚙', جلسة:'🔑' };
+    const icons = { مصادقة:'⚡', نشر:'✦', تفاعل:'↑', ذكاء_اصطناعي:'✧', نظام:'⚙', جلسة:'🔑' };
     const icoColor = { مصادقة:'var(--blu2)', نشر:'var(--grn)', تفاعل:'var(--amb)', ذكاء_اصطناعي:'var(--pur)', نظام:'var(--t2)', جلسة:'var(--cyn)' };
     document.getElementById('overview-feed').innerHTML = d.recentActivity.length
       ? d.recentActivity.map(l => {
@@ -3702,7 +3305,7 @@ async function loadAccounts() {
           <td style="font-family:var(--m);font-size:11px;color:var(--t2)">${a.lastActiveAt?new Date(a.lastActiveAt).toLocaleTimeString('ar-SA'):'—'}</td>
           <td title="${a.network?.proxyUrl||''}">
             ${a.network?.proxyUrl
-              ? '<span style="color:var(--grn);font-size:12px" title="'+a.network.proxyUrl+'"></span>'
+              ? '<span style="color:var(--grn);font-size:12px" title="'+a.network.proxyUrl+'">🔗</span>'
               : '<span style="color:var(--t3);font-size:11px">—</span>'}
           </td>
           <td style="font-family:var(--m)">${(a.todayCounters?.posts||0)}/${a.dailyCaps?.post||10}</td>
@@ -3922,7 +3525,7 @@ async function doBulkCheckSelected() {
 async function deleteSelectedHard() {
   const ids = [...document.querySelectorAll('.acc-cb:checked')].map(c => c.dataset.id);
   if (!ids.length) return toast('لم تحدد أي حساب', 'warn');
-  if (!confirm(`تحذير: حذف ${ids.length} حساب نهائياً من قاعدة البيانات؟\nلا يمكن التراجع عن هذا الإجراء.`)) return;
+  if (!confirm(`⚠️ حذف ${ids.length} حساب نهائياً من قاعدة البيانات؟\nلا يمكن التراجع عن هذا الإجراء.`)) return;
   let done = 0;
   for (const id of ids) {
     try {
@@ -3930,7 +3533,7 @@ async function deleteSelectedHard() {
       done++;
     } catch(e) {}
   }
-  toast(` حُذف ${done} حساب نهائياً`, 'ok');
+  toast(`🗑 حُذف ${done} حساب نهائياً`, 'ok');
   loadAccounts(); loadActiveAccounts();
 }
 
@@ -3976,10 +3579,10 @@ function togglePrimaryFilter(btn) {
 }
 
 async function deleteAccount(id, username) {
-  if (!confirm(`تحذير: حذف @${username} نهائياً من قاعدة البيانات؟\nلا يمكن التراجع عن هذا الإجراء.`)) return;
+  if (!confirm(`⚠️ حذف @${username} نهائياً من قاعدة البيانات؟\nلا يمكن التراجع عن هذا الإجراء.`)) return;
   try {
     await api(`/api/v1/accounts/${id}?hard=true`, { method:'DELETE' });
-    toast(` حُذف نهائياً: @${username}`, 'ok');
+    toast(`🗑 حُذف نهائياً: @${username}`, 'ok');
     loadAccounts(); loadActiveAccounts();
   } catch(e) { toast(e.message, 'err'); }
 }
@@ -3988,7 +3591,7 @@ async function deleteAccount(id, username) {
 async function deleteSelectedAccounts() {
   const ids = getSelectedAccountIds();
   if (!ids.length) return toast('اختر حسابات أولاً', 'warn');
-  if (!confirm(`تحذير: حذف ${ids.length} حساب نهائياً من قاعدة البيانات؟\nلا يمكن التراجع عن هذا الإجراء.`)) return;
+  if (!confirm(`⚠️ حذف ${ids.length} حساب نهائياً من قاعدة البيانات؟\nلا يمكن التراجع عن هذا الإجراء.`)) return;
   let deleted = 0, failed = 0;
   for (const id of ids) {
     try {
@@ -3996,7 +3599,7 @@ async function deleteSelectedAccounts() {
       deleted++;
     } catch { failed++; }
   }
-  toast(` حُذف ${deleted} حساب${failed ? ' — فشل ' + failed : ''}`, deleted ? 'ok' : 'err');
+  toast(`🗑 حُذف ${deleted} حساب${failed ? ' — فشل ' + failed : ''}`, deleted ? 'ok' : 'err');
   loadAccounts(); loadActiveAccounts();
 }
 /* ═══════════════════════════════════════════════════════════════
@@ -4523,21 +4126,6 @@ async function doTweetMulti() {
       ? (document.getElementById('tm-eng-reply-texts')?.value.trim().split('\n').filter(Boolean) || [])
       : [];
     const engDelayParts = document.getElementById('tm-eng-delay')?.value.split(',') || ['10000','25000'];
-
-    // ── validation قبل الإرسال ──────────────────────────────────
-    if (autoEngage && engageAccountIds.length === 0) {
-      toast('تحذير: التفاعل التلقائي مفعّل لكن لم تُحدَّد حسابات التفاعل', 'warn');
-      s.textContent = 'ابدأ النشر';
-      s.disabled = false;
-      return;
-    }
-    if (autoEngage && engageActions.length === 0) {
-      toast('تحذير: التفاعل التلقائي مفعّل لكن لم تُحدَّد أي إجراءات (إعجاب/ريتويت...)', 'warn');
-      s.textContent = 'ابدأ النشر';
-      s.disabled = false;
-      return;
-    }
-    console.log('[TweetMulti] Payload:', { autoEngage, engageAccountIds: engageAccountIds.length, engageActions });
 
     const d = await api('/api/v1/actions/tweet-multi', {
       method: 'POST',
@@ -5102,50 +4690,6 @@ function closeSidebar() {
   document.querySelector('.side').classList.remove('open');
   document.getElementById('sidebar-overlay').classList.remove('show');
 }
-// ── Custom Select (xsel) system ──────────────────────────────
-function toggleXsel(id) {
-  const wrap = document.getElementById(id);
-  if (!wrap) return;
-  const trigger = wrap.querySelector('.xsel-trigger');
-  const drop    = wrap.querySelector('.xsel-drop');
-  const isOpen  = drop.classList.contains('open');
-  closeAllXsel();
-  if (!isOpen) {
-    trigger.classList.add('open');
-    drop.classList.add('open');
-  }
-}
-function closeAllXsel() {
-  document.querySelectorAll('.xsel-trigger.open').forEach(t => t.classList.remove('open'));
-  document.querySelectorAll('.xsel-drop.open').forEach(d => d.classList.remove('open'));
-}
-// Close on outside click
-document.addEventListener('click', e => {
-  if (!e.target.closest('.xsel')) closeAllXsel();
-});
-// Keyboard: Escape closes
-document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') closeAllXsel();
-});
-
-function filterNav(q) {
-  q = q.trim().toLowerCase();
-  document.querySelectorAll('.nav-btn').forEach(btn => {
-    const txt = btn.textContent.trim().toLowerCase();
-    btn.style.display = (!q || txt.includes(q)) ? '' : 'none';
-  });
-  // Hide empty sections
-  document.querySelectorAll('.nav-sec').forEach(sec => {
-    let next = sec.nextElementSibling;
-    let hasVisible = false;
-    while (next && !next.classList.contains('nav-sec')) {
-      if (next.style.display !== 'none') hasVisible = true;
-      next = next.nextElementSibling;
-    }
-    sec.style.display = hasVisible ? '' : 'none';
-  });
-}
-
 // Close sidebar on nav click (mobile)
 document.querySelectorAll('.nav-btn').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -5252,7 +4796,7 @@ function renderOpsList() {
     else list = list.filter(o => o.state === filter);
   }
   if (!list.length) {
-    el.innerHTML = `<div style="text-align:center;padding:40px;color:var(--t2);font-size:13px">— لا توجد عمليات (${filter === 'active' ? 'نشطة' : filter})</div>`;
+    el.innerHTML = `<div style="text-align:center;padding:40px;color:var(--t2);font-size:13px">✓ لا توجد عمليات (${filter === 'active' ? 'نشطة' : filter})</div>`;
   } else {
     el.innerHTML = list.map(op => renderOp(op)).join('');
   }
@@ -5270,62 +4814,32 @@ function updateOpsKPIs() {
 }
 
 // ── Live log append ──────────────────────────────────────────
-let _logFilter    = 'all';
-let _logAutoscroll = true;
-
-function setLogFilter(val, el) {
-  _logFilter = val;
-  document.getElementById('log-filter-label').textContent = el.textContent.trim();
-  document.querySelectorAll('#log-filter-sel-drop .xsel-opt').forEach(o => o.classList.toggle('active', o.dataset.val === val));
-  closeAllXsel();
-}
-
-function clearOpsLogs() {
-  const el = document.getElementById('ops-logs-body');
-  if (el) el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--t3);font-family:var(--m);font-size:11px">— مسح · الـ logs ستظهر عند تشغيل أي عملية —</div>';
-}
-
-function toggleLogAutoscroll() {
-  _logAutoscroll = !_logAutoscroll;
-  const btn = document.getElementById('log-autoscroll-toggle');
-  const lbl = document.getElementById('log-autoscroll-label');
-  if (btn) btn.style.color = _logAutoscroll ? '#34D399' : 'var(--t3)';
-  if (btn) btn.style.background = _logAutoscroll ? 'rgba(16,185,129,.08)' : 'transparent';
-  if (lbl) lbl.textContent = _logAutoscroll ? 'تلقائي' : 'موقوف';
-}
-
 function appendOpsLog(data) {
-  if (_logFilter !== 'all' && data.type !== _logFilter) return;
+  const filter = document.getElementById('ops-log-filter')?.value || 'all';
+  if (filter !== 'all' && data.type !== filter) return;
   const el = document.getElementById('ops-logs-body');
   if (!el) return;
-  el.querySelector('[style*="جاهز"]')?.remove();
-  el.querySelector('[style*="مسح"]')?.remove();
-
-  const ok   = data.success !== false;
-  const skip = data.error?.includes('SKIP:');
-  const cls  = skip ? 'le-skip' : ok ? 'le-ok' : 'le-err';
-  const icon = skip ? '–' : ok
-    ? '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>'
-    : '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
-
-  const time      = new Date().toLocaleTimeString('en-GB', {hour12:false});
+  // Remove placeholder
+  el.querySelector('[style*="الـ logs"]')?.remove();
+  const ok    = data.success !== false;
+  const skip  = data.error?.includes('SKIP:');
+  const color = skip ? 'var(--t2)' : ok ? 'var(--grn)' : 'var(--red)';
+  const icon  = skip ? '↷' : ok ? '✓' : '✕';
+  const err   = data.error && !skip ? ` <span style="color:var(--red);opacity:.7">— ${data.error.replace('SKIP:','').slice(0,40)}</span>` : '';
+  const time  = new Date().toLocaleTimeString('ar-SA', {hour12:false});
   const typeLabel = OP_TYPE_LABELS[data.type] || data.type || '';
-  const progress  = data.total ? `${data.done||0}/${data.total}` : '';
-  const errTxt    = data.error && !skip
-    ? `<span class="le-err-txt"> — ${data.error.replace(/SKIP:/g,'').slice(0,45)}</span>` : '';
-
   const row = document.createElement('div');
-  row.className = `log-entry ${cls}`;
-  row.innerHTML = `
-    <span class="le-icon">${icon}</span>
-    <span class="le-time">${time}</span>
-    <span class="le-type">${typeLabel}</span>
-    <span class="le-user">@${data.username||'—'}</span>
-    <span class="le-msg">${progress}${errTxt}</span>`;
-
+  row.style.cssText = `display:flex;align-items:center;gap:10px;padding:6px 14px;border-bottom:1px solid var(--bd);transition:background .1s`;
+  row.innerHTML = `<span style="color:${color};font-weight:700;width:14px">${icon}</span>
+    <span style="color:var(--t3);width:60px;font-size:10px">${time}</span>
+    <span style="color:var(--t2);width:70px;font-size:10px">${typeLabel}</span>
+    <span style="color:var(--t1);font-weight:600">@${data.username||'—'}</span>
+    <span style="color:var(--t2)">${data.done||''}${data.total?'/'+data.total:''}</span>
+    ${err}`;
   el.appendChild(row);
-  while (el.children.length > 300) el.removeChild(el.firstChild);
-  if (_logAutoscroll) el.scrollTop = el.scrollHeight;
+  // Keep max 200 rows
+  while (el.children.length > 200) el.removeChild(el.firstChild);
+  el.scrollTop = el.scrollHeight;
 }
 
 function renderBrowsers(br) {
@@ -5355,7 +4869,7 @@ function renderBrowsers(br) {
 function renderQueues(qh) {
   const el = document.getElementById('ops-queues-panel');
   const hl = document.getElementById('ops-queue-healthy');
-  if (hl) { hl.textContent = qh?.healthy ? 'سليم' : `⚠ ${qh?.issues?.length} تنبيه`; hl.style.color = qh?.healthy ? 'var(--grn)' : 'var(--amb)'; }
+  if (hl) { hl.textContent = qh?.healthy ? '✓ سليم' : `⚠ ${qh?.issues?.length} تنبيه`; hl.style.color = qh?.healthy ? 'var(--grn)' : 'var(--amb)'; }
   if (!el) return;
   const stats = qh?.stats || {};
   const keys  = Object.keys(stats);
@@ -5403,28 +4917,21 @@ async function opRetry(id) {
 async function cancelAllOps() {
   const active=_opsList.filter(o=>['active','waiting','paused','retrying'].includes(o.state));
   if (!active.length) return toast('لا توجد عمليات نشطة','warn');
-  if (!confirm(`تحذير: إيقاف فوري لـ ${active.length} عملية وإغلاق كل المتصفحات المفتوحة؟`)) return;
-  try {
-    const d = await api('/api/v1/ops/force-kill', { method: 'POST' });
-    toast(`أُوقفت ${d.killed} عملية وأُغلق ${d.browsers} متصفح`, 'ok');
-    setTimeout(() => { renderOpsList(); updateOpsKPIs(); }, 800);
-  } catch(e) {
-    // fallback: إلغاء فردي
-    for (const op of active) await api(`/api/v1/ops/${op.parentJobId}/cancel`,{method:'POST'}).catch(()=>{});
-    toast('تم إلغاء الكل','ok');
-  }
+  if (!confirm(`إلغاء ${active.length} عملية نشطة؟`)) return;
+  for (const op of active) await api(`/api/v1/ops/${op.parentJobId}/cancel`,{method:'POST'}).catch(()=>{});
+  toast('⏹ تم إلغاء الكل','ok');
 }
 async function pauseQueue(key) {
-  try { await api(`/api/v1/ops/queues/${key}/pause`,{method:'POST'}); toast('Queue موقوف','ok'); loadOpsConsole(); }
+  try { await api(`/api/v1/ops/queues/${key}/pause`,{method:'POST'}); toast('⏸ Queue موقوف','ok'); loadOpsConsole(); }
   catch(e) { toast(e.message,'err'); }
 }
 async function resumeQueue(key) {
-  try { await api(`/api/v1/ops/queues/${key}/resume`,{method:'POST'}); toast('Queue مستأنف','ok'); loadOpsConsole(); }
+  try { await api(`/api/v1/ops/queues/${key}/resume`,{method:'POST'}); toast('▶ Queue مستأنف','ok'); loadOpsConsole(); }
   catch(e) { toast(e.message,'err'); }
 }
 async function clearFailed(key) {
   if (!confirm('مسح الـ failed jobs؟')) return;
-  try { await api(`/api/v1/ops/queues/${key}/failed`,{method:'DELETE'}); toast('تم المسح','ok'); loadOpsConsole(); }
+  try { await api(`/api/v1/ops/queues/${key}/failed`,{method:'DELETE'}); toast('✓ تم المسح','ok'); loadOpsConsole(); }
   catch(e) { toast(e.message,'err'); }
 }
 
@@ -5488,15 +4995,22 @@ async function openAssignTabInit() {
 // ── Action toggle buttons ───────────────────────────────────
 const ACT_COLORS = {
   like:'rgba(242,86,104,.22)', retweet:'rgba(91,141,249,.22)',
-  reply:'rgba(168,130,255,.22)', follow_author:'rgba(248,179,64,.22)'
+  reply:'rgba(168,130,255,.22)', follow_author:'rgba(248,179,64,.22)',
+  bookmark:'rgba(34,212,138,.15)', quote_tweet:'rgba(91,141,249,.22)',
+  tweet_dwell:'rgba(34,212,200,.15)', profile_visit:'rgba(248,179,64,.15)',
+  share:'rgba(162,130,255,.18)',
 };
 const ACT_BORDER = {
   like:'rgba(242,86,104,.5)', retweet:'rgba(91,141,249,.5)',
-  reply:'rgba(168,130,255,.5)', follow_author:'rgba(248,179,64,.5)'
+  reply:'rgba(168,130,255,.5)', follow_author:'rgba(248,179,64,.5)',
+  bookmark:'rgba(34,212,138,.4)', quote_tweet:'rgba(91,141,249,.5)',
+  tweet_dwell:'rgba(34,212,200,.4)', profile_visit:'rgba(248,179,64,.4)',
+  share:'rgba(162,130,255,.4)',
 };
 const ACT_TEXT = {
-  like:'#f47085', retweet:'#8cb4ff',
-  reply:'#c4a8ff', follow_author:'#f8b340'
+  like:'#f47085', retweet:'#8cb4ff', reply:'#c4a8ff',
+  follow_author:'#f8b340', bookmark:'#22dfa0', quote_tweet:'#8cb4ff',
+  tweet_dwell:'#22d4e8', profile_visit:'#f8b340', share:'#c4a8ff',
 };
 
 function toggleActionBtn(btn) {
@@ -5528,6 +5042,34 @@ function getSelectedActions(prefix) {
   if (!container) return [];
   return [...container.querySelectorAll('[data-on="1"]')].map(b => b.dataset.action);
 }
+
+function autoFillAuthorHandle(url) {
+  // Extract username from tweet URL: https://x.com/USERNAME/status/123
+  const m = url.match(/x\.com\/([^\/]+)\/status\//);
+  if (m && m[1] && m[1] !== 'i') {
+    const el = document.getElementById('eng-author-handle');
+    if (el && !el.value) el.value = '@' + m[1];
+  }
+}
+
+function toggleQuoteWrap(prefix) {
+  const hasQuote = getSelectedActions(prefix).includes('quote_tweet');
+  const wrapId   = prefix === 'eng' ? 'eng-quote-wrap' : null;
+  if (wrapId) {
+    const wrap = document.getElementById(wrapId);
+    if (wrap) wrap.style.display = hasQuote ? 'block' : 'none';
+  }
+}
+
+// Quote mode toggle
+document.addEventListener('change', e => {
+  if (e.target.name === 'eng-quote-mode') {
+    const manual = document.getElementById('eng-quote-manual');
+    const ai     = document.getElementById('eng-quote-ai');
+    if (manual) manual.style.display = e.target.value === 'manual' ? 'block' : 'none';
+    if (ai)     ai.style.display     = e.target.value === 'ai'     ? 'block' : 'none';
+  }
+});
 
 function toggleReplyWrap(prefix) {
   const hasReply = getSelectedActions(prefix).includes('reply');
@@ -5642,7 +5184,7 @@ async function doBulkImportProxies() {
         <span style="color:var(--grn)">✓ أُضيف: <strong>${d.added}</strong></span>
         ${d.skipped ? `<span style="color:var(--t2)">↷ موجود مسبقاً: <strong>${d.skipped}</strong></span>` : ''}
         ${d.failed  ? `<span style="color:var(--red)">✕ فشل: <strong>${d.failed}</strong></span>` : ''}
-        ${d.assigned ? `<span style="color:var(--blu2)"> عُيّن على: <strong>${d.assigned}</strong> حساب</span>` : ''}
+        ${d.assigned ? `<span style="color:var(--blu2)">⚡ عُيّن على: <strong>${d.assigned}</strong> حساب</span>` : ''}
       </div>`;
 
     toast(`✅ ${d.added} بروكسي${d.assigned ? ` · عُيّن على ${d.assigned} حساب` : ''}`, 'ok');
@@ -5766,7 +5308,11 @@ async function loadProxies() {
 /* ═══════════════════════════════════════════════════════════════
    Smart Engagement Automation
 ═══════════════════════════════════════════════════════════════ */
-const ENG_ACTION_LABELS = { like:'❤️ إعجاب', retweet:'🔁 ريتويت', reply:'💬 رد', follow_author:'👤 متابعة' };
+const ENG_ACTION_LABELS = {
+  like:'إعجاب', retweet:'ريتويت', reply:'رد', follow_author:'متابعة',
+  bookmark:'حفظ', quote_tweet:'اقتباس', tweet_dwell:'مشاهدة',
+  profile_visit:'زيارة', share:'مشاركة',
+};
 const ENG_STATUS_PILL   = { draft:'p-n', running:'p-g', done:'p-b', failed:'p-r', cancelled:'p-n' };
 const ENG_STATUS_LABEL  = { draft:'مسودة', running:'جارية', done:'مكتملة', failed:'فشل', cancelled:'ملغاة' };
 
@@ -5871,9 +5417,12 @@ document.addEventListener('change', e => { if (e.target.closest('#eng-accounts')
 function buildEngPayload() {
   const name     = document.getElementById('eng-name').value.trim();
   const tweetUrl = document.getElementById('eng-tweet-url').value.trim();
-  const actions  = getSelectedActions('eng');
-  const accountIds = [...document.querySelectorAll('#eng-accounts option:checked')].map(o => o.value);
-  const replyTexts = document.getElementById('eng-reply-texts').value.trim().split('\n').filter(Boolean);
+  const actions      = getSelectedActions('eng');
+  const accountIds   = [...document.querySelectorAll('#eng-accounts option:checked')].map(o => o.value);
+  const replyTexts   = document.getElementById('eng-reply-texts')?.value.trim().split('\n').filter(Boolean) || [];
+  const quoteMode    = document.querySelector('[name="eng-quote-mode"]:checked')?.value || 'manual';
+  const quoteTexts   = document.getElementById('eng-quote-texts')?.value.trim().split('\n').filter(Boolean) || [];
+  const quotePrompt  = document.getElementById('eng-quote-prompt')?.value.trim() || '';
   const delayParts = document.getElementById('eng-delay').value.split(',');
   const schedType  = document.getElementById('eng-schedule-type').value;
   const scheduleAt = schedType === 'scheduled' ? document.getElementById('eng-schedule-at').value : null;
@@ -5883,7 +5432,8 @@ function buildEngPayload() {
   if (!actions.length) { toast('اختر إجراءاً واحداً على الأقل', 'warn'); return null; }
   if (!accountIds.length) { toast('اختر حسابات', 'warn'); return null; }
 
-  return { name, tweetUrl, actions, accountIds, replyTexts,
+  const authorHandle = document.getElementById('eng-author-handle')?.value.replace('@','').trim() || '';
+  return { name, tweetUrl, actions, accountIds, replyTexts, quoteMode, quoteTexts, quotePrompt, authorHandle,
     delayMinMs: +delayParts[0], delayMaxMs: +delayParts[1],
     scheduleAt: scheduleAt || undefined };
 }
@@ -5923,7 +5473,7 @@ async function launchCampaign(id) {
 
 async function cancelCampaign(id) {
   if (!confirm('إيقاف هذه الحملة؟')) return;
-  try { await api(`/api/v1/engagement/${id}/cancel`, { method:'POST' }); toast('أُوقفت', 'ok'); loadEngagement(); }
+  try { await api(`/api/v1/engagement/${id}/cancel`, { method:'POST' }); toast('⏹ أُوقفت', 'ok'); loadEngagement(); }
   catch(e) { toast(e.message, 'err'); }
 }
 
@@ -5943,13 +5493,8 @@ function updateAutoEngageToggle() {
   const on  = document.getElementById('tm-auto-engage')?.checked;
   const body = document.getElementById('tm-auto-engage-body');
   if (body) body.style.display = on ? 'block' : 'none';
-  if (on) {
+  if (on && !document.querySelectorAll('#tm-eng-accounts option').length) {
     fillEngTmAccounts();
-    // تحديد كل الحسابات تلقائياً عند فتح التفاعل التلقائي
-    setTimeout(() => {
-      [...document.querySelectorAll('#tm-eng-accounts option')].forEach(o => o.selected = true);
-      updateEngTmCount();
-    }, 50);
   }
 }
 function fillEngTmAccounts() {
@@ -5984,19 +5529,6 @@ document.addEventListener('change', e => {
 });
 // Wire accounts load when panel opens
 document.addEventListener('DOMContentLoaded', () => {
-  // Ctrl+K / Cmd+K → focus nav search
-  document.addEventListener('keydown', e => {
-    if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-      e.preventDefault();
-      const inp = document.getElementById('nav-search-input');
-      if (inp) { inp.focus(); inp.select(); }
-    }
-    if (e.key === 'Escape') {
-      const inp = document.getElementById('nav-search-input');
-      if (document.activeElement === inp) { inp.value=''; filterNav(''); inp.blur(); }
-    }
-  });
-
   const cb = document.getElementById('tm-auto-engage');
   if (cb) cb.addEventListener('change', () => {
     if (cb.checked && allActiveAccounts.length) fillEngTmAccounts();

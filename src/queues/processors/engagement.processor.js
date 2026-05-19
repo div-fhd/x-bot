@@ -3,14 +3,25 @@ const { wrapProcessor } = require('./base.processor');
 const Account        = require('../../models/Account');
 const ActionSvc      = require('../../services/action.service');
 const Browser        = require('../../services/browser.service');
-const { log }        = require('../../models/index');
+const AISvc          = require('../../services/ai.service');
 const { jobEvents }  = require('../events/job.events');
 const logger         = require('../../utils/logger');
 
-module.exports = wrapProcessor(async function engagementProcessor(job) {
-  const { accountId, campaignId, actions, action, tweetId, tweetUrl, replyText, meta } = job.data;
+const CAP_MAP = {
+  like:'like', retweet:'repost', reply:'reply',
+  follow_author:'follow', quote_tweet:'post',
+};
 
-  // Support both old (single action) and new (actions array)
+module.exports = wrapProcessor(async function engagementProcessor(job) {
+  const {
+    accountId, campaignId,
+    actions, action,
+    tweetId, tweetUrl,
+    replyText, quoteMode, quoteTexts, quotePrompt,
+    authorHandle, dwellSeconds,
+    meta,
+  } = job.data;
+
   const actionList = actions || (action ? [action] : []);
   if (!actionList.length) throw new Error('SKIP: no actions specified');
 
@@ -21,79 +32,69 @@ module.exports = wrapProcessor(async function engagementProcessor(job) {
   if (['suspended','locked','dead','auth_required'].includes(account.status))
     throw new Error(`SKIP: @${account.username} — ${account.status}`);
 
-  await job.updateProgress(5);
+  await job.updateProgress(10);
 
-  try {
-    const results = [];
-
-    for (let i = 0; i < actionList.length; i++) {
-      const act = actionList[i];
-
-      // canDo check per action
-      const capMap = { like:'like', retweet:'repost', reply:'reply', follow_author:'follow' };
-      const cap = capMap[act];
-      if (cap && !account.canDo(cap)) {
-        logger.warn(`[Engagement] @${account.username} — ${act} cap reached, skipping`);
-        results.push({ action: act, skipped: true });
-        continue;
-      }
-
+  // Resolve quote text if needed
+  let resolvedQuoteText = null;
+  if (actionList.includes('quote_tweet')) {
+    if (quoteMode === 'ai') {
       try {
-        switch (act) {
-          case 'like':
-            await ActionSvc.like(account, tweetId);
-            await account.bump('like').catch(() => {});
-            break;
-
-          case 'retweet':
-            await ActionSvc.retweet(account, tweetId);
-            await account.bump('repost').catch(() => {});
-            break;
-
-          case 'reply':
-            if (!replyText) { logger.warn(`[Engagement] @${account.username} — no reply text`); break; }
-            await ActionSvc.reply(account, tweetId, replyText);
-            await account.bump('reply').catch(() => {});
-            break;
-
-          case 'follow_author': {
-            const handle = meta?.authorHandle;
-            if (!handle) { logger.warn(`[Engagement] @${account.username} — no authorHandle`); break; }
-            await ActionSvc.follow(account, handle);
-            await account.bump('follow').catch(() => {});
-            break;
-          }
-        }
-        results.push({ action: act, success: true });
-        logger.info(`[Engagement] @${account.username} — ${act} ✓`);
+        const tweetContent = await ActionSvc.getTweetText(account, tweetId).catch(() => '');
+        const suggestions  = await AISvc.suggestTweets({
+          account,
+          topic: quotePrompt || `اقتبس هذه التغريدة بأسلوب طبيعي: "${tweetContent.slice(0,100)}"`,
+          count: 1,
+        });
+        resolvedQuoteText = suggestions?.[0]?.text || null;
       } catch(e) {
-        logger.warn(`[Engagement] @${account.username} — ${act} failed: ${e.message}`);
-        results.push({ action: act, success: false, error: e.message });
+        logger.warn(`[Engagement] @${account.username} — AI quote failed: ${e.message}`);
       }
-
-      // Small delay between actions within same session
-      if (i < actionList.length - 1) {
-        await new Promise(r => setTimeout(r, 1500 + Math.random() * 2000));
-      }
-
-      await job.updateProgress(Math.round(((i + 1) / actionList.length) * 90));
     }
-
-    await job.updateProgress(100);
-
-    jobEvents.progress({
-      jobId:    meta.parentJobId,
-      type:     'engagement',
-      username: account.username,
-      done:     meta.index + 1,
-      total:    meta.total,
-      success:  results.some(r => r.success),
-      results,
-    });
-
-    return { success: true, username: account.username, results };
-
-  } finally {
-    await Browser.closeContext(accountId).catch(() => {});
+    if (!resolvedQuoteText && quoteTexts?.length) {
+      resolvedQuoteText = quoteTexts[(meta?.index ?? 0) % quoteTexts.length];
+    }
   }
+
+  // Filter out actions where canDo fails
+  const execActions = actionList.filter(act => {
+    const cap = CAP_MAP[act];
+    if (cap && !account.canDo(cap)) {
+      logger.warn(`[Engagement] @${account.username} — ${act} cap reached, skipping`);
+      return false;
+    }
+    return true;
+  });
+
+  if (!execActions.length) throw new Error(`SKIP: @${account.username} — all actions capped`);
+
+  await job.updateProgress(20);
+
+  // Sort actions: dwell first (uses loaded page), quote/follow/profile_visit last (navigate away)
+  const ORDER = ['tweet_dwell','like','retweet','bookmark','reply','share','quote_tweet','profile_visit','follow_author'];
+  const sortedActions = [...execActions].sort((a,b) => {
+    const ai = ORDER.indexOf(a); const bi = ORDER.indexOf(b);
+    return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+  });
+
+  // Single page session for all actions
+  const results = await ActionSvc.engageTweet(account, tweetId, sortedActions, {
+    replyText:     replyText || (quoteTexts?.length ? quoteTexts[(meta?.index ?? 0) % quoteTexts.length] : null),
+    quoteText:     resolvedQuoteText,
+    authorHandle:  authorHandle || meta?.authorHandle,
+    dwellSeconds:  dwellSeconds || 8,
+  });
+
+  await job.updateProgress(100);
+
+  jobEvents.progress({
+    jobId:    meta?.parentJobId,
+    type:     'engagement',
+    username: account.username,
+    done:     (meta?.index ?? 0) + 1,
+    total:    meta?.total ?? 1,
+    success:  results?.results?.some(r => r.success),
+    results:  results?.results,
+  });
+
+  return { success: true, username: account.username, ...results };
 });
