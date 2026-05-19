@@ -76,48 +76,41 @@ module.exports = {
     const queue    = getQueue(QUEUE_NAMES.ENGAGEMENT);
     const parentJobId = `engagement-${campaign._id}-${Date.now()}`;
 
-    // Build jobs: for each action × account
+    // Build jobs: one job per account — executes all actions in single browser session
     const jobs = [];
-    for (const action of campaign.actions) {
-      const accountsForAction = shuffle(shuffled); // different order per action
-      for (let i = 0; i < accountsForAction.length; i++) {
-        const account = accountsForAction[i];
-        // Stagger: delay increases per account + random jitter
-        const baseDelay = i * (campaign.delayMinMs + Math.random() * (campaign.delayMaxMs - campaign.delayMinMs));
-        // Action offset — likes first, then retweets, then replies
-        const actionOffset = { like: 0, retweet: 5000, reply: 10000, follow_author: 15000 }[action] || 0;
-        const replyText = action === 'reply' && campaign.replyTexts?.length
-          ? campaign.replyTexts[i % campaign.replyTexts.length]
-          : null;
+    for (let i = 0; i < shuffled.length; i++) {
+      const account  = shuffled[i];
+      const delay    = Math.round(i * (campaign.delayMinMs + Math.random() * (campaign.delayMaxMs - campaign.delayMinMs)));
+      const replyText = campaign.replyTexts?.length
+        ? campaign.replyTexts[i % campaign.replyTexts.length]
+        : null;
 
-        jobs.push({
-          name: QUEUE_NAMES.ENGAGEMENT,
-          data: {
-            accountId:  account._id.toString(),
-            campaignId: campaign._id.toString(),
-            action,
-            tweetId:    campaign.tweetId,
-            tweetUrl:   campaign.tweetUrl,
-            replyText,
-            meta: {
-              parentJobId,
-              index:        jobs.length,
-              total:        campaign.actions.length * shuffled.length,
-              authorHandle: campaign.meta?.authorHandle,
-            },
+      jobs.push({
+        name: QUEUE_NAMES.ENGAGEMENT,
+        data: {
+          accountId:  account._id.toString(),
+          campaignId: campaign._id.toString(),
+          actions:    campaign.actions,          // all actions in one job
+          tweetId:    campaign.tweetId,
+          tweetUrl:   campaign.tweetUrl,
+          replyText,
+          meta: {
+            parentJobId,
+            index:        i,
+            total:        shuffled.length,
+            authorHandle: campaign.meta?.authorHandle,
           },
-          opts: {
-            delay: Math.round(baseDelay + actionOffset),
-            jobId: `eng-${campaign._id}-${action}-${account._id}-${Date.now()}`,
-            attempts: 2,
-            backoff: { type: 'fixed', delay: 10000 },
-          },
-        });
-      }
+        },
+        opts: {
+          delay,
+          jobId: `eng-${campaign._id}-${account._id}-${Date.now()}`,
+          attempts: 2,
+          backoff: { type: 'fixed', delay: 10000 },
+        },
+      });
     }
 
-    // Update total now that we know it
-    jobs.forEach((j, i) => { j.data.meta.index = i; j.data.meta.total = jobs.length; });
+    // totals already correct (set per job)
 
     await queue.addBulk(jobs);
 

@@ -8,7 +8,7 @@ const AISvc      = require('../../services/ai.service');
 const { jobEvents } = require('../events/job.events');
 const logger     = require('../../utils/logger');
 
-module.exports = wrapProcessor(async function tweetMultiProcessor(job, { isCancelled }) {
+module.exports = wrapProcessor(async function tweetMultiProcessor(job) {
   const {
     accountId, mode, text, topic, hashtags, manualTexts,
     mediaPaths, accountIndex,
@@ -56,7 +56,7 @@ module.exports = wrapProcessor(async function tweetMultiProcessor(job, { isCance
       (r.tweetId ? `https://x.com/${account.username}/status/${r.tweetId}` : null);
 
     await Content.create({
-      account: account._id, text: finalText, status: 'منشور',
+      account: account._id, text: finalText, status: 'published',
       publishedAt: new Date(), tweetId: r.tweetId, tweetUrl,
     });
 
@@ -66,46 +66,38 @@ module.exports = wrapProcessor(async function tweetMultiProcessor(job, { isCance
       total: meta.total, success: true, tweetId: r.tweetId,
     });
 
-    // ── Auto-engage ─────────────────────────────────────────
-    if (isCancelled()) {
-      logger.warn(`[TweetMulti] Cancelled before auto-engage — @${account.username}`);
-      return { success: true, tweetId: r.tweetId, tweetUrl, autoEngageCancelled: true };
-    }
+    // ── Auto-engage — one job per account, all actions in single session ──
     if (autoEngage && tweetUrl && engageAccountIds?.length && engageActions?.length) {
       try {
         const { getQueue, QUEUE_NAMES } = require('../queues');
-        const { registry }              = require('../../ops/operations.registry');
+        const { registry } = require('../../ops/operations.registry');
         const engAccounts = await Account.find({
           _id: { $in: engageAccountIds }, isActive: true, status: 'active',
         });
         if (engAccounts.length) {
           const shuffle = arr => [...arr].sort(() => Math.random() - 0.5);
+          const ordered = shuffle(engAccounts);
           const queue   = getQueue(QUEUE_NAMES.ENGAGEMENT);
           const parentJobId = `eng-auto-${r.tweetId}-${Date.now()}`;
-          const jobs = [];
-          for (const action of engageActions) {
-            const ordered = shuffle(engAccounts);
-            for (let i = 0; i < ordered.length; i++) {
-              const acc = ordered[i];
-              const actionOffset = {like:0,retweet:5000,reply:10000,follow_author:15000}[action]||0;
-              const minD = engageDelayMinMs || 8000;
-              const maxD = engageDelayMaxMs || 25000;
-              const delay = Math.round(i*(minD+Math.random()*(maxD-minD))+actionOffset);
-              const replyText = action==='reply'&&engageReplyTexts?.length
-                ? engageReplyTexts[i%engageReplyTexts.length] : null;
-              jobs.push({
-                name: QUEUE_NAMES.ENGAGEMENT,
-                data: { accountId:acc._id.toString(), action, tweetId:r.tweetId, tweetUrl, replyText,
-                  meta:{parentJobId,index:jobs.length,total:engageActions.length*ordered.length} },
-                opts: { delay, attempts:2, jobId:`eng-auto-${r.tweetId}-${action}-${acc._id}-${Date.now()}` },
-              });
-            }
-          }
-          jobs.forEach((j,i)=>{j.data.meta.index=i;j.data.meta.total=jobs.length;});
+          const minD = engageDelayMinMs || 8000;
+          const maxD = engageDelayMaxMs || 25000;
+          const jobs = ordered.map((acc, i) => ({
+            name: QUEUE_NAMES.ENGAGEMENT,
+            data: {
+              accountId: acc._id.toString(),
+              actions:   engageActions,
+              tweetId:   r.tweetId,
+              tweetUrl,
+              replyText: engageReplyTexts?.length ? engageReplyTexts[i % engageReplyTexts.length] : null,
+              meta: { parentJobId, index: i, total: ordered.length },
+            },
+            opts: { delay: Math.round(i*(minD+Math.random()*(maxD-minD))), attempts:2,
+              jobId: `eng-auto-${r.tweetId}-${acc._id}-${Date.now()}` },
+          }));
           await queue.addBulk(jobs);
           registry.create({ parentJobId, type:'engagement', total:jobs.length,
-            accountUsernames:engAccounts.map(a=>a.username),
-            meta:{auto:true,tweetId:r.tweetId,actions:engageActions} });
+            accountUsernames: ordered.map(a=>a.username),
+            meta: { auto:true, tweetId:r.tweetId, actions:engageActions } });
           registry.registerJobs(parentJobId, jobs.map(j=>j.opts.jobId));
           logger.info(`[TweetMulti] Auto-engage: ${jobs.length} jobs for tweet ${r.tweetId}`);
         }
