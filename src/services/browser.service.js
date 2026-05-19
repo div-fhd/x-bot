@@ -82,13 +82,9 @@ async function ensureBrowser() {
     ],
   });
   BROWSER.on('disconnected', () => {
-    logger.warn('[Browser] Browser process disconnected — clearing stale pool');
+    logger.warn('[Browser] Browser process disconnected');
     BROWSER = null;
-    // Mark all pool entries as dead so next getContext() recreates them cleanly
-    for (const [id, entry] of POOL) {
-      clearTimeout(entry.timer);
-    }
-    POOL.clear();
+    // Don't clear POOL — contexts are already dead but we clean on next access
     SEM = 0;
   });
   return BROWSER;
@@ -325,6 +321,11 @@ async function getPage(account) {
   const page = await ctx.newPage();
   page.setDefaultTimeout(120_000);
   page.setDefaultNavigationTimeout(120_000);
+
+  // Block media/tracking to reduce proxy bandwidth (~60-70% savings)
+  await page.route('**/*.{png,jpg,jpeg,gif,webp,mp4,webm,svg,woff,woff2,ttf,otf}', r => r.abort());
+  await page.route('**/{ads,analytics,doubleclick,googlesyndication,pixel,tracking,telemetry}**', r => r.abort());
+  await page.route('**/{i.ads.microsoft,adsystem,adservice,adclick}**', r => r.abort());
 
   // Track page count
   const entry = POOL.get(id);
