@@ -1,6 +1,7 @@
 'use strict';
 const mongoose = require('mongoose');
 const Account  = require('../models/Account');
+const logger   = require('../utils/logger');
 
 // ── Proxy Model ─────────────────────────────────────────────────
 const ProxySchema = new mongoose.Schema({
