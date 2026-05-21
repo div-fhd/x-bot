@@ -941,6 +941,13 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 
 <!-- المنطقة الرئيسية -->
 <main class="main" style="display:flex;flex-direction:column">
+  <div id="manual-browser-bar" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9999;background:rgba(30,212,138,.1);border-bottom:1px solid rgba(30,212,138,.25);padding:5px 16px;align-items:center;gap:10px;font-size:12px">
+    <span style="width:7px;height:7px;border-radius:50%;background:var(--grn);display:inline-block;animation:blink 1.4s step-end infinite"></span>
+    <span style="color:var(--grn);font-weight:600">متصفح مفتوح:</span>
+    <span class="mb-username" style="font-family:var(--m);color:var(--t0)"></span>
+    <span style="color:var(--t2);font-size:11px">— تحكم من الـ Chromium على السيرفر</span>
+    <button class="btn btn-sm btn-r" onclick="closeManualBrowser()" style="margin-right:auto;padding:2px 10px;font-size:11px">إغلاق</button>
+  </div>
   <header class="topbar">
     <button class="menu-btn" onclick="toggleSidebar()" aria-label="القائمة">
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
@@ -2440,6 +2447,37 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
       </div>
     </div>
     <div style="border-top:1px solid var(--bd);margin:14px 0;padding-top:14px">
+      <div style="font-size:11px;font-weight:700;color:var(--t2);margin-bottom:10px;letter-spacing:.08em;text-transform:uppercase">الشبكة والموقع</div>
+      <div class="form-grid">
+        <div class="field">
+          <label>الـ Timezone</label>
+          <select id="edit-timezone">
+            <option value="America/New_York">🇺🇸 New York (افتراضي)</option>
+            <option value="America/Los_Angeles">🇺🇸 Los Angeles</option>
+            <option value="America/Chicago">🇺🇸 Chicago</option>
+            <option value="Europe/London">🇬🇧 London</option>
+            <option value="Europe/Paris">🇪🇺 Paris</option>
+            <option value="Asia/Riyadh">🇸🇦 الرياض</option>
+            <option value="Asia/Dubai">🇦🇪 دبي</option>
+            <option value="Asia/Kuwait">🇰🇼 الكويت</option>
+            <option value="Africa/Cairo">🇪🇬 القاهرة</option>
+            <option value="Asia/Beirut">🇱🇧 بيروت</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>اللغة (Locale)</label>
+          <select id="edit-locale">
+            <option value="en-US">🇺🇸 English (US)</option>
+            <option value="en-GB">🇬🇧 English (UK)</option>
+            <option value="ar-SA">🇸🇦 العربية (السعودية)</option>
+            <option value="ar-AE">🇦🇪 العربية (الإمارات)</option>
+            <option value="ar-EG">🇪🇬 العربية (مصر)</option>
+            <option value="fr-FR">🇫🇷 Français</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div style="border-top:1px solid var(--bd);margin:14px 0;padding-top:14px">
       <div style="font-size:11px;font-weight:700;color:var(--t2);margin-bottom:10px;letter-spacing:.08em;text-transform:uppercase">بيانات الدخول</div>
       <div class="form-grid">
         <div class="field">
@@ -3315,6 +3353,9 @@ async function loadAccounts() {
           <td>
             <div style="display:flex;gap:5px">
               <button class="btn btn-sm" onclick="checkAccount('${a._id}')">فحص</button>
+              <button class="btn btn-sm" onclick="openManualBrowser('${a._id}','${a.username}')" title="فتح متصفح يدوي" style="color:var(--grn);border-color:rgba(30,212,138,.25)">
+                <svg viewBox="0 0 14 14" fill="none" width="11" height="11" style="vertical-align:middle"><rect x="1" y="2" width="12" height="9" rx="1.5" stroke="currentColor" stroke-width="1.3"/><path d="M4 11l-.5 2M10 11l.5 2M3 13h8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+              </button>
               <button class="btn btn-sm" onclick="editAccount('${a._id}')">تعديل</button>
               <button class="btn btn-sm btn-r" onclick="deleteAccount('${a._id}','${a.username}')">حذف</button>
             </div>
@@ -3394,6 +3435,8 @@ async function editAccountFull(id) {
     document.getElementById('edit-role').value            = a.role  || 'mixed';
     document.getElementById('edit-niche').value           = a.niche || '';
     document.getElementById('edit-proxy').value           = a.network?.proxyUrl || '';
+    if (a.network?.timezone) document.getElementById('edit-timezone').value = a.network.timezone;
+    if (a.network?.locale)   document.getElementById('edit-locale').value   = a.network.locale;
     document.getElementById('edit-email').value           = a.email         || '';
     document.getElementById('edit-password').value        = '';
     document.getElementById('edit-mail-password').value   = '';
@@ -3414,6 +3457,8 @@ async function saveEditAccountFull() {
   const role         = document.getElementById('edit-role').value;
   const niche        = document.getElementById('edit-niche').value.trim();
   const proxy        = document.getElementById('edit-proxy').value.trim();
+  const timezone     = document.getElementById('edit-timezone')?.value || '';
+  const locale       = document.getElementById('edit-locale')?.value   || '';
   const password     = document.getElementById('edit-password').value.trim();
   const mailPassword = document.getElementById('edit-mail-password').value.trim();
   const email        = document.getElementById('edit-email').value.trim();
@@ -3428,6 +3473,7 @@ async function saveEditAccountFull() {
       method: 'PATCH',
       body: JSON.stringify({
         role, niche, isPrimary,
+        ...(proxy    ? { network: { proxyUrl: proxy, timezone, locale } } : { network: { timezone, locale } }),
         network: { proxyUrl: proxy || null },
       }),
     });
@@ -5534,6 +5580,40 @@ document.addEventListener('DOMContentLoaded', () => {
     if (cb.checked && allActiveAccounts.length) fillEngTmAccounts();
   });
 });
+
+// ── Manual Browser ────────────────────────────────────────────
+let _manualBrowserAccountId = null;
+
+async function openManualBrowser(id, username) {
+  if (_manualBrowserAccountId) {
+    toast('أغلق المتصفح الحالي أولاً', 'warn');
+    return;
+  }
+  toast(`🖥 جارٍ فتح متصفح @${username}...`, 'ok');
+  try {
+    await api(`/api/v1/accounts/${id}/open-browser`, { method: 'POST' });
+    _manualBrowserAccountId = id;
+    // Show close button in topbar
+    const bar = document.getElementById('manual-browser-bar');
+    if (bar) {
+      bar.style.display = 'flex';
+      bar.querySelector('.mb-username').textContent = '@' + username;
+    }
+    toast(`✅ المتصفح مفتوح — يمكنك التحكم الآن`, 'ok');
+  } catch(e) { toast(e.message, 'err'); }
+}
+
+async function closeManualBrowser() {
+  if (!_manualBrowserAccountId) return;
+  try {
+    await api(`/api/v1/accounts/${_manualBrowserAccountId}/close-browser`, { method: 'POST' });
+    _manualBrowserAccountId = null;
+    const bar = document.getElementById('manual-browser-bar');
+    if (bar) bar.style.display = 'none';
+    toast('✅ تم إغلاق المتصفح', 'ok');
+  } catch(e) { toast(e.message, 'err'); }
+}
+
 
 </script>
 </body>

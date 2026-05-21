@@ -23,6 +23,8 @@ router.patch ('/:id',                  ctrl.update);
 router.patch ('/:id/credentials',      ctrl.updateCredentials);
 router.delete('/:id',                  ctrl.remove);
 router.post  ('/:id/check',            ctrl.checkSession);
+router.post  ('/:id/open-browser',     ctrl.openBrowser);
+router.post  ('/:id/close-browser',    ctrl.closeBrowser);
 router.post  ('/:id/login',            ctrl.login);
 router.post  ('/:id/sync-profile',     ctrl.syncProfile);
 router.post  ('/:id/update-profile',   ctrl.updateProfile);

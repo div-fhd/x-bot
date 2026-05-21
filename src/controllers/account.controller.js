@@ -157,7 +157,7 @@ const AccountCtrl = {
     const tokenChanged = req.body.auth_token && req.body.auth_token !== current.auth_token;
     if (tokenChanged) {
       await Vault.deleteSession(account._id.toString());
-      account.status     = 'يحتاج_مصادقة';
+      account.status     = 'needs_auth';
       account.statusNote = 'Credentials updated';
     }
     await account.save();
@@ -250,7 +250,7 @@ const AccountCtrl = {
   },
   async bulkSyncProfiles(req, res) {
     const { accountIds, batchSize = 3 } = req.body;
-    const query = accountIds?.length ? { _id: { $in: accountIds }, isActive: true } : { isActive: true, status: 'نشط' };
+    const query = accountIds?.length ? { _id: { $in: accountIds }, isActive: true } : { isActive: true, status: 'active' };
     const accounts = await Account.find(query);
     if (!accounts.length) return res.json({ total: 0 });
 
@@ -266,7 +266,7 @@ const AccountCtrl = {
   },
   async bulkUpdateProfiles(req, res) {
     const { accountIds, updates = {}, namesList = [], locationsList = [], useAI = false, niche, avatarPaths = [], bannerPaths = [], imageOrder = 'sequential', batchSize = 1 } = req.body;
-    const query = accountIds?.length ? { _id: { $in: accountIds }, isActive: true } : { isActive: true, status: 'نشط' };
+    const query = accountIds?.length ? { _id: { $in: accountIds }, isActive: true } : { isActive: true, status: 'active' };
     const accounts = await Account.find(query);
     if (!accounts.length) return res.json({ message: 'No accounts found', total: 0 });
 
@@ -293,6 +293,42 @@ const AccountCtrl = {
     logger.info(`[bulkUpdateProfiles] Queued ${accounts.length} update jobs → ${parentJobId}`);
     res.json({ started: true, total: accounts.length, jobId: parentJobId });
   },
+
+  // ── Open browser for manual control ─────────────────────
+  async openBrowser(req, res) {
+    const account = await Account.findById(req.params.id);
+    if (!account) return res.status(404).json({ error: 'Account not found' });
+
+    const Browser = require('../services/browser.service');
+    try {
+      // Open context (stays open until closeManualBrowser is called)
+      const ctx  = await Browser.getContext(account);
+      const page = await ctx.newPage();
+
+      // Block heavy media to save bandwidth
+      await page.route('**/*.{png,jpg,jpeg,gif,webp,mp4,webm,woff,woff2}', r => r.abort()).catch(() => {});
+
+      // Go to home feed
+      await page.goto('https://x.com/home', { waitUntil: 'domcontentloaded', timeout: 30_000 });
+
+      logger.info(`[ManualBrowser] Opened for @${account.username}`);
+      res.json({ success: true, username: account.username, message: 'Browser opened — check your screen' });
+    } catch(e) {
+      logger.error(`[ManualBrowser] Failed for @${account.username}: ${e.message}`);
+      res.status(500).json({ error: e.message });
+    }
+  },
+
+  // ── Close manual browser ─────────────────────────────────
+  async closeBrowser(req, res) {
+    const account = await Account.findById(req.params.id);
+    if (!account) return res.status(404).json({ error: 'Account not found' });
+    const Browser = require('../services/browser.service');
+    await Browser.closeContext(account._id.toString()).catch(() => {});
+    logger.info(`[ManualBrowser] Closed for @${account.username}`);
+    res.json({ success: true });
+  },
+
   async uploadImages(req, res) {
     try {
       const path  = require('path');

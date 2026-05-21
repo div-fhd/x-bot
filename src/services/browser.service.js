@@ -171,8 +171,8 @@ async function getContext(account) {
       const ua  = net.userAgent || randomUA();
       const ctx = await browser.newContext({
         userAgent:   ua,
-        locale:      'en-US',
-        timezoneId:  net.timezone || 'America/New_York',
+        locale:      net.locale     || 'en-US',
+        timezoneId:  net.timezone   || 'America/New_York',
         viewport:    { width: 1280, height: 800 },
         colorScheme: 'light',
         ...(storageState ? { storageState } : {}),
