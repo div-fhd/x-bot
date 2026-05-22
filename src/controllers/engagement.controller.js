@@ -37,7 +37,7 @@ module.exports = {
 
   // POST /api/v1/engagement
   async create(req, res) {
-    const { name, tweetUrl, accountIds, accountRole, actions, replyTexts = [], quoteMode = 'manual', quoteTexts = [], quotePrompt = '', delayMinMs = 8000, delayMaxMs = 25000, scheduleAt, authorHandle } = req.body;
+    const { name, tweetUrl, accountIds, accountRole, actions, replyTexts = [], quoteMode = 'manual', quoteTexts = [], quotePrompt = '', delayMinMs = 8000, delayMaxMs = 25000, scheduleAt, authorHandle, runMode = 'sequential', parallelCount = 1 } = req.body;
     if (!name || !tweetUrl || !actions?.length)
       return res.status(400).json({ error: 'name, tweetUrl, actions required' });
 
@@ -48,6 +48,7 @@ module.exports = {
       name, tweetUrl, tweetId, accountIds, accountRole, actions,
       replyTexts, quoteMode, quoteTexts, quotePrompt,
       delayMinMs, delayMaxMs, scheduleAt,
+      runMode, parallelCount,
       meta: { authorHandle },
       createdBy: req.user?._id,
     });
@@ -78,24 +79,48 @@ module.exports = {
     const queue    = getQueue(QUEUE_NAMES.ENGAGEMENT);
     const parentJobId = `engagement-${campaign._id}-${Date.now()}`;
 
-    // Build jobs: one job per account — executes all actions in single browser session
+    // Build jobs respecting runMode
+    const runMode      = campaign.runMode      || 'sequential';
+    const parallelCount = runMode === 'parallel'
+      ? Math.max(1, Math.min(campaign.parallelCount || 3, 10))
+      : 1;
+
     const jobs = [];
     for (let i = 0; i < shuffled.length; i++) {
-      const account  = shuffled[i];
-      const delay    = Math.round(i * (campaign.delayMinMs + Math.random() * (campaign.delayMaxMs - campaign.delayMinMs)));
+      const account   = shuffled[i];
       const replyText = campaign.replyTexts?.length
         ? campaign.replyTexts[i % campaign.replyTexts.length]
         : null;
 
+      // ── Delay calculation ───────────────────────────────────
+      // sequential: كل job ينتظر دوره الكامل قبله
+      // parallel:   نقسّم لمجموعات — كل مجموعة لها delay موحّد
+      let delay;
+      if (runMode === 'sequential') {
+        // الـ delay يضمن إن الـ job السابق خلّص قبل بدء هذا
+        // نقدّر متوسط وقت العملية بـ 60 ثانية + التأخير المضبوط
+        const avgJobMs = 60_000 + campaign.delayMaxMs;
+        delay = Math.round(i * avgJobMs);
+      } else {
+        // parallel: مجموعات بحجم parallelCount
+        const groupIndex = Math.floor(i / parallelCount);
+        const avgJobMs   = 60_000 + campaign.delayMaxMs;
+        delay = Math.round(groupIndex * avgJobMs);
+      }
+
       jobs.push({
         name: QUEUE_NAMES.ENGAGEMENT,
         data: {
-          accountId:  account._id.toString(),
-          campaignId: campaign._id.toString(),
-          actions:    campaign.actions,          // all actions in one job
-          tweetId:    campaign.tweetId,
-          tweetUrl:   campaign.tweetUrl,
+          accountId:    account._id.toString(),
+          campaignId:   campaign._id.toString(),
+          actions:      campaign.actions,
+          tweetId:      campaign.tweetId,
+          tweetUrl:     campaign.tweetUrl,
           replyText,
+          quoteMode:    campaign.quoteMode   || 'manual',
+          quoteTexts:   campaign.quoteTexts  || [],
+          quotePrompt:  campaign.quotePrompt || '',
+          authorHandle: campaign.meta?.authorHandle,
           meta: {
             parentJobId,
             index:        i,
@@ -107,7 +132,7 @@ module.exports = {
           delay,
           jobId: `eng-${campaign._id}-${account._id}-${Date.now()}`,
           attempts: 2,
-          backoff: { type: 'fixed', delay: 10000 },
+          backoff: { type: 'fixed', delay: 10_000 },
         },
       });
     }

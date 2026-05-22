@@ -1097,8 +1097,28 @@ const ActionSvc = {
 
   // ── Engage Tweet — single page session for all actions ───────
   // Used by engagement processor to avoid reopening browser per action
+  // ── Dismiss X popups (ToS, notifications, etc.) ─────────────
+  async _dismissPopups(page) {
+    try {
+      // "Got it" — Terms of Service / Privacy Policy popup
+      const gotIt = page.locator('button:has-text("Got it"), [data-testid="confirmationSheetConfirm"]').first();
+      if (await gotIt.isVisible({ timeout: 2_000 }).catch(() => false)) {
+        await gotIt.click();
+        await page.waitForTimeout(800);
+      }
+    } catch {}
+    try {
+      // notification permission dialog
+      const notNow = page.locator('button:has-text("Not now"), button:has-text("Skip")').first();
+      if (await notNow.isVisible({ timeout: 1_000 }).catch(() => false)) {
+        await notNow.click();
+        await page.waitForTimeout(500);
+      }
+    } catch {}
+  },
+
   async engageTweet(account, tweetId, actionList, opts = {}) {
-    const { replyText, quoteText, authorHandle, dwellSeconds = 8 } = opts;
+    const { tweetUrl, replyText, quoteText, authorHandle, dwellSeconds = 8 } = opts;
     const Browser = require('./browser.service');
     const page = await Browser.getPage(account);
 
@@ -1107,11 +1127,17 @@ const ActionSvc = {
       await page.goto(`https://x.com/i/status/${tweetId}`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
       // Wait for tweet actions to render
       await page.waitForSelector('[data-testid="like"],[data-testid="unlike"],[data-testid="retweet"]', { timeout: 30_000 }).catch(() => {});
+      await this._dismissPopups(page);
       await sleep(800, 1400);
 
       const results = [];
 
       for (const act of actionList) {
+        // تحقق إن الـ page لسا حية قبل كل action
+        if (page.isClosed()) {
+          logger.warn(`[EngageTweet] @${account.username} — page closed, stopping at ${act}`);
+          break;
+        }
         try {
           let r;
           switch(act) {
@@ -1178,60 +1204,66 @@ const ActionSvc = {
 
             case 'quote_tweet': {
               if (!quoteText) { r = { skipped: true, reason: 'no quote text' }; break; }
-              // Click Retweet → Quote on main page
-              await page.waitForSelector('[data-testid="retweet"],[data-testid="unretweet"]', { timeout: 15_000 });
-              await page.locator('[data-testid="retweet"]').first().evaluate(el => el.click());
-              // Wait for dropdown
-              const quoteLink = await page.waitForSelector(
-                'a[href="/compose/post"][role="menuitem"], [data-testid="retweetConfirm"] + * a',
-                { timeout: 8_000 }
-              ).catch(() => null);
-              if (!quoteLink) {
-                // Close dropdown and skip
-                await page.keyboard.press('Escape').catch(() => {});
-                r = { skipped: true, reason: 'quote button not found' };
-                break;
-              }
-              // Get href and open in new page
-              const href = await quoteLink.getAttribute('href');
-              await page.keyboard.press('Escape').catch(() => {});
-              await sleep(300, 500);
 
-              const ctx = page.context();
+              // URL التغريدة المستهدفة للاقتباس
+              // tweetUrl من الـ opts أدق من i/status لأن X يتعرف عليه أفضل في compose
+              const targetTweetUrl = tweetUrl || `https://twitter.com/i/web/status/${tweetId}`;
+              const composeUrl     = `https://x.com/compose/post?url=${encodeURIComponent(targetTweetUrl)}`;
+
+              const ctx         = page.context();
               const composePage = await ctx.newPage();
               try {
-                // Build quote URL manually
-                const quoteTweetUrl = `https://x.com/${account.username}/status/${tweetId}`;
-                await composePage.goto(
-                  `https://x.com/compose/post?url=${encodeURIComponent(quoteTweetUrl)}`,
-                  { waitUntil: 'domcontentloaded', timeout: 30_000 }
-                );
-                // Wait for textarea
-                await composePage.waitForSelector('[data-testid="tweetTextarea_0"]', { timeout: 15_000 });
-                await sleep(600, 1000);
+                // فتح صفحة الكتابة مع الـ URL مباشرة — أكثر ثباتاً من النقر على dropdown
+                await composePage.goto(composeUrl, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+
+                // انتظر textarea الكتابة
+                await composePage.waitForSelector('[data-testid="tweetTextarea_0"]', { timeout: 20_000 });
+                await sleep(800, 1200);
+
+                // أغلق أي popup قبل الكتابة
+                await this._dismissPopups(composePage);
+                // انتظر ظهور بطاقة الاقتباس — يؤكد إن X حمّل الـ attachment
+                const cardAppeared = await composePage.waitForSelector(
+                  '[data-testid="card.wrapper"], [data-testid="attachments"], [data-testid="quoteTweet"]',
+                  { timeout: 10_000 }
+                ).then(() => true).catch(() => false);
+
+                if (!cardAppeared) {
+                  logger.warn(`[EngageTweet] @${account.username} — quote card not loaded, retrying with scroll`);
+                  await composePage.mouse.wheel(0, 200);
+                  await sleep(1000, 1500);
+                }
+
+                // اكتب النص
                 await composePage.locator('[data-testid="tweetTextarea_0"]').first().click();
-                await sleep(300, 500);
+                await sleep(400, 700);
                 await this._humanType(composePage, quoteText.slice(0, 280));
                 await sleep(700, 1200);
 
-                // Verify tweet card appeared (confirms quote attachment)
-                await composePage.waitForSelector('[data-testid="card.wrapper"], [data-testid="attachments"]', { timeout: 8_000 }).catch(() => {});
-
+                // تحقق إن زر النشر enabled
                 const postBtn = composePage.locator('[data-testid="tweetButtonInline"]').first();
-                await postBtn.waitFor({ timeout: 8_000 });
+                await postBtn.waitFor({ state: 'visible', timeout: 10_000 });
+                await sleep(300, 500);
                 await postBtn.evaluate(el => el.click());
-                await sleep(2000, 3000);
+
+                // انتظر إغلاق الـ composer — يعني النشر تم
+                await composePage.waitForSelector('[data-testid="tweetTextarea_0"]', { state: 'detached', timeout: 10_000 }).catch(() => {});
+                await sleep(1500, 2500);
 
                 await account.bump('post').catch(() => {});
-                await log(account._id, 'engage', 'quote_tweet', 'success', { tweetId });
+                await log(account._id, 'engage', 'quote_tweet', 'success', { tweetId, targetTweetUrl });
                 r = { success: true };
+              } catch (qErr) {
+                logger.warn(`[EngageTweet] @${account.username} — quote_tweet failed: ${qErr.message}`);
+                r = { skipped: true, reason: qErr.message };
               } finally {
                 await composePage.close().catch(() => {});
               }
-              // Back to tweet page
-              await page.goto(`https://x.com/i/status/${tweetId}`, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+
+              // ارجع للتغريدة الأصلية لو في actions بعدها
+              await page.goto(`https://x.com/i/status/${tweetId}`, { waitUntil: 'domcontentloaded', timeout: 30_000 }).catch(() => {});
               await page.waitForSelector('[data-testid="like"],[data-testid="unlike"]', { timeout: 15_000 }).catch(() => {});
-              await sleep(800, 1200);
+              await sleep(600, 1000);
               break;
             }
 
@@ -1307,8 +1339,13 @@ const ActionSvc = {
               r = { skipped: true, reason: `unknown action: ${act}` };
           }
 
-          results.push({ action: act, ...(r || { success: true }) });
-          logger.info(`[EngageTweet] @${account.username} — ${act} ✓`);
+          const res = r || { success: true };
+          results.push({ action: act, ...res });
+          if (res.success || res.alreadyLiked || res.alreadyRetweeted || res.alreadyBookmarked) {
+            logger.info(`[EngageTweet] @${account.username} — ${act} ✓`);
+          } else if (res.skipped) {
+            logger.warn(`[EngageTweet] @${account.username} — ${act} skipped: ${res.reason}`);
+          }
 
         } catch(e) {
           logger.warn(`[EngageTweet] @${account.username} — ${act} failed: ${e.message}`);

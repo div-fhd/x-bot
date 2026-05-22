@@ -2219,134 +2219,256 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 <!-- modal تعديل الحساب الكامل -->
 
 <!-- ── Modal حملة Engagement جديدة ── -->
-<div id="eng-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:999;align-items:center;justify-content:center;padding:20px;overflow-y:auto">
-  <div style="background:var(--s2);border:1px solid var(--bd2);border-radius:14px;padding:24px;width:100%;max-width:600px;margin:auto">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
-      <span style="font-size:15px;font-weight:600">🚀 حملة Engagement جديدة</span>
-      <button onclick="closeEngModal()" style="background:none;border:none;color:var(--t2);cursor:pointer;font-size:20px">×</button>
-    </div>
-    <div class="form-grid">
-      <div class="field fg-full"><label>اسم الحملة</label><input id="eng-name" type="text" placeholder="مثال: دعم تغريدة الفهد #1"></div>
-      <div class="field fg-full"><label>رابط التغريدة</label><input id="eng-tweet-url" type="text" placeholder="https://x.com/user/status/123456789" style="direction:ltr;font-family:var(--m)" oninput="autoFillAuthorHandle(this.value)"></div>
-    <div class="field fg-full"><label>هاندل صاحب التغريدة <small style="color:var(--t2);font-weight:400">— مطلوب لـ متابعة / زيارة البروفايل</small></label><input id="eng-author-handle" type="text" placeholder="@username" style="direction:ltr;font-family:var(--m)"></div>
-    </div>
+<style>
+/* ── Engagement Modal ── */
+.eng-modal-wrap { display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:999;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto; }
+.eng-modal { background:var(--s2);border:1px solid var(--bd);border-radius:14px;width:100%;max-width:620px;margin:auto; }
+.eng-modal-hd { display:flex;align-items:center;justify-content:space-between;padding:18px 20px 14px;border-bottom:1px solid var(--bd); }
+.eng-modal-hd-title { font-size:14px;font-weight:600;color:var(--t0); }
+.eng-modal-body { padding:20px; }
+.eng-section { margin-bottom:20px; }
+.eng-section-title { font-size:9.5px;font-weight:700;color:var(--t3);letter-spacing:.12em;text-transform:uppercase;margin-bottom:10px;display:flex;align-items:center;gap:8px; }
+.eng-section-title::after { content:'';flex:1;height:1px;background:var(--bd); }
 
-    <!-- Actions -->
-    <div class="field" style="margin-bottom:14px">
-      <label>الإجراءات — اختر واحد أو أكثر</label>
-      <div id="eng-actions" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
-        <button type="button" class="act-toggle" data-on="1" style="background:rgba(242,86,104,.22);border-color:rgba(242,86,104,.5);color:#f47085" data-action="like" onclick="toggleActionBtn(this)">
-          <svg viewBox="0 0 16 16" fill="none" width="12" height="12"><path d="M8 13.5S1.5 9.8 1.5 5.5a3 3 0 0 1 5.5-1.7A3 3 0 0 1 12.5 5.5c0 4.3-4.5 8-4.5 8z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg> إعجاب
-        </button>
-        <button type="button" class="act-toggle" data-on="0" data-action="retweet" onclick="toggleActionBtn(this)">
-          <svg viewBox="0 0 16 16" fill="none" width="12" height="12"><path d="M2 5h9a2 2 0 0 1 2 2v1M14 11H5a2 2 0 0 1-2-2V8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M12 3l2 2-2 2M4 9l-2 2 2 2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg> ريتويت
-        </button>
-        <button type="button" class="act-toggle" data-on="0" data-action="bookmark" onclick="toggleActionBtn(this)">
-          <svg viewBox="0 0 16 16" fill="none" width="12" height="12"><path d="M3 2h10a1 1 0 0 1 1 1v11l-6-3-6 3V3a1 1 0 0 1 1-1z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg> حفظ
-        </button>
-        <button type="button" class="act-toggle" data-on="0" data-action="quote_tweet" onclick="toggleActionBtn(this); toggleQuoteWrap('eng')">
-          <svg viewBox="0 0 16 16" fill="none" width="12" height="12"><path d="M2 5h9a2 2 0 0 1 2 2v1M14 11H5a2 2 0 0 1-2-2V8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M12 3l2 2-2 2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="5" cy="13" r="1" fill="currentColor"/><circle cx="9" cy="13" r="1" fill="currentColor"/></svg> اقتباس
-        </button>
-        <button type="button" class="act-toggle" data-on="0" data-action="reply" onclick="toggleActionBtn(this)">
-          <svg viewBox="0 0 16 16" fill="none" width="12" height="12"><path d="M2 3h12a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H5l-3 3V4a1 1 0 0 1 1-1z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg> رد
-        </button>
-        <button type="button" class="act-toggle" data-on="0" data-action="tweet_dwell" onclick="toggleActionBtn(this)">
-          <svg viewBox="0 0 16 16" fill="none" width="12" height="12"><circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.4"/><path d="M8 5v3l2 2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg> مشاهدة
-        </button>
-        <button type="button" class="act-toggle" data-on="0" data-action="profile_visit" onclick="toggleActionBtn(this)">
-          <svg viewBox="0 0 16 16" fill="none" width="12" height="12"><circle cx="8" cy="5" r="3" stroke="currentColor" stroke-width="1.4"/><path d="M2 14c0-3.3 2.7-5 6-5s6 1.7 6 5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg> زيارة
-        </button>
-        <button type="button" class="act-toggle" data-on="0" data-action="follow_author" onclick="toggleActionBtn(this)">
-          <svg viewBox="0 0 16 16" fill="none" width="12" height="12"><circle cx="7" cy="5" r="3" stroke="currentColor" stroke-width="1.4"/><path d="M1 13c0-3 2.7-4 6-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M12 10v4M10 12h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg> متابعة
-        </button>
-        <button type="button" class="act-toggle" data-on="0" data-action="share" onclick="toggleActionBtn(this)">
-          <svg viewBox="0 0 16 16" fill="none" width="12" height="12"><path d="M13 4l-5-3-5 3M8 1v9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 7H2a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1h-2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg> مشاركة
-        </button>
+/* Action chips */
+.act-chips { display:flex;gap:6px;flex-wrap:wrap; }
+.act-toggle {
+  display:inline-flex;align-items:center;gap:5px;
+  padding:6px 11px;border-radius:20px;
+  font-size:12px;font-weight:500;font-family:var(--r);
+  border:1px solid var(--bd2);
+  background:rgba(255,255,255,.03);
+  color:var(--t2);cursor:pointer;
+  transition:all .15s;
+  white-space:nowrap;
+}
+.act-toggle:hover { background:rgba(255,255,255,.06);color:var(--t1);border-color:var(--bd3); }
+.act-toggle.act-on {
+  background:rgba(59,130,246,.12);
+  border-color:rgba(59,130,246,.35);
+  color:var(--blu2);
+}
+
+/* Custom radio/toggle for mode */
+.mode-pills { display:flex;gap:0;background:var(--s3);border:1px solid var(--bd);border-radius:8px;overflow:hidden; }
+.mode-pill { flex:1;text-align:center;padding:7px 12px;font-size:12px;font-weight:500;color:var(--t2);cursor:pointer;transition:all .15s;user-select:none; }
+.mode-pill input[type=radio] { display:none; }
+.mode-pill.active { background:var(--s5);color:var(--t0); }
+
+/* Account chips list */
+.eng-acc-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:5px;max-height:160px;overflow-y:auto;padding:2px; }
+.eng-acc-chip {
+  display:flex;align-items:center;gap:7px;
+  padding:6px 10px;border-radius:7px;
+  border:1px solid var(--bd);background:var(--s3);
+  cursor:pointer;transition:all .12s;
+  font-size:12px;color:var(--t1);
+  user-select:none;
+}
+.eng-acc-chip:hover { border-color:var(--bd2);background:var(--s4); }
+.eng-acc-chip.selected { border-color:rgba(59,130,246,.4);background:rgba(59,130,246,.08);color:var(--blu2); }
+.eng-acc-chip input[type=checkbox] { display:none; }
+.eng-chip-dot { width:7px;height:7px;border-radius:50%;background:var(--bd3);flex-shrink:0;transition:background .12s; }
+.eng-acc-chip.selected .eng-chip-dot { background:var(--blu); }
+
+/* Run mode */
+.run-modes { display:grid;grid-template-columns:1fr 1fr;gap:8px; }
+.run-mode-card {
+  border:1px solid var(--bd);border-radius:9px;padding:12px;
+  cursor:pointer;transition:all .15s;background:var(--s3);
+  display:flex;flex-direction:column;gap:4px;
+  user-select:none;
+}
+.run-mode-card:hover { border-color:var(--bd2);background:var(--s4); }
+.run-mode-card.selected { border-color:rgba(59,130,246,.4);background:rgba(59,130,246,.07); }
+.run-mode-card input[type=radio] { display:none; }
+.run-mode-title { font-size:12.5px;font-weight:600;color:var(--t0);display:flex;align-items:center;gap:6px; }
+.run-mode-desc { font-size:11px;color:var(--t2);line-height:1.4; }
+.run-mode-dot { width:8px;height:8px;border-radius:50%;border:2px solid var(--bd3);flex-shrink:0;transition:all .15s; }
+.run-mode-card.selected .run-mode-dot { border-color:var(--blu);background:var(--blu); }
+
+/* Content sections */
+.content-box { background:var(--s3);border:1px solid var(--bd);border-radius:9px;padding:14px; }
+</style>
+
+<div id="eng-modal" class="eng-modal-wrap">
+  <div class="eng-modal">
+    <!-- Header -->
+    <div class="eng-modal-hd">
+      <div class="eng-modal-hd-title">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--blu2)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:middle;margin-left:6px"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        حملة تفاعل جديدة
       </div>
+      <button onclick="closeEngModal()" style="background:none;border:none;color:var(--t3);cursor:pointer;font-size:18px;line-height:1;padding:2px 6px;border-radius:4px" onmouseover="this.style.color='var(--t1)'" onmouseout="this.style.color='var(--t3)'">×</button>
     </div>
 
-    <!-- Quote options — يظهر لما تختار اقتباس -->
-    <div id="eng-quote-wrap" style="display:none;margin-bottom:14px">
-      <div class="card" style="background:var(--s3);border:1px solid var(--bd2);border-radius:10px;padding:14px">
-        <div class="field" style="margin-bottom:10px">
-          <label>نوع نص الاقتباس</label>
-          <div style="display:flex;gap:8px">
-            <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:400;text-transform:none;letter-spacing:0;cursor:pointer">
+    <div class="eng-modal-body">
+
+      <!-- 1. Info -->
+      <div class="eng-section">
+        <div class="eng-section-title">معلومات الحملة</div>
+        <div style="display:grid;gap:10px">
+          <div class="field" style="margin:0">
+            <label>اسم الحملة</label>
+            <input id="eng-name" type="text" placeholder="مثال: دعم تغريدة الإطلاق">
+          </div>
+          <div class="field" style="margin:0">
+            <label>رابط التغريدة</label>
+            <input id="eng-tweet-url" type="text" placeholder="https://x.com/user/status/..." style="direction:ltr;font-family:var(--m);font-size:12px" oninput="autoFillAuthorHandle(this.value)">
+          </div>
+          <div class="field" style="margin:0">
+            <label>هاندل صاحب التغريدة <span style="color:var(--t3);font-weight:400;font-size:10px;text-transform:none;letter-spacing:0">— مطلوب للمتابعة وزيارة البروفايل</span></label>
+            <input id="eng-author-handle" type="text" placeholder="@username" style="direction:ltr;font-family:var(--m)">
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. Actions -->
+      <div class="eng-section">
+        <div class="eng-section-title">الإجراءات</div>
+        <div class="act-chips" id="eng-actions">
+          <button type="button" class="act-toggle act-on" data-on="1" data-action="like" onclick="toggleActionBtn(this)">
+            <svg viewBox="0 0 16 16" fill="none" width="12" height="12"><path d="M8 13.5S1.5 9.8 1.5 5.5a3 3 0 0 1 5.5-1.7A3 3 0 0 1 12.5 5.5c0 4.3-4.5 8-4.5 8z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>إعجاب
+          </button>
+          <button type="button" class="act-toggle" data-on="0" data-action="retweet" onclick="toggleActionBtn(this)">
+            <svg viewBox="0 0 16 16" fill="none" width="12" height="12"><path d="M2 5h9a2 2 0 0 1 2 2v1M14 11H5a2 2 0 0 1-2-2V8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M12 3l2 2-2 2M4 9l-2 2 2 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>ريتويت
+          </button>
+          <button type="button" class="act-toggle" data-on="0" data-action="bookmark" onclick="toggleActionBtn(this)">
+            <svg viewBox="0 0 16 16" fill="none" width="12" height="12"><path d="M3 2h10a1 1 0 0 1 1 1v11l-6-3-6 3V3a1 1 0 0 1 1-1z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>حفظ
+          </button>
+          <button type="button" class="act-toggle" data-on="0" data-action="reply" onclick="toggleActionBtn(this); toggleEngReplyWrap()">
+            <svg viewBox="0 0 16 16" fill="none" width="12" height="12"><path d="M2 3h12a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H5l-3 3V4a1 1 0 0 1 1-1z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>رد
+          </button>
+          <button type="button" class="act-toggle" data-on="0" data-action="quote_tweet" onclick="toggleActionBtn(this); toggleQuoteWrap('eng')">
+            <svg viewBox="0 0 16 16" fill="none" width="12" height="12"><path d="M13 1H3a1 1 0 0 0-1 1v8l3-2h8a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M5 13l2 2 6-6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>اقتباس
+          </button>
+          <button type="button" class="act-toggle" data-on="0" data-action="tweet_dwell" onclick="toggleActionBtn(this)">
+            <svg viewBox="0 0 16 16" fill="none" width="12" height="12"><circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.5"/><path d="M8 5v3l2 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>مشاهدة
+          </button>
+          <button type="button" class="act-toggle" data-on="0" data-action="follow_author" onclick="toggleActionBtn(this)">
+            <svg viewBox="0 0 16 16" fill="none" width="12" height="12"><circle cx="7" cy="5" r="3" stroke="currentColor" stroke-width="1.5"/><path d="M1 13c0-3 2.7-4 6-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M12 10v4M10 12h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>متابعة
+          </button>
+          <button type="button" class="act-toggle" data-on="0" data-action="profile_visit" onclick="toggleActionBtn(this)">
+            <svg viewBox="0 0 16 16" fill="none" width="12" height="12"><circle cx="8" cy="5" r="3" stroke="currentColor" stroke-width="1.5"/><path d="M2 14c0-3.3 2.7-5 6-5s6 1.7 6 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>زيارة
+          </button>
+          <button type="button" class="act-toggle" data-on="0" data-action="share" onclick="toggleActionBtn(this)">
+            <svg viewBox="0 0 16 16" fill="none" width="12" height="12"><circle cx="12" cy="3" r="1.5" stroke="currentColor" stroke-width="1.3"/><circle cx="12" cy="13" r="1.5" stroke="currentColor" stroke-width="1.3"/><circle cx="4" cy="8" r="1.5" stroke="currentColor" stroke-width="1.3"/><path d="M10.5 3.8L5.5 7.2M10.5 12.2L5.5 8.8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>مشاركة
+          </button>
+        </div>
+      </div>
+
+      <!-- 3. Reply content (conditional) -->
+      <div id="eng-reply-wrap" class="eng-section" style="display:none">
+        <div class="eng-section-title">نصوص الرد</div>
+        <div class="content-box">
+          <label style="margin-bottom:6px;display:block">نص لكل سطر — يتوزع بالترتيب على الحسابات</label>
+          <textarea id="eng-reply-texts" placeholder="رائع جداً!&#10;محتوى ممتاز&#10;استمر في النجاح" style="min-height:75px;resize:vertical;font-size:12.5px;margin:0"></textarea>
+        </div>
+      </div>
+
+      <!-- 4. Quote content (conditional) -->
+      <div id="eng-quote-wrap" class="eng-section" style="display:none">
+        <div class="eng-section-title">محتوى الاقتباس</div>
+        <div class="content-box">
+          <div class="mode-pills" style="margin-bottom:12px" id="eng-quote-mode-pills">
+            <label class="mode-pill active" onclick="setEngQuoteMode('manual',this)">
               <input type="radio" name="eng-quote-mode" value="manual" checked> يدوي
             </label>
-            <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:400;text-transform:none;letter-spacing:0;cursor:pointer">
+            <label class="mode-pill" onclick="setEngQuoteMode('ai',this)">
               <input type="radio" name="eng-quote-mode" value="ai"> ذكاء اصطناعي
             </label>
           </div>
+          <div id="eng-quote-manual">
+            <label style="margin-bottom:6px;display:block">نص لكل سطر — يتوزع على الحسابات</label>
+            <textarea id="eng-quote-texts" placeholder="ما شاء الله على هذا المحتوى!&#10;نشر مفيد جداً&#10;يستحق التفاعل" style="min-height:75px;resize:vertical;font-size:12.5px;margin:0"></textarea>
+          </div>
+          <div id="eng-quote-ai" style="display:none">
+            <label style="margin-bottom:6px;display:block">توجيه الـ AI لتوليد الاقتباس</label>
+            <input type="text" id="eng-quote-prompt" placeholder="مثال: اقتبس بأسلوب متحمس، لا تتجاوز 100 حرف" style="margin:0">
+          </div>
         </div>
-        <div id="eng-quote-manual" class="field" style="margin-bottom:8px">
-          <label>نصوص الاقتباس <small style="color:var(--t2);font-weight:400">— سطر لكل حساب</small></label>
-          <textarea id="eng-quote-texts" placeholder="ما شاء الله على هذا المحتوى!&#10;نشر مفيد جداً 👏&#10;يستحق التفاعل" style="min-height:70px;font-size:12px;resize:vertical"></textarea>
+      </div>
+
+      <!-- 5. Accounts -->
+      <div class="eng-section">
+        <div class="eng-section-title">الحسابات</div>
+        <div style="display:flex;gap:8px;margin-bottom:8px;align-items:center">
+          <select id="eng-role-filter" onchange="filterEngAccounts()" style="flex:1;font-size:12px;padding:6px 10px">
+            <option value="">كل الأدوار</option>
+            <option value="post">نشر</option>
+            <option value="engage">تفاعل</option>
+            <option value="support">دعم</option>
+            <option value="mixed">مختلط</option>
+          </select>
+          <button class="btn btn-sm" onclick="selectAllEngAccounts()">الكل</button>
+          <button class="btn btn-sm" onclick="deselectAllEngAccounts()">مسح</button>
+          <span id="eng-acc-count" style="font-size:11px;font-weight:600;color:var(--blu2);font-family:var(--m);white-space:nowrap">0 محدد</span>
         </div>
-        <div id="eng-quote-ai" class="field" style="display:none">
-          <label>توجيه الـ AI <small style="color:var(--t2);font-weight:400">— تعليمات لتوليد الاقتباس</small></label>
-          <input type="text" id="eng-quote-prompt" placeholder="مثال: اقتبس بأسلوب متحمس ومشجع، لا تتجاوز 100 حرف">
+        <div class="eng-acc-grid" id="eng-acc-chips">
+          <div style="color:var(--t3);font-size:12px;padding:8px">جارٍ التحميل…</div>
         </div>
       </div>
-    </div>
 
-    <!-- Reply texts -->
-    <div id="eng-reply-wrap" class="field" style="margin-bottom:14px;display:none">
-      <label>نصوص الرد <small style="color:var(--t2);font-weight:400">— سطر لكل حساب (تدور بالترتيب)</small></label>
-      <textarea id="eng-reply-texts" placeholder="رائع جداً!&#10;محتوى ممتاز 👏&#10;استمر في النجاح&#10;مبدع كالعادة" style="min-height:80px;resize:vertical;font-size:12.5px"></textarea>
-    </div>
+      <!-- 6. Run mode -->
+      <div class="eng-section">
+        <div class="eng-section-title">نمط التشغيل</div>
+        <div class="run-modes">
+          <label class="run-mode-card selected" id="run-mode-sequential" onclick="selectRunMode('sequential')">
+            <input type="radio" name="eng-run-mode" value="sequential" checked>
+            <div class="run-mode-title"><div class="run-mode-dot"></div>تسلسلي</div>
+            <div class="run-mode-desc">حساب واحد في كل مرة — أكثر أماناً وأقل ضغطاً على الـ proxy</div>
+          </label>
+          <label class="run-mode-card" id="run-mode-parallel" onclick="selectRunMode('parallel')">
+            <input type="radio" name="eng-run-mode" value="parallel">
+            <div class="run-mode-title"><div class="run-mode-dot"></div>متوازي</div>
+            <div class="run-mode-desc">عدة حسابات في آن واحد — أسرع لكن يستهلك موارد أعلى</div>
+          </label>
+        </div>
+        <div id="eng-parallel-wrap" style="display:none;margin-top:10px">
+          <label style="display:flex;align-items:center;gap:10px;margin:0">
+            <span style="font-size:12px;color:var(--t1);white-space:nowrap">عدد الحسابات المتوازية</span>
+            <input type="range" id="eng-parallel-count" min="2" max="10" value="3"
+              oninput="document.getElementById('eng-parallel-val').textContent=this.value"
+              style="flex:1;accent-color:var(--blu)">
+            <span id="eng-parallel-val" style="font-size:13px;font-weight:700;font-family:var(--m);color:var(--blu2);width:20px;text-align:center">3</span>
+          </label>
+        </div>
+      </div>
 
-    <!-- Account selection -->
-    <div class="field" style="margin-bottom:14px">
-      <label>اختيار الحسابات</label>
-      <div style="display:flex;gap:8px;margin-bottom:8px">
-        <select id="eng-role-filter" onchange="filterEngAccounts()" style="flex:1">
-          <option value="">كل الأدوار</option>
-          <option value="post">نشر</option>
-          <option value="engage">تفاعل</option>
-          <option value="support">دعم</option>
-          <option value="mixed">مختلط</option>
-        </select>
-        <button class="btn btn-sm" onclick="selectAllEngAccounts()">الكل</button>
-        <button class="btn btn-sm" onclick="deselectAllEngAccounts()">لا شيء</button>
+      <!-- 7. Timing -->
+      <div class="eng-section">
+        <div class="eng-section-title">التوقيت</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div class="field" style="margin:0">
+            <label>التأخير بين الحسابات</label>
+            <select id="eng-delay">
+              <option value="5000,15000">5-15 ث — سريع</option>
+              <option value="10000,25000" selected>10-25 ث — موصى</option>
+              <option value="20000,45000">20-45 ث — آمن</option>
+              <option value="30000,90000">30-90 ث — محافظ</option>
+            </select>
+          </div>
+          <div class="field" style="margin:0">
+            <label>وقت الإطلاق</label>
+            <select id="eng-schedule-type" onchange="toggleEngSchedule(this.value)">
+              <option value="now">الآن فوراً</option>
+              <option value="scheduled">في وقت محدد</option>
+            </select>
+          </div>
+          <div class="field" id="eng-schedule-wrap" style="display:none;grid-column:1/-1;margin:0">
+            <label>وقت الإطلاق</label>
+            <input type="datetime-local" id="eng-schedule-at">
+          </div>
+        </div>
       </div>
-      <select id="eng-accounts" multiple style="height:120px;font-family:var(--m);font-size:12px">
-        <option disabled>جارٍ التحميل…</option>
-      </select>
-      <div style="font-size:11px;color:var(--t2);margin-top:4px">
-        <span id="eng-acc-count">0</span> حساب محدد
-        — الترتيب سيكون عشوائياً تلقائياً
-      </div>
-    </div>
 
-    <!-- Timing -->
-    <div class="form-grid" style="margin-bottom:14px">
-      <div class="field">
-        <label>التأخير بين الحسابات</label>
-        <select id="eng-delay">
-          <option value="5000,15000">5-15 ثانية (سريع)</option>
-          <option value="10000,25000" selected>10-25 ثانية (موصى)</option>
-          <option value="20000,45000">20-45 ثانية (آمن)</option>
-          <option value="30000,90000">30-90 ثانية (محافظ)</option>
-        </select>
+      <!-- Footer -->
+      <div style="display:flex;gap:8px;justify-content:flex-end;padding-top:4px;border-top:1px solid var(--bd);margin-top:4px">
+        <button class="btn" onclick="closeEngModal()">إلغاء</button>
+        <button class="btn btn-sm" onclick="saveEngDraft()" style="border-color:rgba(245,158,11,.25);color:var(--amb)">حفظ مسودة</button>
+        <button class="btn btn-p" onclick="saveAndLaunchEng()">إطلاق الحملة</button>
       </div>
-      <div class="field">
-        <label>توقيت الإطلاق</label>
-        <select id="eng-schedule-type" onchange="toggleEngSchedule(this.value)">
-          <option value="now">الآن فوراً</option>
-          <option value="scheduled">في وقت محدد</option>
-        </select>
-      </div>
-      <div class="field" id="eng-schedule-wrap" style="display:none;grid-column:1/-1">
-        <label>وقت الإطلاق</label>
-        <input type="datetime-local" id="eng-schedule-at">
-      </div>
-    </div>
 
-    <div style="display:flex;gap:10px;justify-content:flex-end">
-      <button class="btn" onclick="closeEngModal()">إلغاء</button>
-      <button class="btn btn-sm" onclick="saveEngDraft()" style="border-color:rgba(245,166,35,.3);color:var(--amb)">💾 حفظ مسودة</button>
-      <button class="btn btn-p" onclick="saveAndLaunchEng()">🚀 حفظ وإطلاق</button>
     </div>
   </div>
 </div>
@@ -5061,26 +5183,12 @@ const ACT_TEXT = {
 
 function toggleActionBtn(btn) {
   const isOn = btn.dataset.on === '1';
-  const action = btn.dataset.action;
-  if (isOn) {
-    btn.dataset.on = '0';
-    btn.style.background = 'var(--s3)';
-    btn.style.borderColor = 'var(--bd2)';
-    btn.style.color = 'var(--t2)';
-  } else {
-    btn.dataset.on = '1';
-    btn.style.background = ACT_COLORS[action] || 'rgba(255,255,255,.1)';
-    btn.style.borderColor = ACT_BORDER[action] || 'rgba(255,255,255,.3)';
-    btn.style.color = ACT_TEXT[action] || 'var(--t0)';
-  }
-  // reply wrap
-  const prefix = btn.closest('[id$="-actions"]')?.id?.replace('-actions','');
-  if (prefix) {
-    const hasReply = getSelectedActions(prefix).includes('reply');
-    const wrapId = prefix === 'eng' ? 'eng-reply-wrap' : 'tm-eng-reply-wrap';
-    const wrap = document.getElementById(wrapId);
-    if (wrap) wrap.style.display = hasReply ? 'block' : 'none';
-  }
+  btn.dataset.on = isOn ? '0' : '1';
+  btn.classList.toggle('act-on', !isOn);
+  // clear inline styles set by old code
+  btn.style.background = '';
+  btn.style.borderColor = '';
+  btn.style.color = '';
 }
 
 function getSelectedActions(prefix) {
@@ -5108,14 +5216,90 @@ function toggleQuoteWrap(prefix) {
 }
 
 // Quote mode toggle
-document.addEventListener('change', e => {
-  if (e.target.name === 'eng-quote-mode') {
-    const manual = document.getElementById('eng-quote-manual');
-    const ai     = document.getElementById('eng-quote-ai');
-    if (manual) manual.style.display = e.target.value === 'manual' ? 'block' : 'none';
-    if (ai)     ai.style.display     = e.target.value === 'ai'     ? 'block' : 'none';
+function setEngQuoteMode(mode, pill) {
+  document.querySelectorAll('#eng-quote-mode-pills .mode-pill').forEach(p => p.classList.remove('active'));
+  if (pill) pill.classList.add('active');
+  document.querySelector(`[name="eng-quote-mode"][value="${mode}"]`).checked = true;
+  const manual = document.getElementById('eng-quote-manual');
+  const ai     = document.getElementById('eng-quote-ai');
+  if (manual) manual.style.display = mode === 'manual' ? 'block' : 'none';
+  if (ai)     ai.style.display     = mode === 'ai'     ? 'block' : 'none';
+}
+
+function selectRunMode(mode) {
+  document.querySelectorAll('.run-mode-card').forEach(c => c.classList.remove('selected'));
+  const card = document.getElementById(`run-mode-${mode}`);
+  if (card) card.classList.add('selected');
+  const radio = card?.querySelector('input[type=radio]');
+  if (radio) radio.checked = true;
+  const wrap = document.getElementById('eng-parallel-wrap');
+  if (wrap) wrap.style.display = mode === 'parallel' ? 'block' : 'none';
+}
+
+function toggleEngReplyWrap() {
+  const hasReply = getSelectedActions('eng').includes('reply');
+  const wrap = document.getElementById('eng-reply-wrap');
+  if (wrap) wrap.style.display = hasReply ? 'block' : 'none';
+}
+
+const ROLE_AR = {'post':'نشر','engage':'تفاعل','support':'دعم','mixed':'مختلط'};
+const ROLE_CLR = {'post':'var(--blu)','engage':'var(--grn)','support':'var(--amb)','mixed':'var(--pur)'};
+
+function buildEngAccChips(accounts) {
+  const grid = document.getElementById('eng-acc-chips');
+  if (!grid) return;
+  if (!accounts.length) {
+    grid.innerHTML = '<div style="color:var(--t3);font-size:12px;padding:8px;grid-column:1/-1">لا توجد حسابات نشطة</div>';
+    return;
   }
-});
+  const roleAr  = ROLE_AR;
+  const roleClr = ROLE_CLR;
+  grid.innerHTML = accounts.map(a => {
+    const rLabel = roleAr[a.role]  || a.role || '';
+    const rColor = roleClr[a.role] || 'var(--t3)';
+    return `<div class="eng-acc-chip" onclick="toggleEngChip(this)" data-id="${a._id}">
+      <span class="eng-chip-dot"></span>
+      <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">@${a.username}</span>
+      <span style="font-size:9.5px;font-weight:600;color:${rColor};opacity:.8;flex-shrink:0">${rLabel}</span>
+    </div>`;
+  }).join('');
+  updateEngAccCount();
+}
+
+function toggleEngChip(chip) {
+  chip.classList.toggle('selected');
+  updateEngAccCount();
+}
+
+function updateEngAccCount() {
+  const count = document.querySelectorAll('#eng-acc-chips .eng-acc-chip.selected').length;
+  const el = document.getElementById('eng-acc-count');
+  if (el) el.textContent = `${count} محدد`;
+}
+
+function selectAllEngAccounts() {
+  document.querySelectorAll('#eng-acc-chips .eng-acc-chip').forEach(c => {
+    c.classList.add('selected');
+    const cb = c.querySelector('input'); if (cb) cb.checked = true;
+  });
+  updateEngAccCount();
+}
+
+function deselectAllEngAccounts() {
+  document.querySelectorAll('#eng-acc-chips .eng-acc-chip').forEach(c => {
+    c.classList.remove('selected');
+    const cb = c.querySelector('input'); if (cb) cb.checked = false;
+  });
+  updateEngAccCount();
+}
+
+function filterEngAccounts() {
+  const role = document.getElementById('eng-role-filter')?.value;
+  const filtered = role
+    ? allActiveAccounts.filter(a => a.role === role)
+    : allActiveAccounts;
+  buildEngAccChips(filtered);
+}
 
 function toggleReplyWrap(prefix) {
   const hasReply = getSelectedActions(prefix).includes('reply');
@@ -5414,19 +5598,9 @@ async function loadEngagement() {
 
 // ── Modal controls ───────────────────────────────────────────
 async function openEngModal() {
-  // Fill accounts
-  const sel = document.getElementById('eng-accounts');
-  if (allActiveAccounts.length && sel) {
-    sel.innerHTML = allActiveAccounts.map(a =>
-      `<option value="${a._id}">@${a.username} (${a.role==='post'?'نشر':a.role==='engage'?'تفاعل':a.role==='support'?'دعم':'مختلط'})</option>`
-    ).join('');
-  }
-  updateEngAccCount();
-
-  // Wire reply checkbox
-  // action toggles handle their own state via toggleActionBtn()
-
-  document.getElementById('eng-modal').style.display = 'flex';
+  const modal = document.getElementById('eng-modal');
+  if (modal) modal.style.display = 'flex';
+  buildEngAccChips(allActiveAccounts);
 }
 function closeEngModal() { document.getElementById('eng-modal').style.display = 'none'; }
 
@@ -5445,14 +5619,7 @@ function filterEngAccounts() {
   updateEngAccCount();
 }
 
-function selectAllEngAccounts() {
-  [...document.getElementById('eng-accounts').options].forEach(o => o.selected = true);
-  updateEngAccCount();
-}
-function deselectAllEngAccounts() {
-  [...document.getElementById('eng-accounts').options].forEach(o => o.selected = false);
-  updateEngAccCount();
-}
+// selectAllEngAccounts / deselectAllEngAccounts — moved to chip system above
 function updateEngAccCount() {
   const count = document.querySelectorAll('#eng-accounts option:checked').length;
   const el = document.getElementById('eng-acc-count');
@@ -5464,22 +5631,27 @@ function buildEngPayload() {
   const name     = document.getElementById('eng-name').value.trim();
   const tweetUrl = document.getElementById('eng-tweet-url').value.trim();
   const actions      = getSelectedActions('eng');
-  const accountIds   = [...document.querySelectorAll('#eng-accounts option:checked')].map(o => o.value);
+  const accountIds   = [...document.querySelectorAll('#eng-acc-chips .eng-acc-chip.selected')].map(c => c.dataset.id);
   const replyTexts   = document.getElementById('eng-reply-texts')?.value.trim().split('\n').filter(Boolean) || [];
   const quoteMode    = document.querySelector('[name="eng-quote-mode"]:checked')?.value || 'manual';
   const quoteTexts   = document.getElementById('eng-quote-texts')?.value.trim().split('\n').filter(Boolean) || [];
   const quotePrompt  = document.getElementById('eng-quote-prompt')?.value.trim() || '';
-  const delayParts = document.getElementById('eng-delay').value.split(',');
-  const schedType  = document.getElementById('eng-schedule-type').value;
-  const scheduleAt = schedType === 'scheduled' ? document.getElementById('eng-schedule-at').value : null;
+  const runMode      = document.querySelector('[name="eng-run-mode"]:checked')?.value || 'sequential';
+  const delayParts   = document.getElementById('eng-delay').value.split(',');
+  const schedType    = document.getElementById('eng-schedule-type').value;
+  const scheduleAt   = schedType === 'scheduled' ? document.getElementById('eng-schedule-at').value : null;
 
-  if (!name)     { toast('أدخل اسم الحملة', 'warn'); return null; }
-  if (!tweetUrl) { toast('أدخل رابط التغريدة', 'warn'); return null; }
-  if (!actions.length) { toast('اختر إجراءاً واحداً على الأقل', 'warn'); return null; }
-  if (!accountIds.length) { toast('اختر حسابات', 'warn'); return null; }
+  if (!name)            { toast('أدخل اسم الحملة', 'warn'); return null; }
+  if (!tweetUrl)        { toast('أدخل رابط التغريدة', 'warn'); return null; }
+  if (!actions.length)  { toast('اختر إجراءاً واحداً على الأقل', 'warn'); return null; }
+  if (!accountIds.length){ toast('اختر حسابات', 'warn'); return null; }
 
   const authorHandle = document.getElementById('eng-author-handle')?.value.replace('@','').trim() || '';
-  return { name, tweetUrl, actions, accountIds, replyTexts, quoteMode, quoteTexts, quotePrompt, authorHandle,
+  const parallelCount = runMode === 'parallel'
+    ? +(document.getElementById('eng-parallel-count')?.value || 3)
+    : 1;
+  return { name, tweetUrl, actions, accountIds, replyTexts, quoteMode, quoteTexts, quotePrompt,
+    runMode, parallelCount, authorHandle,
     delayMinMs: +delayParts[0], delayMaxMs: +delayParts[1],
     scheduleAt: scheduleAt || undefined };
 }

@@ -104,6 +104,18 @@ const EngageCampaignSchema = new mongoose.Schema({
   // Reply texts — rotated across accounts
   replyTexts: [String],
 
+  // Quote tweet options
+  quoteMode:   { type: String, enum: ['manual', 'ai'], default: 'manual' },
+  quoteTexts:  [String],
+  quotePrompt: { type: String, default: '' },
+
+  // Author handle (for follow_author)
+  meta: { type: mongoose.Schema.Types.Mixed, default: {} },
+
+  // Run mode
+  runMode:      { type: String, enum: ['sequential','parallel'], default: 'sequential' },
+  parallelCount: { type: Number, default: 1, min: 1, max: 10 },
+
   // Counts per action
   targets: {
     likes:    { type: Number, default: 0 },

@@ -35,6 +35,7 @@ module.exports = wrapProcessor(async function engagementProcessor(job) {
   await job.updateProgress(10);
 
   // Resolve quote text if needed
+  logger.info(`[Engagement] quoteMode=${quoteMode} quoteTexts=${JSON.stringify(quoteTexts)} quotePrompt="${quotePrompt}"`);
   let resolvedQuoteText = null;
   if (actionList.includes('quote_tweet')) {
     if (quoteMode === 'ai') {
@@ -77,12 +78,19 @@ module.exports = wrapProcessor(async function engagementProcessor(job) {
   });
 
   // Single page session for all actions
-  const results = await ActionSvc.engageTweet(account, tweetId, sortedActions, {
-    replyText:     replyText || (quoteTexts?.length ? quoteTexts[(meta?.index ?? 0) % quoteTexts.length] : null),
-    quoteText:     resolvedQuoteText,
-    authorHandle:  authorHandle || meta?.authorHandle,
-    dwellSeconds:  dwellSeconds || 8,
-  });
+  let results;
+  try {
+    results = await ActionSvc.engageTweet(account, tweetId, sortedActions, {
+      tweetUrl:      tweetUrl,
+      replyText:     replyText || null,
+      quoteText:     resolvedQuoteText,
+      authorHandle:  authorHandle || meta?.authorHandle,
+      dwellSeconds:  dwellSeconds || 8,
+    });
+  } finally {
+    // أغلق الـ context بعد ما engageTweet ينتهي — هنا وليس في base.processor
+    await Browser.closeContext(account._id.toString()).catch(() => {});
+  }
 
   await job.updateProgress(100);
 
@@ -97,4 +105,5 @@ module.exports = wrapProcessor(async function engagementProcessor(job) {
   });
 
   return { success: true, username: account.username, ...results };
-});
+
+}, { managesOwnBrowser: true }); // engagement يدير الـ browser بنفسه عبر engageTweet
