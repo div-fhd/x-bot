@@ -1099,20 +1099,41 @@ const ActionSvc = {
   // Used by engagement processor to avoid reopening browser per action
   // ── Dismiss X popups (ToS, notifications, etc.) ─────────────
   async _dismissPopups(page) {
+    const dismissSelectors = [
+      // ToS / Privacy Policy
+      'button:has-text("Got it")',
+      '[data-testid="confirmationSheetConfirm"]',
+      // Ads customization popup (any language)
+      'button:has-text("関連性の低い広告を引き続き表示する")',  // Japanese
+      'button:has-text("Continue seeing less relevant ads")',   // English
+      'button:has-text("متابعة عرض إعلانات")',                // Arabic
+      // Notification permission
+      'button:has-text("Not now")',
+      'button:has-text("Skip")',
+      'button:has-text("لاحقاً")',
+      // Generic dismiss — any overlay close button
+      '[data-testid="app-bar-close"]',
+      // "Save post?" draft dialog — click Discard
+      'button:has-text("Discard")',
+      'button:has-text("تجاهل")',
+      'button:has-text("تخلص")',
+    ];
+
+    for (const sel of dismissSelectors) {
+      try {
+        const btn = page.locator(sel).first();
+        if (await btn.isVisible({ timeout: 1_000 }).catch(() => false)) {
+          await btn.click();
+          await page.waitForTimeout(600);
+        }
+      } catch {}
+    }
+    // حالة خاصة: "Save post?" dialog — نضغط Discard دائماً
     try {
-      // "Got it" — Terms of Service / Privacy Policy popup
-      const gotIt = page.locator('button:has-text("Got it"), [data-testid="confirmationSheetConfirm"]').first();
-      if (await gotIt.isVisible({ timeout: 2_000 }).catch(() => false)) {
-        await gotIt.click();
-        await page.waitForTimeout(800);
-      }
-    } catch {}
-    try {
-      // notification permission dialog
-      const notNow = page.locator('button:has-text("Not now"), button:has-text("Skip")').first();
-      if (await notNow.isVisible({ timeout: 1_000 }).catch(() => false)) {
-        await notNow.click();
-        await page.waitForTimeout(500);
+      const discard = page.locator('button:has-text("Discard"), button:has-text("تجاهل")').first();
+      if (await discard.isVisible({ timeout: 1_000 }).catch(() => false)) {
+        await discard.click();
+        await page.waitForTimeout(600);
       }
     } catch {}
   },
@@ -1205,16 +1226,19 @@ const ActionSvc = {
             case 'quote_tweet': {
               if (!quoteText) { r = { skipped: true, reason: 'no quote text' }; break; }
 
-              // URL التغريدة المستهدفة للاقتباس
-              // tweetUrl من الـ opts أدق من i/status لأن X يتعرف عليه أفضل في compose
-              const targetTweetUrl = tweetUrl || `https://twitter.com/i/web/status/${tweetId}`;
-              const composeUrl     = `https://x.com/compose/post?url=${encodeURIComponent(targetTweetUrl)}`;
+              // نظّف الـ URL من tracking params (s=, t=, ref_src=...)
+              // ونبني URL نظيف من الـ tweetId مباشرة — أكثر ثباتاً
+              const cleanTweetUrl = `https://x.com/i/status/${tweetId}`;
+              const composeUrl    = `https://x.com/compose/post?url=${encodeURIComponent(cleanTweetUrl)}`;
 
               const ctx         = page.context();
               const composePage = await ctx.newPage();
               try {
                 // فتح صفحة الكتابة مع الـ URL مباشرة — أكثر ثباتاً من النقر على dropdown
                 await composePage.goto(composeUrl, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+                // أغلق أي popup يظهر فور تحميل الصفحة
+                await this._dismissPopups(composePage);
+                await sleep(500, 800);
 
                 // انتظر textarea الكتابة
                 await composePage.waitForSelector('[data-testid="tweetTextarea_0"]', { timeout: 20_000 });
@@ -1222,6 +1246,31 @@ const ActionSvc = {
 
                 // أغلق أي popup قبل الكتابة
                 await this._dismissPopups(composePage);
+
+                // انتظر textarea — جرب selectors متعددة
+                const textareaVisible = await composePage.waitForSelector(
+                  '[data-testid="tweetTextarea_0"], [data-testid="tweetTextarea_0root"], div[role="textbox"][data-block="true"]',
+                  { timeout: 20_000 }
+                ).then(() => true).catch(async () => {
+                  // screenshot للتشخيص
+                  const fs = require('fs');
+                  fs.mkdirSync('./data/debug', { recursive: true });
+                  await composePage.screenshot({ path: `./data/debug/quote-fail-${Date.now()}.png`, fullPage: true }).catch(() => {});
+                  logger.warn(`[EngageTweet] @${account.username} — compose page URL: ${composePage.url()}`);
+                  // جرب dismiss popup ثاني
+                  await this._dismissPopups(composePage);
+                  await sleep(1500, 2000);
+                  // محاولة أخيرة
+                  return composePage.waitForSelector(
+                    '[data-testid="tweetTextarea_0"], div[contenteditable="true"][role="textbox"]',
+                    { timeout: 10_000 }
+                  ).then(() => true).catch(() => false);
+                });
+
+                if (!textareaVisible) {
+                  throw new Error(`compose textarea not found — URL: ${composePage.url()}`);
+                }
+
                 // انتظر ظهور بطاقة الاقتباس — يؤكد إن X حمّل الـ attachment
                 const cardAppeared = await composePage.waitForSelector(
                   '[data-testid="card.wrapper"], [data-testid="attachments"], [data-testid="quoteTweet"]',

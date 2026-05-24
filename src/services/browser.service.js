@@ -403,4 +403,50 @@ function stats() {
   };
 }
 
-module.exports = { getContext, getPage, persistSession, closeContext, shutdown, stats };
+// ── Manual Browser — headless:false على الـ virtual display ──
+let MANUAL_BROWSER = null;
+let MANUAL_CONTEXT = null;
+
+async function openManualContext(account) {
+  // أغلق أي session يدوية سابقة
+  if (MANUAL_BROWSER?.isConnected()) {
+    await MANUAL_BROWSER.close().catch(() => {});
+  }
+
+  const env = { ...process.env, DISPLAY: process.env.DISPLAY || ':99' };
+
+  MANUAL_BROWSER = await chromium.launch({
+    headless: false,
+    env,
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-blink-features=AutomationControlled',
+      '--window-size=1280,800',
+      '--disable-infobars',
+      '--lang=en-US,en',
+    ],
+  });
+
+  const session = await loadSession(account);
+  MANUAL_CONTEXT = await MANUAL_BROWSER.newContext({
+    ...contextOpts(account),
+    storageState: session || undefined,
+  });
+
+  const page = await MANUAL_CONTEXT.newPage();
+  await page.goto('https://x.com/home', { waitUntil: 'domcontentloaded', timeout: 30_000 });
+
+  logger.info(`[ManualBrowser] Opened for @${account.username} — headless:false`);
+  return { browser: MANUAL_BROWSER, context: MANUAL_CONTEXT, page };
+}
+
+async function closeManualContext() {
+  await MANUAL_BROWSER?.close().catch(() => {});
+  MANUAL_BROWSER = null;
+  MANUAL_CONTEXT = null;
+  logger.info('[ManualBrowser] Closed');
+}
+
+module.exports = { getContext, getPage, persistSession, closeContext, shutdown, stats, openManualContext, closeManualContext };

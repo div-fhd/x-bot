@@ -298,34 +298,22 @@ const AccountCtrl = {
   async openBrowser(req, res) {
     const account = await Account.findById(req.params.id);
     if (!account) return res.status(404).json({ error: 'Account not found' });
-
     const Browser = require('../services/browser.service');
     try {
-      // Open context (stays open until closeManualBrowser is called)
-      const ctx  = await Browser.getContext(account);
-      const page = await ctx.newPage();
-
-      // Block heavy media to save bandwidth
-      await page.route('**/*.{png,jpg,jpeg,gif,webp,mp4,webm,woff,woff2}', r => r.abort()).catch(() => {});
-
-      // Go to home feed
-      await page.goto('https://x.com/home', { waitUntil: 'domcontentloaded', timeout: 30_000 });
-
-      logger.info(`[ManualBrowser] Opened for @${account.username}`);
-      res.json({ success: true, username: account.username, message: 'Browser opened — check your screen' });
+      await Browser.openManualContext(account);
+      res.json({ success: true, username: account.username,
+        message: `افتح http://YOUR_SERVER_IP:6080/vnc.html لتشوف المتصفح` });
     } catch(e) {
       logger.error(`[ManualBrowser] Failed for @${account.username}: ${e.message}`);
       res.status(500).json({ error: e.message });
     }
   },
 
-  // ── Close manual browser ─────────────────────────────────
   async closeBrowser(req, res) {
     const account = await Account.findById(req.params.id);
     if (!account) return res.status(404).json({ error: 'Account not found' });
     const Browser = require('../services/browser.service');
-    await Browser.closeContext(account._id.toString()).catch(() => {});
-    logger.info(`[ManualBrowser] Closed for @${account.username}`);
+    await Browser.closeManualContext().catch(() => {});
     res.json({ success: true });
   },
 
