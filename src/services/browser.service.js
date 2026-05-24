@@ -429,10 +429,21 @@ async function openManualContext(account) {
     ],
   });
 
-  const session = await loadSession(account);
+  const id          = account._id.toString();
+  const creds       = Vault.decryptAccount(account.credentials);
+  let storageState  = await Vault.loadSession(id);
+  if (!storageState && creds) storageState = Vault.buildStateFromTokens(creds);
+
+  const net = account.proxy
+    ? { proxyUrl: account.proxy }
+    : {};
   MANUAL_CONTEXT = await MANUAL_BROWSER.newContext({
-    ...contextOpts(account),
-    storageState: session || undefined,
+    userAgent:   randomUA(),
+    locale:      'en-US',
+    timezoneId:  'America/New_York',
+    viewport:    { width: 1280, height: 800 },
+    colorScheme: 'light',
+    ...(storageState ? { storageState } : {}),
   });
 
   const page = await MANUAL_CONTEXT.newPage();
