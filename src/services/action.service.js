@@ -669,6 +669,7 @@ const ActionSvc = {
       }).catch(() => {});
 
       await sleep(1000, 1500);
+      await this._dismissPopups(page);
       await this._checkNotRedirected(page, account);
 
       // انتظر ظهور الفورم — أي من هذه العناصر يكفي
