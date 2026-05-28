@@ -2,18 +2,21 @@
 const { Queue }        = require('bullmq');
 const { createConnection } = require('./connection');
 
+// QUEUE_PREFIX يعزل queues كل instance عن الثاني لو شاركا نفس الـ Redis
+const PREFIX = process.env.QUEUE_PREFIX ? `${process.env.QUEUE_PREFIX}-` : 'xops-';
+
 const QUEUE_NAMES = {
-  FOLLOW:         'xops-follow',
-  LIKE:           'xops-like',
-  RETWEET:        'xops-retweet',
-  TWEET_MULTI:    'xops-tweet-multi',
-  MUTUAL_FOLLOW:  'xops-mutual-follow',
-  REPORT_ACCOUNT: 'xops-report-account',
-  REPORT_TWEET:   'xops-report-tweet',
-  PROFILE_UPDATE: 'xops-profile-update',
-  PROFILE_SYNC:   'xops-profile-sync',
-  HEALTH_CHECK:   'xops-health-check',
-  ENGAGEMENT:     'xops-engagement',
+  FOLLOW:         `${PREFIX}follow`,
+  LIKE:           `${PREFIX}like`,
+  RETWEET:        `${PREFIX}retweet`,
+  TWEET_MULTI:    `${PREFIX}tweet-multi`,
+  MUTUAL_FOLLOW:  `${PREFIX}mutual-follow`,
+  REPORT_ACCOUNT: `${PREFIX}report-account`,
+  REPORT_TWEET:   `${PREFIX}report-tweet`,
+  PROFILE_UPDATE: `${PREFIX}profile-update`,
+  PROFILE_SYNC:   `${PREFIX}profile-sync`,
+  HEALTH_CHECK:   `${PREFIX}health-check`,
+  ENGAGEMENT:     `${PREFIX}engagement`,
 };
 
 const DEFAULT_JOB_OPTS = {
