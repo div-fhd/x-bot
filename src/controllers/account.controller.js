@@ -157,7 +157,7 @@ const AccountCtrl = {
     const tokenChanged = req.body.auth_token && req.body.auth_token !== current.auth_token;
     if (tokenChanged) {
       await Vault.deleteSession(account._id.toString());
-      account.status     = 'needs_auth';
+      account.status     = 'auth_required';
       account.statusNote = 'Credentials updated';
     }
     await account.save();
@@ -240,11 +240,14 @@ const AccountCtrl = {
 
     const queue = getQueue(QUEUE_NAMES.HEALTH_CHECK);
     const parentJobId = `health-check-${Date.now()}`;
-    await queue.addBulk(accounts.map((account, idx) => ({
+    const added = await queue.addBulk(accounts.map((account, idx) => ({
       name: QUEUE_NAMES.HEALTH_CHECK,
       data: { accountId: account._id.toString(), meta: { parentJobId, index: idx, total: accounts.length } },
       opts: { delay: idx * 8000, jobId: `hc-${account._id}-${Date.now()}` },
     })));
+    const { registry } = require('../ops/operations.registry');
+    registry.create({ parentJobId, type: 'health-check', total: accounts.length, accountUsernames: accounts.map(a => a.username) });
+    registry.registerJobs(parentJobId, added.map(j => j.id));
     logger.info(`[bulkCheck] Queued ${accounts.length} health checks → ${parentJobId}`);
     res.json({ started: true, total: accounts.length, jobId: parentJobId });
   },
@@ -256,11 +259,14 @@ const AccountCtrl = {
 
     const queue = getQueue(QUEUE_NAMES.PROFILE_SYNC);
     const parentJobId = `profile-sync-${Date.now()}`;
-    await queue.addBulk(accounts.map((account, idx) => ({
+    const added = await queue.addBulk(accounts.map((account, idx) => ({
       name: QUEUE_NAMES.PROFILE_SYNC,
       data: { accountId: account._id.toString(), meta: { parentJobId, index: idx, total: accounts.length } },
       opts: { delay: Math.floor(idx / batchSize) * 8000, jobId: `sync-${account._id}-${Date.now()}` },
     })));
+    const { registry } = require('../ops/operations.registry');
+    registry.create({ parentJobId, type: 'profile-sync', total: accounts.length, accountUsernames: accounts.map(a => a.username) });
+    registry.registerJobs(parentJobId, added.map(j => j.id));
     logger.info(`[bulkSyncProfiles] Queued ${accounts.length} sync jobs → ${parentJobId}`);
     res.json({ started: true, total: accounts.length, jobId: parentJobId });
   },
@@ -277,7 +283,7 @@ const AccountCtrl = {
     const queue = getQueue(QUEUE_NAMES.PROFILE_UPDATE);
     const parentJobId = `profile-update-${Date.now()}`;
 
-    await queue.addBulk(accounts.map((account, idx) => {
+    const jobs = accounts.map((account, idx) => {
       const jobUpdates = { ...updates };
       if (namesList.length)     jobUpdates.displayName = namesList[idx % namesList.length];
       if (locationsList.length) jobUpdates.location    = locationsList[idx % locationsList.length];
@@ -288,7 +294,19 @@ const AccountCtrl = {
         data: { accountId: account._id.toString(), updates: jobUpdates, useAI, niche, meta: { parentJobId, index: idx, total: accounts.length } },
         opts: { delay: Math.floor(idx / batchSize) * 12000, jobId: `upd-${account._id}-${Date.now()}` },
       };
-    }));
+    });
+
+    const added = await queue.addBulk(jobs);
+
+    // ── سجّل في OpsRegistry عشان تظهر في لوحة التحكم وتقدر توقفها ──
+    const { registry } = require('../ops/operations.registry');
+    registry.create({
+      parentJobId,
+      type:             'profile-update',
+      total:            accounts.length,
+      accountUsernames: accounts.map(a => a.username),
+    });
+    registry.registerJobs(parentJobId, added.map(j => j.id));
 
     logger.info(`[bulkUpdateProfiles] Queued ${accounts.length} update jobs → ${parentJobId}`);
     res.json({ started: true, total: accounts.length, jobId: parentJobId });
@@ -302,7 +320,7 @@ const AccountCtrl = {
     try {
       await Browser.openManualContext(account);
       res.json({ success: true, username: account.username,
-        message: `افتح http://YOUR_SERVER_IP:6080/vnc.html لتشوف المتصفح` });
+        message: `افتح http://${process.env.SERVER_IP || 'SERVER_IP'}:6080/vnc.html لتشوف المتصفح` });
     } catch(e) {
       logger.error(`[ManualBrowser] Failed for @${account.username}: ${e.message}`);
       res.status(500).json({ error: e.message });
