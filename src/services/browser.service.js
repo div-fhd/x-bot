@@ -171,8 +171,8 @@ async function getContext(account) {
       const ua  = net.userAgent || randomUA();
       const ctx = await browser.newContext({
         userAgent:   ua,
-        locale:      net.locale     || 'en-US',
-        timezoneId:  net.timezone   || 'America/New_York',
+        locale:      net.locale     || 'ar-SA',
+        timezoneId:  net.timezone   || 'Asia/Riyadh',
         viewport:    { width: 1280, height: 800 },
         colorScheme: 'light',
         ...(storageState ? { storageState } : {}),
@@ -439,8 +439,8 @@ async function openManualContext(account) {
     : {};
   MANUAL_CONTEXT = await MANUAL_BROWSER.newContext({
     userAgent:   randomUA(),
-    locale:      'en-US',
-    timezoneId:  'America/New_York',
+    locale:      'ar-SA',
+    timezoneId:  'Asia/Riyadh',
     viewport:    { width: 1280, height: 800 },
     colorScheme: 'light',
     ...(storageState ? { storageState } : {}),

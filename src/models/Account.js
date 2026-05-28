@@ -38,8 +38,8 @@ const AccountSchema = new mongoose.Schema({
   network: {
     proxyUrl:  String,
     userAgent: String,
-    timezone:  { type: String, default: 'America/New_York' },
-    locale:    { type: String, default: 'en-US' },
+    timezone:  { type: String, default: 'Asia/Riyadh' },
+    locale:    { type: String, default: 'ar-SA' },
   },
 
   profile: {

@@ -59,7 +59,7 @@ const AccountCtrl = {
       niche, tags: tags || [], role: role || 'mixed',
       credentials: creds,
       ownedBy: req.user._id,
-      network: { proxyUrl: proxy_url, timezone: timezone || 'America/New_York' },
+      network: { proxyUrl: proxy_url, timezone: timezone || 'Asia/Riyadh' },
       dailyCaps: dailyCaps || {},
     });
     logger.info(`[Account] Created: @${handle}`);
@@ -99,7 +99,7 @@ const AccountCtrl = {
           role:     defaultRole  || 'mixed',
           credentials: creds,
           ownedBy: req.user._id,
-          network: { proxyUrl: row.proxy_url || null, timezone: defaultTimezone || 'America/New_York' },
+          network: { proxyUrl: row.proxy_url || null, timezone: defaultTimezone || 'Asia/Riyadh' },
         });
 
         results.created.push(row.username);
