@@ -661,8 +661,31 @@ const ActionSvc = {
     await AuthSvc.ensureSession(account);
     const page = await Browser.getPage(account);
 
+    // ── جمع تشخيصي: أخطاء console وفشل الشبكة (يُدمج في تقرير الفشل) ──
+    const _consoleErrs = [];
+    const _failedReqs  = [];
+    page.on('console', m => { if (m.type() === 'error') _consoleErrs.push(m.text().slice(0, 200)); });
+    page.on('pageerror', e => _consoleErrs.push(`pageerror: ${(e.message || e).toString().slice(0, 200)}`));
+    page.on('response', r => {
+      const s = r.status();
+      if (s >= 400) { const u = r.url(); if (/\.js|\/api\/|graphql|settings/i.test(u)) _failedReqs.push(`${s} ${u.slice(0, 120)}`); }
+    });
+
     try {
-      // ── الانتقال مباشرة لصفحة إعدادات البروفايل ─────────
+      // ── إحماء: حمّل home أولاً ليُهيّئ X حالة الجلسة قبل الذهاب لصفحة محمية ─
+      // الانتقال المباشر لـ /settings/profile عند الإقلاع البارد يُعرض shell فارغ
+      // (الـ SPA لا يُهيّئ auth في الوقت المناسب). home warm-up يحلّ ذلك — كما في _classify.
+      await page.goto('https://x.com/home', { waitUntil: 'domcontentloaded', timeout: 40_000 }).catch(() => {});
+      await this._dismissPopups(page);
+      await this._checkNotRedirected(page, account);
+      // انتظر مؤشر تسجيل دخول فعّال (أيٌّ منها يكفي)
+      await page.waitForSelector(
+        '[data-testid="AppTabBar_Home_Link"], [data-testid="SideNav_AccountSwitcher_Button"], [data-testid="primaryColumn"]',
+        { timeout: 20_000 },
+      ).catch(() => {});
+      await sleep(800, 1500);
+
+      // ── ثم الانتقال لصفحة إعدادات البروفايل ─────────
       await page.goto('https://x.com/settings/profile', {
         waitUntil: 'domcontentloaded',
         timeout: 40_000,
@@ -696,8 +719,11 @@ const ActionSvc = {
         ]).catch(() => false);
 
         if (!retryReady) {
-          // التقط لقطة + URL + نص لتشخيص ما عرضه X فعلاً
-          const diag = await this._captureDebug(page, account, 'settings-form-fail').catch(() => ({}));
+          // التقط لقطة + HTML + console/network لتشخيص ما عرضه X فعلاً
+          const diag = await this._captureDebug(page, account, 'settings-form-fail', {
+            consoleErrs: _consoleErrs.slice(0, 5),
+            failedReqs:  _failedReqs.slice(0, 5),
+          }).catch(() => ({}));
           throw new Error(`SKIP:@${account.username} — settings/profile failed to load (url=${diag.url || page.url()})`);
         }
       }
@@ -1109,18 +1135,32 @@ const ActionSvc = {
   // ── Dismiss X popups (ToS, notifications, etc.) ─────────────
   // ── التقاط تشخيصي عند فشل تحميل صفحة (screenshot + url + title + نص) ──
   // يكتب لـ ./data/debug ويُرجع المعلومات — يجعل الفشل قابلاً للتشخيص بدل SKIP أعمى
-  async _captureDebug(page, account, tag) {
-    const out = { url: null, title: null, text: null, shot: null };
+  async _captureDebug(page, account, tag, extra = {}) {
+    const out = { url: null, title: null, text: null, shot: null, html: null, rootLen: null, htmlLen: null };
     try { out.url   = page.url(); } catch {}
     try { out.title = await page.title().catch(() => null); } catch {}
     try { out.text  = await page.evaluate(() => (document.body?.innerText || '').slice(0, 300)).catch(() => null); } catch {}
+    // طول محتوى react-root — 0 يعني الـ SPA لم يرسم شيئاً
+    try {
+      const info = await page.evaluate(() => {
+        const root = document.querySelector('#react-root') || document.querySelector('[data-reactroot]');
+        return { rootLen: root ? root.innerHTML.length : -1, htmlLen: document.documentElement.outerHTML.length };
+      }).catch(() => null);
+      if (info) { out.rootLen = info.rootLen; out.htmlLen = info.htmlLen; }
+    } catch {}
     try {
       const fs = require('fs');
       fs.mkdirSync('./data/debug', { recursive: true });
-      out.shot = `./data/debug/${tag}-${account.username}-${Date.now()}.png`;
+      const stamp = Date.now();
+      out.shot = `./data/debug/${tag}-${account.username}-${stamp}.png`;
       await page.screenshot({ path: out.shot, fullPage: true }).catch(() => { out.shot = null; });
-    } catch { out.shot = null; }
-    logger.warn(`[Action] @${account.username} — DEBUG ${tag}: url=${out.url} title="${out.title || ''}" text="${(out.text || '').replace(/\s+/g, ' ').trim()}" shot=${out.shot || 'none'}`);
+      // احفظ الـ HTML الكامل — يكشف رسائل خطأ X أو react-root الفارغ
+      out.html = `./data/debug/${tag}-${account.username}-${stamp}.html`;
+      const fullHtml = await page.content().catch(() => '');
+      fs.writeFileSync(out.html, fullHtml);
+    } catch { out.html = null; }
+    const ex = Object.keys(extra).length ? ` ${Object.entries(extra).map(([k, v]) => `${k}=${JSON.stringify(v)}`).join(' ')}` : '';
+    logger.warn(`[Action] @${account.username} — DEBUG ${tag}: url=${out.url} title="${out.title || ''}" rootLen=${out.rootLen} htmlLen=${out.htmlLen} text="${(out.text || '').replace(/\s+/g, ' ').trim()}"${ex} shot=${out.shot || 'none'} html=${out.html || 'none'}`);
     return out;
   },
 
