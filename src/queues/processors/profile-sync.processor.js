@@ -6,7 +6,7 @@ const Browser    = require('../../services/browser.service');
 const { jobEvents } = require('../events/job.events');
 const logger     = require('../../utils/logger');
 
-module.exports = wrapProcessor(async function profileSyncProcessor(job) {
+module.exports = wrapProcessor(async function profileSyncProcessor(job, { isCancelled }) {
   const { accountId, meta } = job.data;
   const account = await Account.findById(accountId);
   if (!account?.isActive) throw new Error(`SKIP: @${account?.username} — inactive`);

@@ -31,12 +31,8 @@ actionRouter.post('/suggest-tweets',   requireFeature('ai'), actCtrl.suggestTwee
 actionRouter.post('/suggest-replies',  requireFeature('ai'), actCtrl.suggestReplies);
 actionRouter.post('/score-content',    actCtrl.scoreContent);
 actionRouter.post('/analyze-risk',     actCtrl.analyzeRisk);
-// Engagement campaigns
-actionRouter.get ('/campaigns',        actCtrl.listCampaigns);
-actionRouter.post('/campaigns',        actCtrl.createCampaign);
-actionRouter.get ('/campaigns/:id',    actCtrl.getCampaign);
-actionRouter.post('/campaigns/:id/run',actCtrl.runCampaign);
-actionRouter.post('/campaigns/:id/cancel', actCtrl.cancelCampaign);
+// ملاحظة: حملات التفاعل تُدار عبر /v1/engagement (engagement.controller)
+// النظام القديم في action.controller أُزيل — كان runCampaign مكسوراً (توقيع engageTweet تغيّر لحساب واحد)
 
 // ── Content ────────────────────────────────────────────────────
 const contentRouter = express.Router();

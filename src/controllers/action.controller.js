@@ -1,6 +1,6 @@
 'use strict';
 const Account        = require('../models/Account');
-const { Content, EngageCampaign, log } = require('../models/index');
+const { Content, log } = require('../models/index');
 const ActionSvc      = require('../services/action.service');
 const AISvc          = require('../services/ai.service');
 const logger         = require('../utils/logger');
@@ -598,27 +598,32 @@ const ActionCtrl = {
     if (!accountIds?.length || !tweetId) return res.status(400).json({ error: 'accountIds[] and tweetId required' });
     const accounts = await Account.find({ _id: { $in: accountIds }, isActive: true });
     if (!accounts.length) return res.status(400).json({ error: 'No active accounts' });
-    const { parentJobId, jobCount } = await queueBulkOp(
+    const { parentJobId, jobCount, jobIds } = await queueBulkOp(
       QUEUE_NAMES.LIKE, accounts,
       (account) => ({ accountId: account._id.toString(), tweetId }),
       delayMinMs, delayMaxMs
     );
+    const op = registry.create({ parentJobId, type: 'like', total: accounts.length, accountUsernames: accounts.map(a => a.username) });
+    registry.registerJobs(parentJobId, jobIds);
     logger.info(`[likeMulti] Queued ${jobCount} jobs → ${parentJobId}`);
     res.json({ started: true, jobId: parentJobId, total: accounts.length });
   },
 
     // ── Retweet Multi ───────────────────────────────────────────
   async retweetMulti(req, res) {
-    const { accountIds, tweetId, delayMinMs = 15000, delayMaxMs = 30000, batchSize = 1 } = req.body;
+    const { accountIds, tweetId, delayMinMs = 15000, delayMaxMs = 30000 } = req.body;
     if (!accountIds?.length || !tweetId) return res.status(400).json({ error: 'accountIds[] and tweetId required' });
     const accounts = await Account.find({ _id: { $in: accountIds }, isActive: true });
     if (!accounts.length) return res.status(400).json({ error: 'No active accounts' });
-    const jobId = createJob('retweet', accounts);
-    res.json({ started: true, jobId, total: accounts.length });
-    setImmediate(() => runMultiOp({
-      accounts, batchSize, delayMinMs, delayMaxMs, jobId, type: 'retweet',
-      fn: (account) => ActionSvc.retweet(account, tweetId),
-    }));
+    const { parentJobId, jobCount, jobIds } = await queueBulkOp(
+      QUEUE_NAMES.RETWEET, accounts,
+      (account) => ({ accountId: account._id.toString(), tweetId }),
+      delayMinMs, delayMaxMs
+    );
+    const op = registry.create({ parentJobId, type: 'retweet', total: accounts.length, accountUsernames: accounts.map(a => a.username) });
+    registry.registerJobs(parentJobId, jobIds);
+    logger.info(`[retweetMulti] Queued ${jobCount} jobs → ${parentJobId}`);
+    res.json({ started: true, jobId: parentJobId, total: accounts.length });
   },
 
     // ── متابعة تبادلية ───────────────────────────────────────────
@@ -722,103 +727,9 @@ const ActionCtrl = {
     res.json({ results, total: results.length });
   },
 
-  // ── Engagement Campaign ───────────────────────────────────────
-  // Create a campaign: add tweetUrl + select accounts + pick actions + set counts
-  async createCampaign(req, res) {
-    const {
-      name, tweetUrl,
-      accountIds, accountRole, accountTags,
-      actions, replyTexts,
-      targets, delayMinMs, delayMaxMs,
-    } = req.body;
-
-    if (!name || !tweetUrl || !actions?.length) {
-      return res.status(400).json({ error: 'name, tweetUrl, actions[] required' });
-    }
-
-    // Extract tweet ID from URL
-    const tweetId = (tweetUrl.match(/\/status\/(\d+)/) || [])[1] || null;
-    if (!tweetId) return res.status(400).json({ error: 'Invalid tweet URL — could not extract tweet ID' });
-
-    const campaign = await EngageCampaign.create({
-      name, tweetUrl, tweetId,
-      accountIds:   accountIds   || [],
-      accountRole:  accountRole  || null,
-      accountTags:  accountTags  || [],
-      actions,
-      replyTexts:   replyTexts   || [],
-      targets:      targets      || { likes:0, retweets:0, replies:0 },
-      delayMinMs:   delayMinMs   || 5000,
-      delayMaxMs:   delayMaxMs   || 15000,
-      createdBy: req.user._id,
-    });
-
-    res.status(201).json(campaign);
-  },
-
-  // ── Run campaign ──────────────────────────────────────────────
-  async runCampaign(req, res) {
-    const campaign = await EngageCampaign.findById(req.params.id);
-    if (!campaign) return res.status(404).json({ error: 'Campaign not found' });
-    if (campaign.status === 'running') return res.status(400).json({ error: 'Campaign already running' });
-
-    // Resolve accounts
-    let accountQuery = { isActive: true, status: 'active' };
-    if (campaign.accountIds?.length) {
-      accountQuery._id = { $in: campaign.accountIds };
-    } else if (campaign.accountRole) {
-      accountQuery.role = campaign.accountRole;
-    } else if (campaign.accountTags?.length) {
-      accountQuery.tags = { $in: campaign.accountTags };
-    }
-    const accounts = await Account.find(accountQuery);
-    if (!accounts.length) return res.status(400).json({ error: 'No active accounts match this campaign' });
-
-    campaign.status    = 'running';
-    campaign.startedAt = new Date();
-    await campaign.save();
-
-    res.json({ started: true, accounts: accounts.map(a => a.username), total: accounts.length });
-
-    // Background run
-    setImmediate(async () => {
-      try {
-        const results = await ActionSvc.engageTweet(
-          accounts, campaign.tweetId, campaign.actions,
-          { replyTexts: campaign.replyTexts, delayBetweenMs: [campaign.delayMinMs, campaign.delayMaxMs] }
-        );
-
-        campaign.status     = 'done';
-        campaign.finishedAt = new Date();
-        campaign.results    = results;
-        await campaign.save();
-
-        if (global.io) global.io.emit('campaign:done', { campaignId: campaign._id, name: campaign.name, results });
-        logger.info(`[Campaign] "${campaign.name}" done — ${accounts.length} accounts`);
-      } catch (e) {
-        campaign.status  = 'failed';
-        campaign.results = { error: e.message };
-        await campaign.save();
-        logger.error(`[Campaign] "${campaign.name}" failed: ${e.message}`);
-      }
-    });
-  },
-
-  async listCampaigns(req, res) {
-    const campaigns = await EngageCampaign.find().sort({ createdAt: -1 }).limit(100).lean();
-    res.json({ campaigns, total: campaigns.length });
-  },
-
-  async getCampaign(req, res) {
-    const campaign = await EngageCampaign.findById(req.params.id).lean();
-    if (!campaign) return res.status(404).json({ error: 'Not found' });
-    res.json(campaign);
-  },
-
-  async cancelCampaign(req, res) {
-    const campaign = await EngageCampaign.findByIdAndUpdate(req.params.id, { status: 'cancelled' }, { new: true });
-    res.json(campaign);
-  },
+  // ملاحظة: حملات التفاعل انتقلت بالكامل إلى /v1/engagement (engagement.controller)
+  // الذي يعمل عبر BullMQ. الدوال القديمة (createCampaign/runCampaign/…) أُزيلت —
+  // كان runCampaign يمرّر مصفوفة حسابات إلى engageTweet بعد ما أصبح توقيعها لحساب واحد.
 
   // ── AI suggestions ────────────────────────────────────────────
   async suggestTweets(req, res) {

@@ -7,7 +7,7 @@ const Browser    = require('../../services/browser.service');
 const { jobEvents } = require('../events/job.events');
 const logger     = require('../../utils/logger');
 
-module.exports = wrapProcessor(async function profileUpdateProcessor(job) {
+module.exports = wrapProcessor(async function profileUpdateProcessor(job, { isCancelled }) {
   const { accountId, updates, useAI, niche, meta } = job.data;
   const account = await Account.findById(accountId);
   if (!account?.isActive) throw new Error(`SKIP: @${account?.username} — inactive`);
@@ -26,8 +26,6 @@ module.exports = wrapProcessor(async function profileUpdateProcessor(job) {
     logger.warn(`[ProfileUpdate] @${account.username}: ${e.message}`);
     jobEvents.updateProg({ username: account.username, done: meta.index + 1, total: meta.total, error: e.message });
     throw e;
-  } finally {
-    await Browser.closeContext(accountId).catch(() => {});
   }
 }
 );

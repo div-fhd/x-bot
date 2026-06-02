@@ -5,7 +5,7 @@ const AuthSvc    = require('../../services/auth.service');
 const { jobEvents } = require('../events/job.events');
 const logger     = require('../../utils/logger');
 
-module.exports = wrapProcessor(async function healthCheckProcessor(job) {
+module.exports = wrapProcessor(async function healthCheckProcessor(job, { isCancelled }) {
   const { accountId, meta } = job.data;
   const account = await Account.findById(accountId);
   if (!account) throw new Error(`Account ${accountId} not found`);

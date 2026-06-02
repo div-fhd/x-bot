@@ -183,7 +183,7 @@ class OperationsRegistry extends EventEmitter {
 
   _queueName(type) {
     const { QUEUE_NAMES } = require('../queues/queues');
-    return { 'follow': QUEUE_NAMES.FOLLOW, 'like': QUEUE_NAMES.LIKE, 'retweet': QUEUE_NAMES.RETWEET, 'tweet-multi': QUEUE_NAMES.TWEET_MULTI, 'mutual-follow': QUEUE_NAMES.MUTUAL_FOLLOW, 'report-account': QUEUE_NAMES.REPORT_ACCOUNT, 'report-tweet': QUEUE_NAMES.REPORT_TWEET, 'profile-update': QUEUE_NAMES.PROFILE_UPDATE, 'profile-sync': QUEUE_NAMES.PROFILE_SYNC, 'health-check': QUEUE_NAMES.HEALTH_CHECK }[type] || null;
+    return { 'follow': QUEUE_NAMES.FOLLOW, 'like': QUEUE_NAMES.LIKE, 'retweet': QUEUE_NAMES.RETWEET, 'tweet-multi': QUEUE_NAMES.TWEET_MULTI, 'mutual-follow': QUEUE_NAMES.MUTUAL_FOLLOW, 'report-account': QUEUE_NAMES.REPORT_ACCOUNT, 'report-tweet': QUEUE_NAMES.REPORT_TWEET, 'profile-update': QUEUE_NAMES.PROFILE_UPDATE, 'profile-sync': QUEUE_NAMES.PROFILE_SYNC, 'health-check': QUEUE_NAMES.HEALTH_CHECK, 'engagement': QUEUE_NAMES.ENGAGEMENT }[type] || null;
   }
 
   gc() {

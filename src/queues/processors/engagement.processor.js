@@ -12,7 +12,7 @@ const CAP_MAP = {
   follow_author:'follow', quote_tweet:'post',
 };
 
-module.exports = wrapProcessor(async function engagementProcessor(job) {
+module.exports = wrapProcessor(async function engagementProcessor(job, { isCancelled }) {
   const {
     accountId, campaignId,
     actions, action,
@@ -86,6 +86,7 @@ module.exports = wrapProcessor(async function engagementProcessor(job) {
       quoteText:     resolvedQuoteText,
       authorHandle:  authorHandle || meta?.authorHandle,
       dwellSeconds:  dwellSeconds || 8,
+      isCancelled,
     });
   } finally {
     // أغلق الـ context بعد ما engageTweet ينتهي — هنا وليس في base.processor

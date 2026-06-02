@@ -680,18 +680,26 @@ const ActionSvc = {
       ]).catch(() => null);
 
       if (!formReady) {
-        // الصفحة لم تحمّل الفورم — reload مرة واحدة
+        // الصفحة لم تحمّل الفورم — reload مع انتظار 'load' (تهيئة الـ SPA كاملة)
         logger.info(`[Action] @${account.username} — Settings form timeout, reloading...`);
-        await page.reload({ waitUntil: 'domcontentloaded', timeout: 30_000 }).catch(() => {});
+        await page.reload({ waitUntil: 'load', timeout: 40_000 }).catch(() => {});
+        // امنح React وقتاً ليُهيّئ بعد اكتمال الشبكة
+        await page.waitForLoadState('networkidle', { timeout: 10_000 }).catch(() => {});
         await sleep(2000, 3000);
+        await this._dismissPopups(page);
         await this._checkNotRedirected(page, account);
 
         const retryReady = await Promise.race([
-          page.waitForSelector('input[name="displayName"]',          { state: 'visible', timeout: 15_000 }).then(() => true),
-          page.waitForSelector('[data-testid="Profile_Save_Button"]', { state: 'attached', timeout: 15_000 }).then(() => true),
+          page.waitForSelector('input[name="displayName"]',          { state: 'visible',  timeout: 20_000 }).then(() => true),
+          page.waitForSelector('[data-testid="Profile_Save_Button"]', { state: 'attached', timeout: 20_000 }).then(() => true),
+          page.waitForSelector('textarea[name="description"]',       { state: 'visible',  timeout: 20_000 }).then(() => true),
         ]).catch(() => false);
 
-        if (!retryReady) throw new Error(`SKIP:@${account.username} — settings/profile failed to load`);
+        if (!retryReady) {
+          // التقط لقطة + URL + نص لتشخيص ما عرضه X فعلاً
+          const diag = await this._captureDebug(page, account, 'settings-form-fail').catch(() => ({}));
+          throw new Error(`SKIP:@${account.username} — settings/profile failed to load (url=${diag.url || page.url()})`);
+        }
       }
 
       logger.info(`[Action] @${account.username} — ✓ settings/profile Ready`);
@@ -1099,6 +1107,23 @@ const ActionSvc = {
   // ── Engage Tweet — single page session for all actions ───────
   // Used by engagement processor to avoid reopening browser per action
   // ── Dismiss X popups (ToS, notifications, etc.) ─────────────
+  // ── التقاط تشخيصي عند فشل تحميل صفحة (screenshot + url + title + نص) ──
+  // يكتب لـ ./data/debug ويُرجع المعلومات — يجعل الفشل قابلاً للتشخيص بدل SKIP أعمى
+  async _captureDebug(page, account, tag) {
+    const out = { url: null, title: null, text: null, shot: null };
+    try { out.url   = page.url(); } catch {}
+    try { out.title = await page.title().catch(() => null); } catch {}
+    try { out.text  = await page.evaluate(() => (document.body?.innerText || '').slice(0, 300)).catch(() => null); } catch {}
+    try {
+      const fs = require('fs');
+      fs.mkdirSync('./data/debug', { recursive: true });
+      out.shot = `./data/debug/${tag}-${account.username}-${Date.now()}.png`;
+      await page.screenshot({ path: out.shot, fullPage: true }).catch(() => { out.shot = null; });
+    } catch { out.shot = null; }
+    logger.warn(`[Action] @${account.username} — DEBUG ${tag}: url=${out.url} title="${out.title || ''}" text="${(out.text || '').replace(/\s+/g, ' ').trim()}" shot=${out.shot || 'none'}`);
+    return out;
+  },
+
   async _dismissPopups(page) {
     const dismissSelectors = [
       // ToS / Privacy Policy
@@ -1140,7 +1165,7 @@ const ActionSvc = {
   },
 
   async engageTweet(account, tweetId, actionList, opts = {}) {
-    const { tweetUrl, replyText, quoteText, authorHandle, dwellSeconds = 8 } = opts;
+    const { tweetUrl, replyText, quoteText, authorHandle, dwellSeconds = 8, isCancelled } = opts;
     const Browser = require('./browser.service');
     const page = await Browser.getPage(account);
 
@@ -1155,6 +1180,11 @@ const ActionSvc = {
       const results = [];
 
       for (const act of actionList) {
+        // أوقف فوراً لو أُلغيت العملية وسط التنفيذ
+        if (isCancelled?.()) {
+          logger.warn(`[EngageTweet] @${account.username} — cancelled, stopping at ${act}`);
+          break;
+        }
         // تحقق إن الـ page لسا حية قبل كل action
         if (page.isClosed()) {
           logger.warn(`[EngageTweet] @${account.username} — page closed, stopping at ${act}`);
@@ -1301,7 +1331,7 @@ const ActionSvc = {
                 await sleep(1500, 2500);
 
                 await account.bump('post').catch(() => {});
-                await log(account._id, 'engage', 'quote_tweet', 'success', { tweetId, targetTweetUrl });
+                await log(account._id, 'engage', 'quote_tweet', 'success', { tweetId, tweetUrl });
                 r = { success: true };
               } catch (qErr) {
                 logger.warn(`[EngageTweet] @${account.username} — quote_tweet failed: ${qErr.message}`);

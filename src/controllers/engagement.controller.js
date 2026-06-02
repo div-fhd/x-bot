@@ -37,7 +37,7 @@ module.exports = {
 
   // POST /api/v1/engagement
   async create(req, res) {
-    const { name, tweetUrl, accountIds, accountRole, actions, replyTexts = [], quoteMode = 'manual', quoteTexts = [], quotePrompt = '', delayMinMs = 8000, delayMaxMs = 25000, scheduleAt, authorHandle, runMode = 'sequential', parallelCount = 1 } = req.body;
+    const { name, tweetUrl, accountIds, accountRole, accountTags = [], actions, replyTexts = [], quoteMode = 'manual', quoteTexts = [], quotePrompt = '', delayMinMs = 8000, delayMaxMs = 25000, scheduleAt, authorHandle, runMode = 'sequential', parallelCount = 1, targets } = req.body;
     if (!name || !tweetUrl || !actions?.length)
       return res.status(400).json({ error: 'name, tweetUrl, actions required' });
 
@@ -45,10 +45,12 @@ module.exports = {
     if (!tweetId) return res.status(400).json({ error: 'Invalid tweet URL' });
 
     const campaign = await EngageCampaign.create({
-      name, tweetUrl, tweetId, accountIds, accountRole, actions,
+      name, tweetUrl, tweetId, accountIds, accountRole, accountTags, actions,
       replyTexts, quoteMode, quoteTexts, quotePrompt,
       delayMinMs, delayMaxMs, scheduleAt,
       runMode, parallelCount,
+      // targets: سقف عدد الحسابات لكل فعل (0/غير محدد = بلا حد). model له افتراضي {0,0,0}
+      ...(targets ? { targets } : {}),
       meta: { authorHandle },
       createdBy: req.user?._id,
     });
@@ -62,14 +64,17 @@ module.exports = {
     if (!campaign) return res.status(404).json({ error: 'Campaign not found' });
     if (campaign.status === 'running') return res.status(400).json({ error: 'Already running' });
 
-    // Resolve accounts
+    // ── Resolve accounts (accountIds → role → tags → all) ──────
+    const base = { isActive: true, status: 'active' };
     let accounts;
     if (campaign.accountIds?.length) {
-      accounts = await Account.find({ _id: { $in: campaign.accountIds }, isActive: true, status: 'active' });
+      accounts = await Account.find({ ...base, _id: { $in: campaign.accountIds } });
     } else if (campaign.accountRole) {
-      accounts = await Account.find({ role: campaign.accountRole, isActive: true, status: 'active' });
+      accounts = await Account.find({ ...base, role: campaign.accountRole });
+    } else if (campaign.accountTags?.length) {
+      accounts = await Account.find({ ...base, tags: { $in: campaign.accountTags } });
     } else {
-      accounts = await Account.find({ isActive: true, status: 'active' });
+      accounts = await Account.find(base);
     }
 
     if (!accounts.length) return res.status(400).json({ error: 'No active accounts found' });
@@ -79,33 +84,49 @@ module.exports = {
     const queue    = getQueue(QUEUE_NAMES.ENGAGEMENT);
     const parentJobId = `engagement-${campaign._id}-${Date.now()}`;
 
-    // Build jobs respecting runMode
-    const runMode      = campaign.runMode      || 'sequential';
+    const runMode       = campaign.runMode || 'sequential';
     const parallelCount = runMode === 'parallel'
       ? Math.max(1, Math.min(campaign.parallelCount || 3, 10))
       : 1;
 
+    // ── Per-action caps (targets): كم حساب ينفّذ كل فعل. 0 = بلا حد ──
+    const caps        = { like: campaign.targets?.likes || 0, retweet: campaign.targets?.retweets || 0, reply: campaign.targets?.replies || 0 };
+    const usedPerAct  = { like: 0, retweet: 0, reply: 0 };
+
+    // ── Randomized timing scheduler ────────────────────────────
+    // بدل التباعد الحتمي (i × ثابت)، نراكم فجوات عشوائية بين delayMin/Max
+    // لكل job (sequential) أو لكل مجموعة (parallel) — أقرب لسلوك بشري وأصعب كشفاً.
+    const EST_JOB_MS = 60_000; // تقدير متوسط زمن تفاعل الحساب الواحد
+    const dMin   = Math.max(0, campaign.delayMinMs ?? 8000);
+    const dMax   = Math.max(dMin, campaign.delayMaxMs ?? 25000);
+    const jitter = () => dMin + Math.random() * (dMax - dMin);
+
     const jobs = [];
+    let cursorMs   = 0;  // التأخير المتراكم الحالي (بداية الـ job/المجموعة)
+    let groupFill  = 0;  // عدّاد امتلاء المجموعة الحالية في وضع parallel
+
     for (let i = 0; i < shuffled.length; i++) {
-      const account   = shuffled[i];
-      const replyText = campaign.replyTexts?.length
-        ? campaign.replyTexts[i % campaign.replyTexts.length]
+      const account = shuffled[i];
+
+      // وزّع أفعال الحملة على هذا الحساب مع احترام السقوف
+      const accActions = campaign.actions.filter(act => {
+        const cap = caps[act] || 0;
+        if (cap && usedPerAct[act] >= cap) return false; // بلغ السقف — تخطَّ هذا الفعل لهذا الحساب
+        if (act in usedPerAct) usedPerAct[act]++;
+        return true;
+      });
+      if (!accActions.length) continue; // كل أفعاله بلغت سقفها — لا job لهذا الحساب
+
+      const replyText = (accActions.includes('reply') && campaign.replyTexts?.length)
+        ? campaign.replyTexts[jobs.length % campaign.replyTexts.length]
         : null;
 
-      // ── Delay calculation ───────────────────────────────────
-      // sequential: كل job ينتظر دوره الكامل قبله
-      // parallel:   نقسّم لمجموعات — كل مجموعة لها delay موحّد
-      let delay;
+      // ── احسب تأخير هذا الـ job ──
+      const delay = Math.round(cursorMs);
       if (runMode === 'sequential') {
-        // الـ delay يضمن إن الـ job السابق خلّص قبل بدء هذا
-        // نقدّر متوسط وقت العملية بـ 60 ثانية + التأخير المضبوط
-        const avgJobMs = 60_000 + campaign.delayMaxMs;
-        delay = Math.round(i * avgJobMs);
+        cursorMs += EST_JOB_MS + jitter();
       } else {
-        // parallel: مجموعات بحجم parallelCount
-        const groupIndex = Math.floor(i / parallelCount);
-        const avgJobMs   = 60_000 + campaign.delayMaxMs;
-        delay = Math.round(groupIndex * avgJobMs);
+        if (++groupFill >= parallelCount) { groupFill = 0; cursorMs += EST_JOB_MS + jitter(); }
       }
 
       jobs.push({
@@ -113,7 +134,7 @@ module.exports = {
         data: {
           accountId:    account._id.toString(),
           campaignId:   campaign._id.toString(),
-          actions:      campaign.actions,
+          actions:      accActions,
           tweetId:      campaign.tweetId,
           tweetUrl:     campaign.tweetUrl,
           replyText,
@@ -123,8 +144,8 @@ module.exports = {
           authorHandle: campaign.meta?.authorHandle,
           meta: {
             parentJobId,
-            index:        i,
-            total:        shuffled.length,
+            index:        0,   // يُضبط بعد بناء القائمة كاملة
+            total:        0,
             authorHandle: campaign.meta?.authorHandle,
           },
         },
@@ -134,10 +155,15 @@ module.exports = {
           attempts: 2,
           backoff: { type: 'fixed', delay: 10_000 },
         },
+        _username: account.username, // مؤقت — لبناء قائمة الأسماء، يُحذف قبل الإضافة
       });
     }
 
-    // totals already correct (set per job)
+    if (!jobs.length) return res.status(400).json({ error: 'لا توجد أفعال للتنفيذ — تحقق من السقوف (targets)' });
+
+    // اضبط index/total الفعليين، واستخرج أسماء الحسابات، ثم نظّف الحقل المؤقت
+    const accountUsernames = jobs.map(j => j._username);
+    jobs.forEach((j, idx) => { j.data.meta.index = idx; j.data.meta.total = jobs.length; delete j._username; });
 
     await queue.addBulk(jobs);
 
@@ -145,20 +171,34 @@ module.exports = {
     registry.create({
       parentJobId, type: 'engagement',
       total: jobs.length,
-      accountUsernames: shuffled.map(a => a.username),
+      accountUsernames,
       meta: { campaignId: campaign._id.toString(), tweetId: campaign.tweetId, actions: campaign.actions },
     });
     registry.registerJobs(parentJobId, jobs.map(j => j.opts.jobId));
 
-    await EngageCampaign.updateOne({ _id: campaign._id }, { status: 'running', startedAt: new Date() });
+    await EngageCampaign.updateOne(
+      { _id: campaign._id },
+      { status: 'running', startedAt: new Date(), 'meta.parentJobId': parentJobId },
+    );
 
-    logger.info(`[Engagement] Campaign "${campaign.name}" launched — ${jobs.length} jobs → ${parentJobId}`);
-    res.json({ started: true, jobId: parentJobId, total: jobs.length, accounts: shuffled.length });
+    logger.info(`[Engagement] Campaign "${campaign.name}" launched — ${jobs.length} jobs on ${accountUsernames.length} accounts → ${parentJobId}`);
+    res.json({ started: true, jobId: parentJobId, total: jobs.length, accounts: accountUsernames.length });
   },
 
   // POST /api/v1/engagement/:id/cancel
   async cancel(req, res) {
+    const campaign = await EngageCampaign.findById(req.params.id);
+    if (!campaign) return res.status(404).json({ error: 'Campaign not found' });
+
+    // ألغِ العملية في الـ registry — يحذف الـ jobs المؤجّلة ويوقف النشطة ويغلق الـ contexts
+    const parentJobId = campaign.meta?.parentJobId;
+    if (parentJobId) {
+      await registry.cancel(parentJobId).catch(e =>
+        logger.warn(`[Engagement] cancel registry error: ${e.message}`));
+    }
+
     await EngageCampaign.updateOne({ _id: req.params.id }, { status: 'cancelled' });
+    logger.info(`[Engagement] Campaign "${campaign.name}" cancelled${parentJobId ? ` (${parentJobId})` : ''}`);
     res.json({ cancelled: true });
   },
 

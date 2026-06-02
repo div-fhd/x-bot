@@ -2462,6 +2462,26 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
         </div>
       </div>
 
+      <!-- 8. Action caps (targets) -->
+      <div class="eng-section">
+        <div class="eng-section-title">سقوف الأفعال <span style="font-weight:400;color:var(--t3);font-size:11px">— اختياري، 0 = بلا حد</span></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+          <div class="field" style="margin:0">
+            <label>إعجابات</label>
+            <input type="number" id="eng-cap-likes" min="0" value="0" style="font-family:var(--m)">
+          </div>
+          <div class="field" style="margin:0">
+            <label>إعادات نشر</label>
+            <input type="number" id="eng-cap-retweets" min="0" value="0" style="font-family:var(--m)">
+          </div>
+          <div class="field" style="margin:0">
+            <label>ردود</label>
+            <input type="number" id="eng-cap-replies" min="0" value="0" style="font-family:var(--m)">
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--t3);margin-top:6px">يحدّد كم حساب ينفّذ كل فعل بحدّ أقصى — يوزّع الفعل على أوائل الحسابات (بعد الخلط) حتى السقف.</div>
+      </div>
+
       <!-- Footer -->
       <div style="display:flex;gap:8px;justify-content:flex-end;padding-top:4px;border-top:1px solid var(--bd);margin-top:4px">
         <button class="btn" onclick="closeEngModal()">إلغاء</button>
@@ -5650,8 +5670,13 @@ function buildEngPayload() {
   const parallelCount = runMode === 'parallel'
     ? +(document.getElementById('eng-parallel-count')?.value || 3)
     : 1;
+  const targets = {
+    likes:    Math.max(0, +(document.getElementById('eng-cap-likes')?.value    || 0)),
+    retweets: Math.max(0, +(document.getElementById('eng-cap-retweets')?.value || 0)),
+    replies:  Math.max(0, +(document.getElementById('eng-cap-replies')?.value  || 0)),
+  };
   return { name, tweetUrl, actions, accountIds, replyTexts, quoteMode, quoteTexts, quotePrompt,
-    runMode, parallelCount, authorHandle,
+    runMode, parallelCount, authorHandle, targets,
     delayMinMs: +delayParts[0], delayMaxMs: +delayParts[1],
     scheduleAt: scheduleAt || undefined };
 }
