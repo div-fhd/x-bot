@@ -84,19 +84,35 @@ async function clickVerified(page, { name, target, verify, settle = [800, 1500],
  * يؤكّد أن صفحة التغريدة رسمت شريط الأفعال فعلاً (ليست فاضية/login/محدودة).
  * يميّز جدار تسجيل الدخول عن الفشل العام — تشخيص أوضح بدل timeout غامض.
  */
+// يقيس حجم المستند بأمان: -1 = فشل القياس (الصفحة قيد التنقّل) ≠ مستند فارغ
+async function _docLen(page) {
+  return page.evaluate(() => document.documentElement.outerHTML.length).catch(() => -1);
+}
+
 async function assertTweetReady(page, SEL, account) {
-  const ready = await present(page, SEL.tweet.actionBar, { timeout: 20_000, state: 'visible' });
-  if (ready) return true;
+  if (await present(page, SEL.tweet.actionBar, { timeout: 20_000, state: 'visible' })) return true;
   if (await present(page, SEL.page.loginWall, { timeout: 1_500 })) {
     throw new Error(`SKIP:@${account?.username} — auth_required (جدار تسجيل دخول على صفحة التغريدة)`);
   }
-  // مستند فارغ/شبه فارغ (لا react-root، HTML ضئيل) = X رجّع جسم فارغ.
-  // محايد عمداً — السبب قد يكون بروكسي/حظر edge/الحساب. status من navigate يحسمه.
-  const htmlLen = await page.evaluate(() => document.documentElement.outerHTML.length).catch(() => 0);
-  if (htmlLen < 600) {
-    throw new Error(`EmptyDocument: @${account?.username} — مستند فارغ (${htmlLen}b) — X لم يرجّع محتوى (راجع status من navigate)`);
+
+  // مستند صغير فعلاً (مقيس بثبات، ليس -1) = X رجّع جسم فارغ
+  const len0 = await _docLen(page);
+  if (len0 >= 0 && len0 < 600) {
+    throw new Error(`EmptyDocument: @${account?.username} — مستند فارغ (${len0}b) — X لم يرجّع محتوى`);
   }
-  throw new Error(`PageNotReady: شريط أفعال التغريدة لم يُرسم (htmlLen=${htmlLen})`);
+
+  // محتوى موجود لكن الشريط لم يُرسم (غالباً بطء/عدم اكتمال hydration) — أعد التحميل مرة
+  await page.reload({ waitUntil: 'domcontentloaded', timeout: 40_000 }).catch(() => {});
+  await page.waitForLoadState('networkidle', { timeout: 8_000 }).catch(() => {});
+  if (await present(page, SEL.tweet.actionBar, { timeout: 15_000, state: 'visible' })) return true;
+
+  // لسّا فاشل بعد إعادة التحميل — صنّف بدقّة
+  const title = await page.title().catch(() => '');
+  const len1  = await _docLen(page);
+  if (/^Loading/i.test(title)) {
+    throw new Error(`StillLoading: @${account?.username} — التغريدة لم تكتمل تحميلها (title="${title}") — بطء أو قيد على API الحساب`);
+  }
+  throw new Error(`PageNotReady: شريط أفعال التغريدة لم يُرسم (htmlLen=${len1}, title="${title.slice(0, 40)}")`);
 }
 
 module.exports = { resolve, present, navigate, clickVerified, assertTweetReady };
