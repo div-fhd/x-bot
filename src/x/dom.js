@@ -47,13 +47,21 @@ const NET_ERR = /ERR_(PROXY|TUNNEL|TIMED_OUT|CONNECTION_(RESET|REFUSED|CLOSED|FA
  * نلتقط الخطأ ونصنّفه — فشل الشبكة/البروكسي يظهر صريحاً فوراً.
  */
 async function navigate(page, url, { waitUntil = 'domcontentloaded', timeout = 60_000 } = {}) {
+  let resp;
   try {
-    return await page.goto(url, { waitUntil, timeout });
+    resp = await page.goto(url, { waitUntil, timeout });
   } catch (e) {
     const m = String(e.message).match(NET_ERR);
-    if (m) throw new Error(`ProxyError: فشل التنقّل — ${m[0]}`);
+    if (m) throw new Error(`ProxyError: فشل التنقّل — ${m[0]}`); // خطأ شبكة/بروكسي حقيقي
     throw e; // خطأ آخر (timeout تحميل، إلخ) يمرّ كما هو
   }
+  // صنّف استجابة X — يحسم السبب بدل التخمين
+  const status = resp ? resp.status() : 0;
+  if (!resp)            throw new Error(`NavError: لا استجابة من X (إلغاء/إعادة توجيه غير قابلة للتنقّل)`);
+  if (status === 429)   throw new Error(`RateLimited: X رجّع 429 (تجاوز معدّل) — أبطئ/بدّل البروكسي`);
+  if (status === 403)   throw new Error(`Forbidden: X رجّع 403 (محظور — مصادقة/IP)`);
+  if (status >= 400)    throw new Error(`HttpError: X رجّع ${status}`);
+  return resp; // 2xx/3xx — الحالة متاحة عبر resp.status() للمتصل
 }
 
 /**
@@ -82,11 +90,11 @@ async function assertTweetReady(page, SEL, account) {
   if (await present(page, SEL.page.loginWall, { timeout: 1_500 })) {
     throw new Error(`SKIP:@${account?.username} — auth_required (جدار تسجيل دخول على صفحة التغريدة)`);
   }
-  // مستند فارغ/شبه فارغ (لا react-root، HTML ضئيل) = البروكسي/الشبكة رجّعت صفحة فارغة
-  // نميّزه عن "X رسم صفحة لكن بلا شريط" — السبب الحقيقي بروكسي ميّت لا selector
+  // مستند فارغ/شبه فارغ (لا react-root، HTML ضئيل) = X رجّع جسم فارغ.
+  // محايد عمداً — السبب قد يكون بروكسي/حظر edge/الحساب. status من navigate يحسمه.
   const htmlLen = await page.evaluate(() => document.documentElement.outerHTML.length).catch(() => 0);
   if (htmlLen < 600) {
-    throw new Error(`ProxyError: @${account?.username} — مستند فارغ (${htmlLen}b) — البروكسي/الشبكة فشلت`);
+    throw new Error(`EmptyDocument: @${account?.username} — مستند فارغ (${htmlLen}b) — X لم يرجّع محتوى (راجع status من navigate)`);
   }
   throw new Error(`PageNotReady: شريط أفعال التغريدة لم يُرسم (htmlLen=${htmlLen})`);
 }

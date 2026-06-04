@@ -187,11 +187,13 @@ const ActionSvc = {
   async like(account, tweetId) {
     if (!account.canDo('like')) throw new Error(`@${account.username}: daily like cap reached`);
     const page = await this._readyPage(account);
+    let navStatus = 'n/a';
     try {
-      // navigate يصنّف فشل البروكسي/الشبكة بوضوح بدل بلعه
-      await dom.navigate(page, `https://x.com/i/status/${tweetId}`);
+      // navigate يصنّف فشل البروكسي/الشبكة + status (200/403/429) بوضوح بدل بلعه
+      const navResp = await dom.navigate(page, `https://x.com/i/status/${tweetId}`);
+      navStatus = navResp ? navResp.status() : 'no-resp';
 
-      // ① الصفحة جاهزة فعلاً؟ (وإلا خطأ واضح: auth_required / ProxyError / PageNotReady — لا timeout غامض)
+      // ① الصفحة جاهزة فعلاً؟ (وإلا خطأ واضح: auth_required / ProxyError / EmptyDocument — لا timeout غامض)
       await dom.assertTweetReady(page, Sel, account);
       await sleep(600, 1000);
 
@@ -214,7 +216,7 @@ const ActionSvc = {
     } catch (e) {
       // تشخيص على الأخطاء الحقيقية فقط (لا على تجاوز السقف)
       if (!/cap reached/i.test(e.message)) {
-        await this._captureDebug(page, account, 'like-fail', { error: e.message.slice(0, 160) }).catch(() => {});
+        await this._captureDebug(page, account, 'like-fail', { navStatus, error: e.message.slice(0, 160) }).catch(() => {});
       }
       await log(account._id, 'engage', 'like_failed', 'failure', { tweetId, error: e.message });
       throw e;
