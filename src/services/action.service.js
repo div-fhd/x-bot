@@ -227,29 +227,37 @@ const ActionSvc = {
   async retweet(account, tweetId) {
     if (!account.canDo('repost')) throw new Error(`@${account.username}: daily retweet cap reached`);
     const page = await this._readyPage(account);
+    let navStatus = 'n/a';
     try {
-      await page.goto(`https://x.com/i/status/${tweetId}`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+      const r = await dom.navigate(page, `https://x.com/i/status/${tweetId}`);
+      navStatus = r ? r.status() : 'no-resp';
+      await dom.assertTweetReady(page, Sel, account);
+      await sleep(600, 1000);
 
-      // انتظر زر الريتويت أو unretweet مباشرة — نفس نهج like
-      await page.waitForSelector('[data-testid="retweet"], [data-testid="unretweet"]', { timeout: 60_000 });
-      await sleep(800, 1200);
+      // مُسبقاً مُعاد نشره؟ (idempotent)
+      if (await dom.present(page, Sel.tweet.retweeted, { timeout: 1500 })) {
+        return { success: true, alreadyRetweeted: true };
+      }
 
-      const already = await page.locator('[data-testid="unretweet"]').count().catch(() => 0);
-      if (already > 0) return { success: true, alreadyRetweeted: true };
-
-      // اضغط زر الريتويت عبر locator
-      await page.locator('[data-testid="retweet"]').first().evaluate(el => el.click());
-
-      // انتظر dialog التأكيد قبل الضغط
-      await page.waitForSelector('[data-testid="retweetConfirm"]', { timeout: 10_000 });
+      // اضغط ريتويت → انتظر حوار التأكيد → أكّد
+      const rt = await dom.resolve(page, 'retweet', Sel.tweet.retweet);
+      await rt.evaluate(el => el.click());
+      const confirm = await dom.resolve(page, 'retweetConfirm', Sel.tweet.retweetConfirm, { timeout: 10_000 });
       await sleep(400, 700);
-      await page.locator('[data-testid="retweetConfirm"]').first().evaluate(el => el.click());
-      await sleep(1000, 1800);
+      await confirm.evaluate(el => el.click());
+
+      // تحقّق أنه صار "مُعاد نشره" فعلاً
+      if (!await dom.present(page, Sel.tweet.retweeted, { timeout: 8000 })) {
+        throw new Error(`ActionUnverified[retweet]: لم يتحوّل لحالة "أُعيد نشره"`);
+      }
 
       await account.bump('repost').catch(swallow('bump:repost', 'warn'));
-      await log(account._id, 'engage', 'retweet', 'success', { tweetId });
-      return { success: true };
+      await log(account._id, 'engage', 'retweet', 'success', { tweetId, verified: true });
+      return { success: true, verified: true };
     } catch (e) {
+      if (!/cap reached/i.test(e.message)) {
+        await this._captureDebug(page, account, 'retweet-fail', { navStatus, error: e.message.slice(0, 160) }).catch(() => {});
+      }
       await log(account._id, 'engage', 'retweet_failed', 'failure', { tweetId, error: e.message });
       throw e;
     } finally { await page.close().catch(() => {}); }
@@ -259,53 +267,49 @@ const ActionSvc = {
   async reply(account, tweetId, text, mediaLocalPaths = []) {
     if (!account.canDo('reply')) throw new Error(`@${account.username}: daily reply cap reached`);
     const page = await this._readyPage(account);
+    let navStatus = 'n/a';
     try {
-      await page.goto(`https://x.com/i/status/${tweetId}`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
-
-      // انتظر ظهور زر الرد
-      await page.waitForSelector('[data-testid="reply"]', { timeout: 60_000 });
-      await sleep(1000, 1500);
-
-      // اضغط زر الرد عبر JS
-      await page.evaluate(() => {
-        const btn = document.querySelector('[data-testid="reply"]');
-        if (btn) btn.click();
-      });
-      await sleep(1500, 2500);
-
-      // انتظر صندوق الكتابة
-      await Promise.race([
-        page.waitForSelector('[data-testid="tweetTextarea_0"]', { timeout: 30_000 }),
-        page.waitForSelector('[role="textbox"]', { timeout: 30_000 }),
-      ]);
-      await sleep(500, 800);
-
-      const replyBox = page.locator(SEL.tweetBox).last();
-      await replyBox.evaluate(el => el.focus());
-      await sleep(500, 800);
-      // اكتب مباشرة على الـ locator بدل page
-      await replyBox.type(text, { delay: 40 });
+      const r = await dom.navigate(page, `https://x.com/i/status/${tweetId}`);
+      navStatus = r ? r.status() : 'no-resp';
+      await dom.assertTweetReady(page, Sel, account);
       await sleep(800, 1200);
 
-      // رفع الصور إذا وجدت
+      // افتح مُحرّر الرد
+      const replyBtn = await dom.resolve(page, 'reply', Sel.tweet.reply);
+      await replyBtn.evaluate(el => el.click());
+      await dom.resolve(page, 'composeEditor', Sel.compose.editor, { timeout: 25_000 });
+      await sleep(500, 800);
+
+      // اكتب في آخر مُحرّر (المودال، لا صندوق الرد العلوي)
+      const editor = page.locator(Sel.compose.editor[0]).last();
+      const before = await page.locator(Sel.compose.editor[0]).count();
+      await editor.evaluate(el => el.focus());
+      await editor.type(text, { delay: 40 });
+      await sleep(700, 1100);
+
       if (mediaLocalPaths?.length) {
-        const fileInput = await page.$('input[type="file"][accept*="image"]').catch(() => null);
-        if (fileInput) {
-          await fileInput.setInputFiles(mediaLocalPaths);
-          await sleep(2000, 3000);
-        }
+        const fi = await page.$('input[type="file"][accept*="image"]').catch(() => null);
+        if (fi) { await fi.setInputFiles(mediaLocalPaths); await sleep(2000, 3000); }
       }
 
-      // انتظر زر الإرسال ثم اضغطه
-      const replySubmit = page.locator('[data-testid="tweetButtonInline"]').first();
-      await replySubmit.waitFor({ state: 'visible', timeout: 15_000 });
-      await replySubmit.evaluate(el => el.click());
-      await sleep(2000, 3000);
+      // أرسِل
+      const send = await dom.resolve(page, 'replySubmit', Sel.compose.submitInline, { timeout: 15_000 });
+      await send.evaluate(el => el.click());
+
+      // تحقّق أن المُحرّر أُغلق (عدد المُحرّرات نقص) = الرد أُرسل فعلاً
+      const sent = await page.waitForFunction(
+        ({ sel, n }) => document.querySelectorAll(sel).length < n,
+        { sel: Sel.compose.editor[0], n: before }, { timeout: 12_000 },
+      ).then(() => true).catch(() => false);
+      if (!sent) throw new Error(`ActionUnverified[reply]: المُحرّر لم يُغلق — الرد غالباً لم يُرسل`);
 
       await account.bump('reply').catch(swallow('bump:reply', 'warn'));
-      await log(account._id, 'engage', 'reply', 'success', { tweetId });
-      return { success: true };
+      await log(account._id, 'engage', 'reply', 'success', { tweetId, verified: true });
+      return { success: true, verified: true };
     } catch (e) {
+      if (!/cap reached/i.test(e.message)) {
+        await this._captureDebug(page, account, 'reply-fail', { navStatus, error: e.message.slice(0, 160) }).catch(() => {});
+      }
       await log(account._id, 'engage', 'reply_failed', 'failure', { tweetId, error: e.message });
       throw e;
     } finally { await page.close().catch(() => {}); }
@@ -451,9 +455,12 @@ const ActionSvc = {
   async follow(account, targetHandle) {
     if (!account.canDo('follow')) throw new Error(`@${account.username}: daily follow cap reached`);
     const page = await this._readyPage(account);
+    let navStatus = 'n/a';
     try {
       const cleanHandle = targetHandle.replace(/^@+/, '');
-      await page.goto(`https://x.com/${cleanHandle}`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+      // navigate يصنّف فشل البروكسي/الشبكة + status بوضوح بدل بلعه
+      const r = await dom.navigate(page, `https://x.com/${cleanHandle}`);
+      navStatus = r ? r.status() : 'no-resp';
       await sleep(2000, 3000);
       await this._checkNotRedirected(page, account);
 
@@ -620,6 +627,9 @@ const ActionSvc = {
       return { success: true };
     } catch (e) {
       logger.error(`[Follow] @${account.username} → @${targetHandle} ERROR: ${e.message}`);
+      if (!/cap reached/i.test(e.message) && !e.message.startsWith('SKIP:')) {
+        await this._captureDebug(page, account, 'follow-fail', { navStatus, error: e.message.slice(0, 160) }).catch(() => {});
+      }
       await log(account._id, 'engage', 'follow_failed', 'failure', { target: targetHandle, error: e.message });
       throw e;
     } finally {

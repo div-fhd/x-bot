@@ -41,6 +41,14 @@ module.exports = {
     reply:          ['[data-testid="reply"]'],
   },
 
+  // ── صفحة البروفايل (للمتابعة) ──
+  profile: {
+    // أيٌّ منها = صفحة البروفايل رُسمت فعلاً
+    ready:     ['[data-testid="userActions"]', '[data-testid="placementTracking"]', '[data-testid="UserName"]'],
+    follow:    ['[data-testid$="-follow"]:not([data-testid$="-unfollow"])'],
+    following: ['[data-testid$="-unfollow"]'],   // الحالة الناتجة عن متابعة ناجحة
+  },
+
   // ── مُحرّر الكتابة (رد / اقتباس / تغريدة) ──
   compose: {
     editor:       ['[data-testid="tweetTextarea_0"]', 'div[role="textbox"][data-testid^="tweetTextarea"]'],
