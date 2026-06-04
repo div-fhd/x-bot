@@ -354,7 +354,11 @@ async function persistSession(account) {
     await Vault.saveSession(id, state);
     logger.info(`[Browser] Session saved: @${account.username}`);
   } catch (e) {
-    logger.warn(`[Browser] persistSession failed: ${e.message}`);
+    // سباق متوقّع: closeContext أغلق الـ context بعد ما حفظ الجلسة أصلاً —
+    // فمحاولة الحفظ المكررة هنا تفشل بلا فقدان بيانات. نصنّفها debug لا warn.
+    const closing = /has been closed|Target (page|closed)|context or browser/i.test(e.message);
+    if (closing) logger.debug(`[Browser] persistSession skipped (context closing): @${account.username}`);
+    else         logger.warn(`[Browser] persistSession failed: ${e.message}`);
   }
 }
 
