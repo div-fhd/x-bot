@@ -101,6 +101,12 @@ const EngageCampaignSchema = new mongoose.Schema({
     enum: ['like', 'retweet', 'reply', 'follow_author', 'bookmark', 'quote_tweet', 'tweet_dwell', 'profile_visit', 'share'],
   }],
 
+  // ── تخصيص بالفعل: حسابات محدّدة لكل فعل ──
+  // { like:[id...], retweet:[id...], reply:[id...], quote_tweet:[id...], ... }
+  // لو فاضي → يُستخدم النمط القديم (مجموعة accountIds/role/tags + actions + targets).
+  // عند الإطلاق: يُعكَس ويُجمَّع بالحساب → كل حساب يسوّي أفعاله في جلسة واحدة.
+  actionGroups: { type: mongoose.Schema.Types.Mixed, default: {} },
+
   // Reply texts — rotated across accounts
   replyTexts: [String],
 
