@@ -2,7 +2,11 @@
 const { registry, cancelTokens } = require('../../ops/operations.registry');
 const { browserRegistry }        = require('../../ops/browser.registry');
 const Browser                    = require('../../services/browser.service');
+const AccountHealth              = require('../../ops/account-health');
 const logger                     = require('../../utils/logger');
+
+// طوابير تدير حالة الحساب بنفسها — لا نتدخّل بالتصنيف التلقائي فيها
+const SELF_MANAGED = /health-check|profile-sync|profile-update/;
 
 // opts.managesOwnBrowser = true → الـ processor يغلق الـ browser بنفسه (مثل engagement)
 function wrapProcessor(processorFn, opts = {}) {
@@ -37,6 +41,11 @@ function wrapProcessor(processorFn, opts = {}) {
       if (!opts.managesOwnBrowser) {
         if (accountId) await Browser.closeContext(accountId).catch(() => {});
         if (accountId) browserRegistry.close(accountId);
+      }
+      // ── تصنيف صحة الحساب تلقائياً (عدا الطوابير التي تدير حالتها بنفسها) ──
+      if (accountId && !SELF_MANAGED.test(job.name || '')) {
+        if (success)        AccountHealth.recordSuccess(accountId).catch(() => {});
+        else if (errorMsg)  AccountHealth.recordFailure(accountId, errorMsg).catch(() => {});
       }
     }
   };

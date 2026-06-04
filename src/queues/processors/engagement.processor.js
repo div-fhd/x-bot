@@ -29,7 +29,7 @@ module.exports = wrapProcessor(async function engagementProcessor(job, { isCance
   if (!account) throw new Error(`SKIP: account ${accountId} not found`);
   if (!account.isActive)
     throw new Error(`SKIP: @${account.username} — inactive`);
-  if (['suspended','locked','dead','auth_required'].includes(account.status))
+  if (['suspended','locked','dead','auth_required','checkpoint'].includes(account.status))
     throw new Error(`SKIP: @${account.username} — ${account.status}`);
 
   await job.updateProgress(10);

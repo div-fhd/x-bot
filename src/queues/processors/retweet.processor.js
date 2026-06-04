@@ -10,7 +10,7 @@ module.exports = wrapProcessor(async function retweetProcessor(job, { isCancelle
   const account = await Account.findById(accountId);
     if (!account.isActive)
     throw new Error(`SKIP: @${account.username} — inactive`);
-  if (['suspended','locked','dead','auth_required'].includes(account.status))
+  if (['suspended','locked','dead','auth_required','checkpoint'].includes(account.status))
     throw new Error(`SKIP: @${account.username} — ${account.status}`);
   if (!account.canDo('retweet'))
     throw new Error(`SKIP: @{account.username} — daily retweet cap reached`);
