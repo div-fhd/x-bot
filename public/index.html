@@ -2389,23 +2389,24 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
         </div>
       </div>
 
-      <!-- 5. Accounts -->
+      <!-- 5. Accounts per action (matrix) -->
       <div class="eng-section">
-        <div class="eng-section-title">الحسابات</div>
+        <div class="eng-section-title">الحسابات لكل إجراء
+          <span style="font-weight:400;color:var(--t3);font-size:11px">— أشّر مين يسوّي وش (حساب بعدة أفعال = جلسة واحدة)</span>
+        </div>
         <div style="display:flex;gap:8px;margin-bottom:8px;align-items:center">
-          <select id="eng-role-filter" onchange="filterEngAccounts()" style="flex:1;font-size:12px;padding:6px 10px">
+          <select id="eng-mx-filter" onchange="renderEngMatrix()" style="flex:1;font-size:12px;padding:6px 10px">
             <option value="">كل الأدوار</option>
             <option value="post">نشر</option>
             <option value="engage">تفاعل</option>
             <option value="support">دعم</option>
             <option value="mixed">مختلط</option>
           </select>
-          <button class="btn btn-sm" onclick="selectAllEngAccounts()">الكل</button>
-          <button class="btn btn-sm" onclick="deselectAllEngAccounts()">مسح</button>
-          <span id="eng-acc-count" style="font-size:11px;font-weight:600;color:var(--blu2);font-family:var(--m);white-space:nowrap">0 محدد</span>
+          <span style="font-size:10.5px;color:var(--t3);white-space:nowrap">اضغط رأس العمود = الكل/مسح</span>
+          <span id="eng-mx-count" style="font-size:11px;font-weight:600;color:var(--blu2);font-family:var(--m);white-space:nowrap">0 حساب</span>
         </div>
-        <div class="eng-acc-grid" id="eng-acc-chips">
-          <div style="color:var(--t3);font-size:12px;padding:8px">جارٍ التحميل…</div>
+        <div id="eng-matrix" style="max-height:280px;overflow:auto;border:1px solid var(--bd2);border-radius:8px">
+          <div style="color:var(--t3);font-size:12px;padding:8px">اختر إجراءات أول…</div>
         </div>
       </div>
 
@@ -5209,6 +5210,65 @@ function toggleActionBtn(btn) {
   btn.style.background = '';
   btn.style.borderColor = '';
   btn.style.color = '';
+  // أعد رسم مصفوفة الحسابات لو في سياق الحملة (أعمدة = الأفعال المختارة)
+  if (btn.closest('#eng-actions')) renderEngMatrix();
+}
+
+// ── مصفوفة الحسابات لكل إجراء ────────────────────────────────
+const ACT_AR = { like:'إعجاب', retweet:'ريتويت', bookmark:'حفظ', reply:'رد', quote_tweet:'اقتباس', tweet_dwell:'مشاهدة', follow_author:'متابعة', profile_visit:'زيارة', share:'مشاركة' };
+let engGroups = {}; // { action: Set(accountId) }
+
+function _engFilteredAccounts() {
+  const role = document.getElementById('eng-mx-filter')?.value || '';
+  return role ? allActiveAccounts.filter(a => (a.role || 'mixed') === role) : allActiveAccounts;
+}
+
+function renderEngMatrix() {
+  const host = document.getElementById('eng-matrix');
+  if (!host) return;
+  const actions = getSelectedActions('eng');
+  if (!actions.length) { host.innerHTML = '<div style="color:var(--t3);font-size:12px;padding:8px">اختر إجراءات أول…</div>'; updateEngMxCount(); return; }
+  actions.forEach(a => { if (!engGroups[a]) engGroups[a] = new Set(); });
+
+  const accts = _engFilteredAccounts();
+  if (!accts.length) { host.innerHTML = '<div style="color:var(--t3);font-size:12px;padding:8px">لا حسابات بهذا الفلتر</div>'; return; }
+
+  const head = `<tr style="position:sticky;top:0;background:var(--s2);z-index:1">
+    <th style="text-align:right;padding:6px 8px;font-size:11px;color:var(--t3)">الحساب</th>
+    ${actions.map(a => `<th onclick="engColToggle('${a}')" title="الكل/مسح" style="padding:6px 4px;cursor:pointer;white-space:nowrap;color:var(--blu2);font-size:11px">${ACT_AR[a] || a}</th>`).join('')}
+  </tr>`;
+  const rows = accts.map(a => {
+    const cells = actions.map(act => {
+      const on = engGroups[act].has(a._id);
+      return `<td style="text-align:center;padding:3px"><input type="checkbox" ${on ? 'checked' : ''} onchange="engCellToggle('${act}','${a._id}',this.checked)"></td>`;
+    }).join('');
+    return `<tr style="border-top:1px solid var(--bd)">
+      <td style="padding:4px 8px;font-size:12px;white-space:nowrap">@${a.username} <span style="font-size:9.5px;color:var(--t3)">${ROLE_AR[a.role] || ''}</span></td>${cells}
+    </tr>`;
+  }).join('');
+  host.innerHTML = `<table style="width:100%;border-collapse:collapse"><thead>${head}</thead><tbody>${rows}</tbody></table>`;
+  updateEngMxCount();
+}
+
+function engCellToggle(action, id, on) {
+  if (!engGroups[action]) engGroups[action] = new Set();
+  if (on) engGroups[action].add(id); else engGroups[action].delete(id);
+  updateEngMxCount();
+}
+
+function engColToggle(action) {
+  if (!engGroups[action]) engGroups[action] = new Set();
+  const accts = _engFilteredAccounts();
+  const allOn = accts.length && accts.every(a => engGroups[action].has(a._id));
+  accts.forEach(a => { if (allOn) engGroups[action].delete(a._id); else engGroups[action].add(a._id); });
+  renderEngMatrix();
+}
+
+function updateEngMxCount() {
+  const total = new Set();
+  Object.values(engGroups).forEach(s => s.forEach(id => total.add(id)));
+  const el = document.getElementById('eng-mx-count');
+  if (el) el.textContent = `${total.size} حساب`;
 }
 
 function getSelectedActions(prefix) {
@@ -5620,7 +5680,8 @@ async function loadEngagement() {
 async function openEngModal() {
   const modal = document.getElementById('eng-modal');
   if (modal) modal.style.display = 'flex';
-  buildEngAccChips(allActiveAccounts);
+  engGroups = {};          // صفّر تخصيص الأفعال
+  renderEngMatrix();
 }
 function closeEngModal() { document.getElementById('eng-modal').style.display = 'none'; }
 
@@ -5651,7 +5712,10 @@ function buildEngPayload() {
   const name     = document.getElementById('eng-name').value.trim();
   const tweetUrl = document.getElementById('eng-tweet-url').value.trim();
   const actions      = getSelectedActions('eng');
-  const accountIds   = [...document.querySelectorAll('#eng-acc-chips .eng-acc-chip.selected')].map(c => c.dataset.id);
+  // actionGroups: حسابات محدّدة لكل فعل (من المصفوفة)
+  const actionGroups = {};
+  actions.forEach(a => { if (engGroups[a]?.size) actionGroups[a] = [...engGroups[a]]; });
+  const totalAssigned = new Set(Object.values(actionGroups).flat()).size;
   const replyTexts   = document.getElementById('eng-reply-texts')?.value.trim().split('\n').filter(Boolean) || [];
   const quoteMode    = document.querySelector('[name="eng-quote-mode"]:checked')?.value || 'manual';
   const quoteTexts   = document.getElementById('eng-quote-texts')?.value.trim().split('\n').filter(Boolean) || [];
@@ -5664,19 +5728,14 @@ function buildEngPayload() {
   if (!name)            { toast('أدخل اسم الحملة', 'warn'); return null; }
   if (!tweetUrl)        { toast('أدخل رابط التغريدة', 'warn'); return null; }
   if (!actions.length)  { toast('اختر إجراءاً واحداً على الأقل', 'warn'); return null; }
-  if (!accountIds.length){ toast('اختر حسابات', 'warn'); return null; }
+  if (!totalAssigned)   { toast('أشّر حسابات لكل إجراء في المصفوفة', 'warn'); return null; }
 
   const authorHandle = document.getElementById('eng-author-handle')?.value.replace('@','').trim() || '';
   const parallelCount = runMode === 'parallel'
     ? +(document.getElementById('eng-parallel-count')?.value || 3)
     : 1;
-  const targets = {
-    likes:    Math.max(0, +(document.getElementById('eng-cap-likes')?.value    || 0)),
-    retweets: Math.max(0, +(document.getElementById('eng-cap-retweets')?.value || 0)),
-    replies:  Math.max(0, +(document.getElementById('eng-cap-replies')?.value  || 0)),
-  };
-  return { name, tweetUrl, actions, accountIds, replyTexts, quoteMode, quoteTexts, quotePrompt,
-    runMode, parallelCount, authorHandle, targets,
+  return { name, tweetUrl, actions, actionGroups, replyTexts, quoteMode, quoteTexts, quotePrompt,
+    runMode, parallelCount, authorHandle,
     delayMinMs: +delayParts[0], delayMaxMs: +delayParts[1],
     scheduleAt: scheduleAt || undefined };
 }
