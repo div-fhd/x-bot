@@ -16,6 +16,7 @@ const Vault   = require('./vault.service');
 const { log } = require('../models/index');
 const logger  = require('../utils/logger');
 const { sleep, randInt } = require('../utils/delay');
+const { swallow } = require('../utils/swallow');
 
 const X_LOGIN   = 'https://x.com/i/flow/login';
 const X_HOME    = 'https://x.com/home';
@@ -109,7 +110,7 @@ const AuthSvc = {
     } catch (e) {
       account.status     = 'inactive';
       account.statusNote = e.message;
-      await account.save().catch(() => {});
+      await account.save().catch(swallow('save:status', 'warn'));
       await Browser.closeContext(account._id.toString()).catch(() => {});
       logger.warn(`[Auth] Health check failed @${account.username}: ${e.message}`);
       return { state: 'error', error: e.message };
@@ -203,7 +204,7 @@ const AuthSvc = {
         account.status        = 'active';
         account.lastActiveAt  = new Date();
         account.lastCheckedAt = new Date();
-        await account.save().catch(() => {});
+        await account.save().catch(swallow('save:status', 'warn'));
         return 'active';
       }
 
@@ -292,12 +293,12 @@ const AuthSvc = {
       } else if (midState === 'unusual_activity') {
         account.status = 'checkpoint';
         account.lastCheckedAt = new Date();
-        await account.save().catch(() => {});
+        await account.save().catch(swallow('save:status', 'warn'));
         throw new Error(`SKIP:@${account.username} — checkpoint`);
       } else if (midState === 'suspended') {
         account.status = 'suspended';
         account.lastCheckedAt = new Date();
-        await account.save().catch(() => {});
+        await account.save().catch(swallow('save:status', 'warn'));
         throw new Error(`SKIP:@${account.username} — suspended`);
       } else if (midState === 'password') {
         // Already at password — nothing to do
@@ -322,7 +323,7 @@ const AuthSvc = {
         await shot('err_no_password_field');
         account.status = 'auth_required';
         account.lastCheckedAt = new Date();
-        await account.save().catch(() => {});
+        await account.save().catch(swallow('save:status', 'warn'));
         throw new Error(`SKIP:@${account.username} — auth_required`);
       }
 

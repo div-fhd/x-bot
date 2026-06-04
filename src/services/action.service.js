@@ -469,7 +469,7 @@ const ActionSvc = {
       if (currentUrl.includes('/account/access') || currentUrl.includes('Just a moment')) {
         account.status = 'checkpoint';
         account.lastCheckedAt = new Date();
-        await account.save().catch(() => {});
+        await account.save().catch(swallow('save:status', 'warn'));
         throw new Error(`SKIP:@${account.username} — checkpoint`);
       }
 
@@ -766,7 +766,7 @@ const ActionSvc = {
           if (authBlocked) {
             account.status        = 'auth_required';
             account.lastCheckedAt = new Date();
-            await account.save().catch(() => {});
+            await account.save().catch(swallow('save:status', 'warn'));
             const Vault = require('./vault.service');
             await Vault.deleteSession(account._id.toString()).catch(() => {});
             logger.warn(`[Action] @${account.username} — Auth expired (403 on API), marked auth_required, session deleted`);
@@ -944,7 +944,7 @@ const ActionSvc = {
     if (url.includes('/i/flow/login') || url.includes('/account/access') || url.includes('/i/flow/password_reset')) {
       account.status        = 'auth_required';
       account.lastCheckedAt = new Date();
-      await account.save().catch(() => {});
+      await account.save().catch(swallow('save:status', 'warn'));
       // احذف الجلسة المحفوظة — انتهت صلاحيتها
       const Vault = require('./vault.service');
       await Vault.deleteSession(account._id.toString()).catch(() => {});
@@ -954,7 +954,7 @@ const ActionSvc = {
     if (url.includes('/suspended')) {
       account.status        = 'suspended';
       account.lastCheckedAt = new Date();
-      await account.save().catch(() => {});
+      await account.save().catch(swallow('save:status', 'warn'));
       throw new Error(`SKIP:@${account.username} — suspended`);
     }
   },
