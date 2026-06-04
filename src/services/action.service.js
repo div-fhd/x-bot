@@ -8,6 +8,7 @@ const { sleep, randInt } = require('../utils/delay');
 const Sel     = require('../x/selectors');   // السجل المركزي اللغة-المحايد
 const dom     = require('../x/dom');          // resolver + تفاعل متحقّق
 const { swallow } = require('../utils/swallow'); // بديل آمن لـ .catch(()=>{}) الأعمى
+const ProxyBreaker = require('../ops/proxy-breaker'); // قاطع دائرة لكل حساب
 
 const SEL = {
   composeBtn:    '[data-testid="SideNav_NewTweet_Button"]',
@@ -181,6 +182,21 @@ const ActionSvc = {
   },
 
   // ── Like ─────────────────────────────────────────────────────
+  // ── تنقّل محميّ بقاطع الدائرة ─────────────────────────────────
+  // يفحص القاطع قبل (يتخطّى بروكسي في تبريد)، ثم يسجّل نجاح/فشل البروكسي بعد.
+  async _navigate(page, url, account) {
+    ProxyBreaker.assert(account); // SKIP لو الدائرة مفتوحة
+    try {
+      const r = await dom.navigate(page, url);
+      ProxyBreaker.record(account._id, true);
+      return r;
+    } catch (e) {
+      // فشل بروكسي/شبكة فقط يُحتسب على القاطع (لا أخطاء التطبيق)
+      if (/^(ProxyError|RateLimited|NavError)/.test(e.message)) ProxyBreaker.record(account._id, false);
+      throw e;
+    }
+  },
+
   // ── النموذج المرجعي للعقد المتين ─────────────────────────────
   // جاهزية مؤكّدة → idempotent → فعل متحقّق من DOM → خطأ صريح + تشخيص.
   // bump هنا فقط (عند نجاح متحقّق) — الـ processor لا يضاعفه.
@@ -190,7 +206,7 @@ const ActionSvc = {
     let navStatus = 'n/a';
     try {
       // navigate يصنّف فشل البروكسي/الشبكة + status (200/403/429) بوضوح بدل بلعه
-      const navResp = await dom.navigate(page, `https://x.com/i/status/${tweetId}`);
+      const navResp = await this._navigate(page, `https://x.com/i/status/${tweetId}`, account);
       navStatus = navResp ? navResp.status() : 'no-resp';
 
       // ① الصفحة جاهزة فعلاً؟ (وإلا خطأ واضح: auth_required / ProxyError / EmptyDocument — لا timeout غامض)
@@ -229,7 +245,7 @@ const ActionSvc = {
     const page = await this._readyPage(account);
     let navStatus = 'n/a';
     try {
-      const r = await dom.navigate(page, `https://x.com/i/status/${tweetId}`);
+      const r = await this._navigate(page, `https://x.com/i/status/${tweetId}`, account);
       navStatus = r ? r.status() : 'no-resp';
       await dom.assertTweetReady(page, Sel, account);
       await sleep(600, 1000);
@@ -269,7 +285,7 @@ const ActionSvc = {
     const page = await this._readyPage(account);
     let navStatus = 'n/a';
     try {
-      const r = await dom.navigate(page, `https://x.com/i/status/${tweetId}`);
+      const r = await this._navigate(page, `https://x.com/i/status/${tweetId}`, account);
       navStatus = r ? r.status() : 'no-resp';
       await dom.assertTweetReady(page, Sel, account);
       await sleep(800, 1200);
@@ -459,7 +475,7 @@ const ActionSvc = {
     try {
       const cleanHandle = targetHandle.replace(/^@+/, '');
       // navigate يصنّف فشل البروكسي/الشبكة + status بوضوح بدل بلعه
-      const r = await dom.navigate(page, `https://x.com/${cleanHandle}`);
+      const r = await this._navigate(page, `https://x.com/${cleanHandle}`, account);
       navStatus = r ? r.status() : 'no-resp';
       await sleep(2000, 3000);
       await this._checkNotRedirected(page, account);
