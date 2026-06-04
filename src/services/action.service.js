@@ -5,6 +5,9 @@ const AuthSvc = require('./auth.service');
 const { log } = require('../models/index');
 const logger  = require('../utils/logger');
 const { sleep, randInt } = require('../utils/delay');
+const Sel     = require('../x/selectors');   // السجل المركزي اللغة-المحايد
+const dom     = require('../x/dom');          // resolver + تفاعل متحقّق
+const { swallow } = require('../utils/swallow'); // بديل آمن لـ .catch(()=>{}) الأعمى
 
 const SEL = {
   composeBtn:    '[data-testid="SideNav_NewTweet_Button"]',
@@ -142,7 +145,7 @@ const ActionSvc = {
       const url     = page.url();
       const tweetId = url.match(/\/status\/(\d+)/)?.[1] || null;
 
-      await account.bump('post');
+      await account.bump('post').catch(swallow('bump:post', 'warn'));
       await Browser.persistSession(account);
       await log(account._id, 'publish', 'tweet_posted', 'success', { tweetId, ms: Date.now()-t0 });
       if (global.io) global.io.emit('action:done', { type:'tweet', account:account.username, tweetId });
@@ -178,21 +181,40 @@ const ActionSvc = {
   },
 
   // ── Like ─────────────────────────────────────────────────────
+  // ── النموذج المرجعي للعقد المتين ─────────────────────────────
+  // جاهزية مؤكّدة → idempotent → فعل متحقّق من DOM → خطأ صريح + تشخيص.
+  // bump هنا فقط (عند نجاح متحقّق) — الـ processor لا يضاعفه.
   async like(account, tweetId) {
     if (!account.canDo('like')) throw new Error(`@${account.username}: daily like cap reached`);
     const page = await this._readyPage(account);
     try {
       await page.goto(`https://x.com/i/status/${tweetId}`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
-      await page.waitForSelector('[data-testid="like"], [data-testid="unlike"]', { timeout: 60_000 });
-      await sleep(800, 1200);
-      const already = await page.locator('[data-testid="unlike"]').count().catch(() => 0);
-      if (already > 0) return { success: true, alreadyLiked: true };
-      await page.locator('[data-testid="like"]').first().evaluate(el => el.click());
-      await sleep(800, 1500);
-      await account.bump('like');
-      await log(account._id, 'engage', 'like', 'success', { tweetId });
-      return { success: true };
+
+      // ① الصفحة جاهزة فعلاً؟ (وإلا خطأ واضح: needs_auth أو PageNotReady — لا timeout غامض)
+      await dom.assertTweetReady(page, Sel, account);
+      await sleep(600, 1000);
+
+      // ② مُسبقاً معجَب؟ (idempotent، متحقّق من حالة الـ DOM)
+      if (await dom.present(page, Sel.tweet.liked, { timeout: 1500 })) {
+        return { success: true, alreadyLiked: true };
+      }
+
+      // ③ اضغط لايك وتحقّق أنه صار "معجَب" فعلاً (يظهر زر unlike)
+      await dom.clickVerified(page, {
+        name:   'like',
+        target: Sel.tweet.like,
+        verify: Sel.tweet.liked,
+      });
+
+      // اللايك تمّ وتُحقّق منه — فشل حفظ العدّاد يُسجَّل بصوت ولا يُفشّل العملية
+      await account.bump('like').catch(swallow('bump:like', 'warn'));
+      await log(account._id, 'engage', 'like', 'success', { tweetId, verified: true });
+      return { success: true, verified: true };
     } catch (e) {
+      // تشخيص على الأخطاء الحقيقية فقط (لا على تجاوز السقف)
+      if (!/cap reached/i.test(e.message)) {
+        await this._captureDebug(page, account, 'like-fail', { error: e.message.slice(0, 160) }).catch(() => {});
+      }
       await log(account._id, 'engage', 'like_failed', 'failure', { tweetId, error: e.message });
       throw e;
     } finally { await page.close().catch(() => {}); }
@@ -221,7 +243,7 @@ const ActionSvc = {
       await page.locator('[data-testid="retweetConfirm"]').first().evaluate(el => el.click());
       await sleep(1000, 1800);
 
-      await account.bump('repost');
+      await account.bump('repost').catch(swallow('bump:repost', 'warn'));
       await log(account._id, 'engage', 'retweet', 'success', { tweetId });
       return { success: true };
     } catch (e) {
@@ -277,7 +299,7 @@ const ActionSvc = {
       await replySubmit.evaluate(el => el.click());
       await sleep(2000, 3000);
 
-      await account.bump('reply');
+      await account.bump('reply').catch(swallow('bump:reply', 'warn'));
       await log(account._id, 'engage', 'reply', 'success', { tweetId });
       return { success: true };
     } catch (e) {
@@ -590,7 +612,7 @@ const ActionSvc = {
         return hasUnfollow || hasSeeNew;
       }).catch(() => true);
       logger.info(`[Action] Follow confirmed: ${confirmed} @${targetHandle}`);
-      await account.bump('follow');
+      await account.bump('follow').catch(swallow('bump:follow', 'warn'));
       await log(account._id, 'engage', 'follow', 'success', { target: targetHandle });
       return { success: true };
     } catch (e) {
@@ -724,6 +746,20 @@ const ActionSvc = {
             consoleErrs: _consoleErrs.slice(0, 5),
             failedReqs:  _failedReqs.slice(0, 5),
           }).catch(() => ({}));
+
+          // لو شفنا 403 على API المصادقة (Viewer/GetUserClaims) → الجلسة منتهية فعلاً
+          // علّم الحساب needs_auth واحذف الجلسة الميتة — يخلّي الحسابات الفاسدة واضحة للمستخدم
+          const authBlocked = _failedReqs.some(r => /^403\b/.test(r) && /Viewer|GetUserClaims|graphql/i.test(r));
+          if (authBlocked) {
+            account.status        = 'needs_auth';
+            account.lastCheckedAt = new Date();
+            await account.save().catch(() => {});
+            const Vault = require('./vault.service');
+            await Vault.deleteSession(account._id.toString()).catch(() => {});
+            logger.warn(`[Action] @${account.username} — Auth expired (403 on API), marked needs_auth, session deleted`);
+            throw new Error(`SKIP:@${account.username} — needs_auth (الجلسة منتهية، يحتاج تسجيل دخول جديد)`);
+          }
+
           throw new Error(`SKIP:@${account.username} — settings/profile failed to load (url=${diag.url || page.url()})`);
         }
       }
@@ -1041,7 +1077,7 @@ const ActionSvc = {
       const m   = url.match(/status\/(\d+)/);
       const quoteTweetId = m ? m[1] : null;
 
-      await account.bump('post').catch(() => {});
+      await account.bump('post').catch(swallow('bump:post', 'warn'));
       await log(account._id, 'engage', 'quote_tweet', 'success', { tweetId, quoteTweetId });
       return { success: true, quoteTweetId, quoteTweetUrl: quoteTweetId ? `https://x.com/${account.username}/status/${quoteTweetId}` : null };
     } catch(e) {
@@ -1240,7 +1276,7 @@ const ActionSvc = {
               if (already) { r = { alreadyLiked: true }; break; }
               await page.locator('[data-testid="like"]').first().evaluate(el => el.click());
               await sleep(600, 1000);
-              await account.bump('like').catch(() => {});
+              await account.bump('like').catch(swallow('bump:like', 'warn'));
               await log(account._id, 'engage', 'like', 'success', { tweetId });
               r = { success: true };
               break;
@@ -1255,7 +1291,7 @@ const ActionSvc = {
               await sleep(300, 600);
               await page.locator('[data-testid="retweetConfirm"]').first().evaluate(el => el.click());
               await sleep(800, 1400);
-              await account.bump('repost').catch(() => {});
+              await account.bump('repost').catch(swallow('bump:repost', 'warn'));
               await log(account._id, 'engage', 'retweet', 'success', { tweetId });
               r = { success: true };
               break;
@@ -1288,7 +1324,7 @@ const ActionSvc = {
               await sleep(600, 1000);
               await page.locator('[data-testid="tweetButtonInline"]').first().evaluate(el => el.click());
               await sleep(1200, 2000);
-              await account.bump('reply').catch(() => {});
+              await account.bump('reply').catch(swallow('bump:reply', 'warn'));
               await log(account._id, 'engage', 'reply', 'success', { tweetId });
               r = { success: true };
               break;
@@ -1370,7 +1406,7 @@ const ActionSvc = {
                 await composePage.waitForSelector('[data-testid="tweetTextarea_0"]', { state: 'detached', timeout: 10_000 }).catch(() => {});
                 await sleep(1500, 2500);
 
-                await account.bump('post').catch(() => {});
+                await account.bump('post').catch(swallow('bump:post', 'warn'));
                 await log(account._id, 'engage', 'quote_tweet', 'success', { tweetId, tweetUrl });
                 r = { success: true };
               } catch (qErr) {
@@ -1433,7 +1469,7 @@ const ActionSvc = {
               // Back to tweet
               await page.goto(`https://x.com/i/status/${tweetId}`, { waitUntil: 'domcontentloaded', timeout: 30_000 });
               await sleep(600, 1000);
-              await account.bump('follow').catch(() => {});
+              await account.bump('follow').catch(swallow('bump:follow', 'warn'));
               await log(account._id, 'engage', 'follow_author', 'success', { authorHandle: handle });
               r = { success: true };
               break;

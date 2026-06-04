@@ -51,7 +51,7 @@ module.exports = wrapProcessor(async function tweetMultiProcessor(job) {
       mediaLocalPaths: mediaPaths || [],
     });
 
-    await account.bump('post').catch(() => {});
+    // ملاحظة: ActionSvc.tweet يتولّى bump('post') داخلياً — لا نضاعفه هنا
     const tweetUrl = r.tweetUrl ||
       (r.tweetId ? `https://x.com/${account.username}/status/${r.tweetId}` : null);
 

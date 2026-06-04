@@ -283,22 +283,23 @@ async function getContext(account) {
         } catch {}
       });
 
-      // نضيف x-csrf-token فقط على API calls وليس على navigation
-      // setExtraHTTPHeaders على navigation يسبب كشف automation من X
-      if (creds.session_token) {
-        const csrfToken = creds.session_token;
-        await ctx.route('**/api/**', async (route) => {
-          await route.continue({
-            headers: {
-              ...route.request().headers(),
-              'x-csrf-token':              csrfToken,
-              'x-twitter-auth-type':       'OAuth2Session',
-              'x-twitter-active-user':     'yes',
-              'x-twitter-client-language': 'en',
-            },
-          });
-        });
-      }
+      // نضيف x-csrf-token على API calls (وليس على navigation — يسبب كشف automation).
+      // ملاحظة: المسار مُسجَّل دائماً حتى للحسابات بدون session_token مخزّن،
+      // لأن X يضبط كوكي ct0 تلقائياً بعد أول تحميل. نقرأ ct0 الحيّ من كوكيز الطلب
+      // نفسه (مضمون التطابق مع ما يرسله المتصفح، ويواكب تدوير X للرمز).
+      await ctx.route('**/i/api/**', async (route) => {
+        const h = await route.request().allHeaders();
+        const m = (h['cookie'] || '').match(/(?:^|;\s*)ct0=([^;]+)/);
+        const csrf = (m && m[1]) || creds.session_token || null;
+        const headers = {
+          ...h,
+          'x-twitter-auth-type':       'OAuth2Session',
+          'x-twitter-active-user':     'yes',
+          'x-twitter-client-language': 'en',
+        };
+        if (csrf) headers['x-csrf-token'] = csrf; // لا نضيف هيدر فارغ
+        await route.continue({ headers });
+      });
 
       const entry = { ctx, lastUsed: Date.now(), timer: null, pages: 0 };
       POOL.set(id, entry);

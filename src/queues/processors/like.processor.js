@@ -17,7 +17,7 @@ module.exports = wrapProcessor(async function likeProcessor(job, { isCancelled }
   await job.updateProgress(10);
   try {
     await ActionSvc.like(account, tweetId);
-    await account.bump('like').catch(() => {});
+    // ملاحظة: ActionSvc.like يتولّى bump('like') عند النجاح المتحقّق — لا نضاعفه هنا
     await job.updateProgress(100);
     jobEvents.progress({ jobId: meta.parentJobId, type: 'like', username: account.username, done: meta.index + 1, total: meta.total, success: true });
     return { success: true };

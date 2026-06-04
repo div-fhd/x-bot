@@ -21,7 +21,7 @@ module.exports = wrapProcessor(async function followProcessor(job, { isCancelled
   await job.updateProgress(10);
   try {
     await ActionSvc.follow(account, targetHandle);
-    await account.bump('follow').catch(() => {});
+    // ملاحظة: ActionSvc.follow يتولّى bump('follow') داخلياً — لا نضاعفه هنا
     await job.updateProgress(100);
     jobEvents.progress({ jobId: meta.parentJobId, type: 'follow', username: account.username, done: meta.index + 1, total: meta.total, success: true });
     return { success: true, username: account.username };
