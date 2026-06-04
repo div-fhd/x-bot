@@ -39,6 +39,23 @@ async function present(page, candidates, { timeout = 5_000, state = 'attached' }
   } catch { return false; }
 }
 
+// أخطاء شبكة/بروكسي شائعة من Chromium — نصنّفها برسالة واضحة بدل بلعها
+const NET_ERR = /ERR_(PROXY|TUNNEL|TIMED_OUT|CONNECTION_(RESET|REFUSED|CLOSED|FAILED|ABORTED)|NAME_NOT_RESOLVED|ADDRESS_UNREACHABLE|SOCKS|EMPTY_RESPONSE|NETWORK_CHANGED|INTERNET_DISCONNECTED)/i;
+
+/**
+ * تنقّل آمن: بدل `page.goto(...).catch(()=>{})` الذي يبلع فشل البروكسي،
+ * نلتقط الخطأ ونصنّفه — فشل الشبكة/البروكسي يظهر صريحاً فوراً.
+ */
+async function navigate(page, url, { waitUntil = 'domcontentloaded', timeout = 60_000 } = {}) {
+  try {
+    return await page.goto(url, { waitUntil, timeout });
+  } catch (e) {
+    const m = String(e.message).match(NET_ERR);
+    if (m) throw new Error(`ProxyError: فشل التنقّل — ${m[0]}`);
+    throw e; // خطأ آخر (timeout تحميل، إلخ) يمرّ كما هو
+  }
+}
+
 /**
  * يضغط عنصراً ثم **يتحقّق** من ظهور الحالة المتوقّعة بعده.
  * يرمي ActionUnverified لو الضغط لم يُنتج التغيّر المطلوب — لا نجاح كاذب.
@@ -65,7 +82,13 @@ async function assertTweetReady(page, SEL, account) {
   if (await present(page, SEL.page.loginWall, { timeout: 1_500 })) {
     throw new Error(`SKIP:@${account?.username} — auth_required (جدار تسجيل دخول على صفحة التغريدة)`);
   }
-  throw new Error(`PageNotReady: شريط أفعال التغريدة لم يُرسم`);
+  // مستند فارغ/شبه فارغ (لا react-root، HTML ضئيل) = البروكسي/الشبكة رجّعت صفحة فارغة
+  // نميّزه عن "X رسم صفحة لكن بلا شريط" — السبب الحقيقي بروكسي ميّت لا selector
+  const htmlLen = await page.evaluate(() => document.documentElement.outerHTML.length).catch(() => 0);
+  if (htmlLen < 600) {
+    throw new Error(`ProxyError: @${account?.username} — مستند فارغ (${htmlLen}b) — البروكسي/الشبكة فشلت`);
+  }
+  throw new Error(`PageNotReady: شريط أفعال التغريدة لم يُرسم (htmlLen=${htmlLen})`);
 }
 
-module.exports = { resolve, present, clickVerified, assertTweetReady };
+module.exports = { resolve, present, navigate, clickVerified, assertTweetReady };

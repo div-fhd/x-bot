@@ -188,9 +188,10 @@ const ActionSvc = {
     if (!account.canDo('like')) throw new Error(`@${account.username}: daily like cap reached`);
     const page = await this._readyPage(account);
     try {
-      await page.goto(`https://x.com/i/status/${tweetId}`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+      // navigate يصنّف فشل البروكسي/الشبكة بوضوح بدل بلعه
+      await dom.navigate(page, `https://x.com/i/status/${tweetId}`);
 
-      // ① الصفحة جاهزة فعلاً؟ (وإلا خطأ واضح: auth_required أو PageNotReady — لا timeout غامض)
+      // ① الصفحة جاهزة فعلاً؟ (وإلا خطأ واضح: auth_required / ProxyError / PageNotReady — لا timeout غامض)
       await dom.assertTweetReady(page, Sel, account);
       await sleep(600, 1000);
 
