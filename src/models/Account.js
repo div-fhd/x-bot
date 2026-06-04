@@ -27,7 +27,7 @@ const AccountSchema = new mongoose.Schema({
 
   status: {
     type: String,
-    enum: ['active', 'suspended', 'locked', 'auth_required', 'dead', 'warmup', 'limited'],
+    enum: ['active', 'suspended', 'locked', 'auth_required', 'dead', 'warmup', 'limited', 'checkpoint', 'inactive'],
     default: 'active',
     index: true,
   },

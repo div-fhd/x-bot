@@ -63,7 +63,7 @@ async function assertTweetReady(page, SEL, account) {
   const ready = await present(page, SEL.tweet.actionBar, { timeout: 20_000, state: 'visible' });
   if (ready) return true;
   if (await present(page, SEL.page.loginWall, { timeout: 1_500 })) {
-    throw new Error(`SKIP:@${account?.username} — needs_auth (جدار تسجيل دخول على صفحة التغريدة)`);
+    throw new Error(`SKIP:@${account?.username} — auth_required (جدار تسجيل دخول على صفحة التغريدة)`);
   }
   throw new Error(`PageNotReady: شريط أفعال التغريدة لم يُرسم`);
 }

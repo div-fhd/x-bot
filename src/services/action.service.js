@@ -190,7 +190,7 @@ const ActionSvc = {
     try {
       await page.goto(`https://x.com/i/status/${tweetId}`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
 
-      // ① الصفحة جاهزة فعلاً؟ (وإلا خطأ واضح: needs_auth أو PageNotReady — لا timeout غامض)
+      // ① الصفحة جاهزة فعلاً؟ (وإلا خطأ واضح: auth_required أو PageNotReady — لا timeout غامض)
       await dom.assertTweetReady(page, Sel, account);
       await sleep(600, 1000);
 
@@ -748,16 +748,16 @@ const ActionSvc = {
           }).catch(() => ({}));
 
           // لو شفنا 403 على API المصادقة (Viewer/GetUserClaims) → الجلسة منتهية فعلاً
-          // علّم الحساب needs_auth واحذف الجلسة الميتة — يخلّي الحسابات الفاسدة واضحة للمستخدم
+          // علّم الحساب auth_required واحذف الجلسة الميتة — يخلّي الحسابات الفاسدة واضحة للمستخدم
           const authBlocked = _failedReqs.some(r => /^403\b/.test(r) && /Viewer|GetUserClaims|graphql/i.test(r));
           if (authBlocked) {
-            account.status        = 'needs_auth';
+            account.status        = 'auth_required';
             account.lastCheckedAt = new Date();
             await account.save().catch(() => {});
             const Vault = require('./vault.service');
             await Vault.deleteSession(account._id.toString()).catch(() => {});
-            logger.warn(`[Action] @${account.username} — Auth expired (403 on API), marked needs_auth, session deleted`);
-            throw new Error(`SKIP:@${account.username} — needs_auth (الجلسة منتهية، يحتاج تسجيل دخول جديد)`);
+            logger.warn(`[Action] @${account.username} — Auth expired (403 on API), marked auth_required, session deleted`);
+            throw new Error(`SKIP:@${account.username} — auth_required (الجلسة منتهية، يحتاج تسجيل دخول جديد)`);
           }
 
           throw new Error(`SKIP:@${account.username} — settings/profile failed to load (url=${diag.url || page.url()})`);
@@ -929,14 +929,14 @@ const ActionSvc = {
   async _checkNotRedirected(page, account) {
     const url = page.url();
     if (url.includes('/i/flow/login') || url.includes('/account/access') || url.includes('/i/flow/password_reset')) {
-      account.status        = 'needs_auth';
+      account.status        = 'auth_required';
       account.lastCheckedAt = new Date();
       await account.save().catch(() => {});
       // احذف الجلسة المحفوظة — انتهت صلاحيتها
       const Vault = require('./vault.service');
       await Vault.deleteSession(account._id.toString()).catch(() => {});
       logger.warn(`[Action] @${account.username} — Redirected to login, session deleted`);
-      throw new Error(`SKIP:@${account.username} — needs_auth`);
+      throw new Error(`SKIP:@${account.username} — auth_required`);
     }
     if (url.includes('/suspended')) {
       account.status        = 'suspended';

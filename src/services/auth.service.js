@@ -68,9 +68,9 @@ const AuthSvc = {
       throw new Error(`SKIP:@${account.username} — ${account.status}`);
     }
 
-    // الحساب needs_auth ولا يوجد token → تخطَّ
-    if (account.status === 'needs_auth' && !creds.auth_token) {
-      throw new Error(`SKIP:@${account.username} — needs_auth`);
+    // الحساب auth_required ولا يوجد token → تخطَّ
+    if (account.status === 'auth_required' && !creds.auth_token) {
+      throw new Error(`SKIP:@${account.username} — auth_required`);
     }
 
     // ── جهّز الـ context (من جلسة محفوظة أو tokens) ─────────
@@ -86,7 +86,7 @@ const AuthSvc = {
       const creds = Vault.decryptAccount(account.credentials);
       const statusMap = {
         active:     'active',
-        expired:    'needs_auth',
+        expired:    'auth_required',
         checkpoint: 'checkpoint',
         suspended:  'suspended',
         unknown:    'inactive',
@@ -320,10 +320,10 @@ const AuthSvc = {
 
       if (!passInput) {
         await shot('err_no_password_field');
-        account.status = 'needs_auth';
+        account.status = 'auth_required';
         account.lastCheckedAt = new Date();
         await account.save().catch(() => {});
-        throw new Error(`SKIP:@${account.username} — needs_auth`);
+        throw new Error(`SKIP:@${account.username} — auth_required`);
       }
 
       await passInput.click();
