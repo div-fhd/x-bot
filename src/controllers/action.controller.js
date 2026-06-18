@@ -216,7 +216,7 @@ const ActionCtrl = {
       delayMinMs = 8000, delayMaxMs = 25000, topic, hashtags,
       mediaPaths = [], imageOrder = 'same', batchSize = 1,
       // Auto-engage options
-      autoEngage = false, engageAccountIds = [], engageActions = ['like'],
+      autoEngage = false, engageAccountIds = [], engageActions = ['like'], engageActionGroups = {},
       engageReplyTexts = [], engageDelayMinMs = 8000, engageDelayMaxMs = 25000,
     } = req.body;
     const actualTopic = topic || text;
@@ -237,7 +237,7 @@ const ActionCtrl = {
         text: mode === 'same' ? text : topic,
         topic, hashtags, manualTexts, mediaPaths,
         imageOrder, accountIndex: idx,
-        autoEngage, engageAccountIds, engageActions,
+        autoEngage, engageAccountIds, engageActions, engageActionGroups,
         engageReplyTexts, engageDelayMinMs, engageDelayMaxMs,
       }),
       delayMinMs, delayMaxMs
