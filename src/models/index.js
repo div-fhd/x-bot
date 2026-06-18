@@ -39,6 +39,14 @@ const ContentSchema = new mongoose.Schema({
   niche:         String,
   tags:          [String],
   replyToTweetId:String,
+  // تفاعل تلقائي بعد النشر (للتغريدات المجدولة) — نفس نموذج الحملات
+  engage: {
+    enabled:      { type: Boolean, default: false },
+    actionGroups: mongoose.Schema.Types.Mixed, // { action: [accountIds] }
+    replyTexts:   [String],
+    delayMinMs:   Number,
+    delayMaxMs:   Number,
+  },
 }, { timestamps: true });
 ContentSchema.index({ account:1, status:1, scheduledAt:1 });
 const Content = mongoose.model('Content', ContentSchema);

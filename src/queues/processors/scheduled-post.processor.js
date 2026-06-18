@@ -30,6 +30,22 @@ module.exports = wrapProcessor(async function scheduledPostProcessor(job) {
     await content.save();
     await Schedule.updateMany({ content: content._id, status: 'pending' }, { status: 'done' }).catch(swallow('sched:schedUpd'));
     logger.info(`[ScheduledPost] @${account.username} نشر ${content._id} → ${r.tweetId}`);
+
+    // ── تفاعل تلقائي بعد النشر (إن فُعِّل عند الجدولة) ──
+    if (content.engage?.enabled && r.tweetId) {
+      try {
+        const { launchAutoEngage } = require('../../ops/auto-engage');
+        const tUrl = r.tweetUrl || `https://x.com/${account.username}/status/${r.tweetId}`;
+        await launchAutoEngage({
+          tweetId: r.tweetId, tweetUrl: tUrl,
+          actionGroups: content.engage.actionGroups,
+          replyTexts:   content.engage.replyTexts,
+          delayMinMs:   content.engage.delayMinMs,
+          delayMaxMs:   content.engage.delayMaxMs,
+          label: 'scheduled',
+        });
+      } catch(e) { logger.warn(`[ScheduledPost] auto-engage error: ${e.message}`); }
+    }
     return { success: true, tweetId: r.tweetId };
   } catch (e) {
     // SKIP/cap لا تُعَدّ فشلاً نهائياً — تبقى مجدولة لإعادة المحاولة

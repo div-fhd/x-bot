@@ -66,56 +66,16 @@ module.exports = wrapProcessor(async function tweetMultiProcessor(job) {
       total: meta.total, success: true, tweetId: r.tweetId,
     });
 
-    // ── Auto-engage — تخصيص بالفعل (مثل الحملات): كل حساب يسوّي أفعاله في جلسة واحدة ──
-    const eGroups = (engageActionGroups && typeof engageActionGroups === 'object') ? engageActionGroups : {};
-    const eHasGroups = Object.values(eGroups).some(a => Array.isArray(a) && a.length);
-    if (autoEngage && tweetUrl && (eHasGroups || (engageAccountIds?.length && engageActions?.length))) {
+    // ── Auto-engage — مساعد مشترك (تخصيص بالفعل، جلسة واحدة لكل حساب) ──
+    if (autoEngage && tweetUrl) {
       try {
-        const { getQueue, QUEUE_NAMES } = require('../queues');
-        const { registry } = require('../../ops/operations.registry');
-
-        // ابنِ قائمة العمل: [{ account, actions }]
-        let workList = [];
-        if (eHasGroups) {
-          const byAccount = new Map(); // accountId → Set(actions)
-          for (const [action, ids] of Object.entries(eGroups)) {
-            if (!Array.isArray(ids)) continue;
-            for (const id of ids) { const k = String(id); if (!byAccount.has(k)) byAccount.set(k, new Set()); byAccount.get(k).add(action); }
-          }
-          const accs = await Account.find({ _id: { $in: [...byAccount.keys()] }, isActive: true, status: 'active' });
-          workList = accs.map(a => ({ account: a, actions: [...byAccount.get(String(a._id))] }));
-        } else {
-          const accs = await Account.find({ _id: { $in: engageAccountIds }, isActive: true, status: 'active' });
-          workList = accs.map(a => ({ account: a, actions: engageActions }));
-        }
-
-        if (workList.length) {
-          const shuffle = arr => [...arr].sort(() => Math.random() - 0.5);
-          const ordered = shuffle(workList);
-          const queue   = getQueue(QUEUE_NAMES.ENGAGEMENT);
-          const parentJobId = `eng-auto-${r.tweetId}-${Date.now()}`;
-          const minD = engageDelayMinMs || 8000;
-          const maxD = engageDelayMaxMs || 25000;
-          const jobs = ordered.map(({ account, actions }, i) => ({
-            name: QUEUE_NAMES.ENGAGEMENT,
-            data: {
-              accountId: account._id.toString(),
-              actions,
-              tweetId:   r.tweetId,
-              tweetUrl,
-              replyText: (actions.includes('reply') && engageReplyTexts?.length) ? engageReplyTexts[i % engageReplyTexts.length] : null,
-              meta: { parentJobId, index: i, total: ordered.length },
-            },
-            opts: { delay: Math.round(i*(minD+Math.random()*(maxD-minD))), attempts:2,
-              jobId: `eng-auto-${r.tweetId}-${account._id}-${Date.now()}` },
-          }));
-          await queue.addBulk(jobs);
-          registry.create({ parentJobId, type:'engagement', total:jobs.length,
-            accountUsernames: ordered.map(w => w.account.username),
-            meta: { auto:true, tweetId:r.tweetId, mode: eHasGroups ? 'per-action' : 'pool' } });
-          registry.registerJobs(parentJobId, jobs.map(j=>j.opts.jobId));
-          logger.info(`[TweetMulti] Auto-engage: ${jobs.length} jobs for tweet ${r.tweetId} (${eHasGroups?'per-action':'pool'})`);
-        }
+        const { launchAutoEngage } = require('../../ops/auto-engage');
+        await launchAutoEngage({
+          tweetId: r.tweetId, tweetUrl,
+          actionGroups: engageActionGroups, accountIds: engageAccountIds, actions: engageActions,
+          replyTexts: engageReplyTexts, delayMinMs: engageDelayMinMs, delayMaxMs: engageDelayMaxMs,
+          label: 'tweet-multi',
+        });
       } catch(e) { logger.warn(`[TweetMulti] Auto-engage error: ${e.message}`); }
     }
 

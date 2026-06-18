@@ -1870,7 +1870,50 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
             <div class="field"><label>الحساب</label><select id="sc-acc"></select></div>
             <div class="field"><label>موعد النشر</label><input type="datetime-local" id="sc-time"></div>
             <div class="field fg-full"><label>نص التغريدة</label><textarea id="sc-text" placeholder="اكتب التغريدة المراد جدولتها…" maxlength="280"></textarea></div>
+            <div class="field fg-full">
+              <label>وسائط (صور حتى ٤ أو فيديو واحد)</label>
+              <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <input id="sc-images" type="file" accept="image/jpeg,image/png,image/gif,image/webp" multiple style="font-size:11px">
+                <input id="sc-video" type="file" accept="video/mp4,video/quicktime,video/webm" style="font-size:11px">
+              </div>
+            </div>
           </div>
+
+          <!-- تفاعل تلقائي بعد النشر -->
+          <div style="margin:12px 0;border-top:1px solid var(--bd);padding-top:12px">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px">
+              <input type="checkbox" id="sc-auto-engage" onchange="updateSchedEngageToggle()" style="width:15px;height:15px;accent-color:var(--grn)">
+              ⚡ تفاعل تلقائي بعد النشر
+            </label>
+            <div id="sc-engage-body" style="display:none;margin-top:10px">
+              <div class="field" style="margin-bottom:10px">
+                <label>إجراءات التفاعل</label>
+                <div id="sched-eng-actions" style="display:flex;gap:6px;flex-wrap:wrap">
+                  <button type="button" class="act-toggle" data-on="0" data-action="like" onclick="toggleActionBtn(this)">إعجاب</button>
+                  <button type="button" class="act-toggle" data-on="0" data-action="retweet" onclick="toggleActionBtn(this)">ريتويت</button>
+                  <button type="button" class="act-toggle" data-on="0" data-action="reply" onclick="toggleActionBtn(this)">رد</button>
+                  <button type="button" class="act-toggle" data-on="0" data-action="quote_tweet" onclick="toggleActionBtn(this)">اقتباس</button>
+                </div>
+              </div>
+              <div class="field" style="margin-bottom:10px">
+                <label>حسابات التفاعل لكل إجراء <span id="sched-eng-mx-count" style="color:var(--blu2);font-weight:600;float:left">0 حساب</span></label>
+                <div id="sched-eng-blocks" style="max-height:240px;overflow:auto"><div style="color:var(--t3);font-size:12px;padding:8px">اختر إجراءات التفاعل أول…</div></div>
+              </div>
+              <div class="field" style="margin-bottom:10px">
+                <label>نصوص الرد <small style="color:var(--t2);font-weight:400">— سطر لكل حساب</small></label>
+                <textarea id="sc-eng-reply-texts" rows="2" placeholder="رائع!&#10;محتوى ممتاز 👏" style="font-size:12px;resize:vertical"></textarea>
+              </div>
+              <div class="field">
+                <label>التأخير بين حسابات التفاعل</label>
+                <select id="sc-eng-delay">
+                  <option value="5000,15000">5-15 ثانية</option>
+                  <option value="10000,25000" selected>10-25 ثانية</option>
+                  <option value="20000,45000">20-45 ثانية</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
           <button class="btn btn-p" onclick="doSchedule()">جدولة النشر</button>
         </div>
       </div>
@@ -2921,7 +2964,7 @@ function nav(id, btn) {
   if (id === 'engagement') { loadEngagement(); if (!allActiveAccounts.length) loadActiveAccounts(); }
   if (id === 'audit')    { auditPage = 1; loadAudit(); }
   if (id === 'content')  loadContent();
-  if (id === 'schedule') { loadSchedules(); fillAccountSelects('sc-acc'); }
+  if (id === 'schedule') { loadSchedules(); fillAccountSelects('sc-acc'); apReset('sched'); }
   if (id === 'ai')       fillAccountSelects('ai-acc');
   if (id === 'actions') {
     fillAllActionSelects();
@@ -4621,6 +4664,13 @@ async function cancelContent(id) {
 /* ═══════════════════════════════════════════════════════════════
    الجدولة
 ═══════════════════════════════════════════════════════════════ */
+function updateSchedEngageToggle() {
+  const on = document.getElementById('sc-auto-engage')?.checked;
+  const body = document.getElementById('sc-engage-body');
+  if (body) body.style.display = on ? 'block' : 'none';
+  if (on) apRender('sched');
+}
+
 async function doSchedule() {
   const accountId  = document.getElementById('sc-acc').value;
   const text       = document.getElementById('sc-text').value.trim();
@@ -4628,12 +4678,40 @@ async function doSchedule() {
   if (!text || !scheduledAt) return toast('أكمل جميع الحقول', 'warn');
 
   try {
-    // إنشاء المحتوى أولاً
-    const item = await api('/api/v1/content', { method:'POST', body: JSON.stringify({ accountId, text, scheduledAt }) });
-    // ثم جدلته
+    // ١) رفع الوسائط (صور + فيديو)
+    let mediaLocalPaths = [];
+    const fd = new FormData(); let hasFiles = false;
+    [...(document.getElementById('sc-images')?.files || [])].forEach(f => { fd.append('images', f); hasFiles = true; });
+    const vid = document.getElementById('sc-video')?.files?.[0];
+    if (vid) { fd.append('images', vid); hasFiles = true; }
+    if (hasFiles) {
+      const r = await fetch('/api/v1/actions/upload-media', { method:'POST', headers:{ Authorization:`Bearer ${TOKEN}` }, body: fd });
+      const d = await r.json();
+      mediaLocalPaths = d.paths || [];
+    }
+
+    // ٢) إعداد التفاعل التلقائي
+    let engage = { enabled: false };
+    if (document.getElementById('sc-auto-engage')?.checked) {
+      const actionGroups = apGroups('sched');
+      const total = new Set(Object.values(actionGroups).flat()).size;
+      if (!total) return toast('أشّر حسابات للتفاعل أو ألغِ التفاعل التلقائي', 'warn');
+      const dParts = (document.getElementById('sc-eng-delay')?.value || '10000,25000').split(',');
+      engage = {
+        enabled: true,
+        actionGroups,
+        replyTexts: document.getElementById('sc-eng-reply-texts')?.value.trim().split('\n').filter(Boolean) || [],
+        delayMinMs: +dParts[0], delayMaxMs: +dParts[1],
+      };
+    }
+
+    // ٣) أنشئ المحتوى المجدول (مع الوسائط والتفاعل) ثم سجّله
+    const item = await api('/api/v1/content', { method:'POST', body: JSON.stringify({ accountId, text, scheduledAt, mediaLocalPaths, engage }) });
     await api('/api/v1/content/schedule', { method:'POST', body: JSON.stringify({ accountId, contentId: item._id, scheduledAt }) });
     toast('✅ تمت الجدولة', 'ok');
     document.getElementById('sc-text').value = '';
+    if (document.getElementById('sc-images')) document.getElementById('sc-images').value = '';
+    if (document.getElementById('sc-video'))  document.getElementById('sc-video').value = '';
     loadSchedules();
   } catch(e) { toast(e.message,'err'); }
 }
@@ -5198,9 +5276,10 @@ function toggleActionBtn(btn) {
   btn.style.background = '';
   btn.style.borderColor = '';
   btn.style.color = '';
-  // أعد رسم كتل الحسابات حسب النطاق (حملة أو تفاعل تلقائي)
-  if (btn.closest('#eng-actions'))    apRender('eng');
-  if (btn.closest('#tm-eng-actions')) apRender('tmeng');
+  // أعد رسم كتل الحسابات حسب النطاق (حملة / تفاعل النشر / تفاعل المجدول)
+  if (btn.closest('#eng-actions'))       apRender('eng');
+  if (btn.closest('#tm-eng-actions'))    apRender('tmeng');
+  if (btn.closest('#sched-eng-actions')) apRender('sched');
 }
 
 // ── مُختار حسابات لكل فعل (كتل) — معمّم لنطاقات متعددة ──────────
@@ -5208,8 +5287,9 @@ const ACT_AR = { like:'إعجاب', retweet:'ريتويت', bookmark:'حفظ', r
 
 // كل نطاق: prefix لقراءة الأفعال، حاوية الكتل، عدّاد، وحالة التحديد
 const AP = {
-  eng:   { groups:{}, prefix:'eng',    blocksId:'eng-action-blocks', countId:'eng-mx-count'    },
-  tmeng: { groups:{}, prefix:'tm-eng', blocksId:'tm-eng-blocks',     countId:'tm-eng-mx-count' },
+  eng:   { groups:{}, prefix:'eng',       blocksId:'eng-action-blocks', countId:'eng-mx-count'      },
+  tmeng: { groups:{}, prefix:'tm-eng',    blocksId:'tm-eng-blocks',     countId:'tm-eng-mx-count'   },
+  sched: { groups:{}, prefix:'sched-eng', blocksId:'sched-eng-blocks',  countId:'sched-eng-mx-count'},
 };
 
 function apFiltered(k, action) {

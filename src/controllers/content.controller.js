@@ -18,7 +18,7 @@ const ContentCtrl = {
   },
 
   async create(req, res) {
-    const { accountId, text, scheduledAt, tags, replyToTweetId } = req.body;
+    const { accountId, text, scheduledAt, tags, replyToTweetId, mediaLocalPaths, engage } = req.body;
     if (!accountId || !text) return res.status(400).json({ error: 'accountId and text required' });
     const account = await Account.findById(accountId).lean();
     if (!account) return res.status(404).json({ error: 'Account not found' });
@@ -27,6 +27,8 @@ const ContentCtrl = {
       status: scheduledAt ? 'مجدول' : 'مسودة',
       scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
       tags, replyToTweetId,
+      mediaLocalPaths: Array.isArray(mediaLocalPaths) ? mediaLocalPaths : [],
+      ...(engage && engage.enabled ? { engage } : {}),
     });
     res.status(201).json(item);
   },
