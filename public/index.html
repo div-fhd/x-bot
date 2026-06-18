@@ -1518,21 +1518,15 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
               </div>
             </div>
 
-            <!-- Engage accounts -->
+            <!-- Engage accounts per action -->
             <div class="field" style="margin-bottom:12px">
-              <label>حسابات التفاعل <span id="tm-eng-acc-count" style="color:var(--blu2);font-weight:400"></span></label>
-              <div style="display:flex;gap:6px;margin-bottom:6px">
-                <button class="btn btn-sm" onclick="selectAllEngTm()">الكل</button>
-                <button class="btn btn-sm" onclick="deselectAllEngTm()">لا شيء</button>
-                <select id="tm-eng-role-filter" onchange="filterEngTmAccounts()" style="font-size:11px;padding:3px 8px;border-radius:6px;background:var(--s3);border:1px solid var(--bd2);color:var(--t1)">
-                  <option value="">كل الأدوار</option>
-                  <option value="engage">تفاعل فقط</option>
-                  <option value="mixed">مختلط</option>
-                </select>
+              <label>حسابات التفاعل لكل إجراء
+                <span style="font-weight:400;color:var(--t3);font-size:10.5px">— لكل فعل اختر حساباته (حساب بعدة أفعال = جلسة واحدة)</span>
+                <span id="tm-eng-mx-count" style="color:var(--blu2);font-weight:600;float:left">0 حساب</span>
+              </label>
+              <div id="tm-eng-blocks" style="max-height:240px;overflow:auto">
+                <div style="color:var(--t3);font-size:12px;padding:8px">اختر إجراءات التفاعل أول…</div>
               </div>
-              <select id="tm-eng-accounts" multiple style="height:100px;font-family:var(--m);font-size:12px">
-                <option disabled>جارٍ التحميل…</option>
-              </select>
             </div>
 
             <!-- Engage delay -->
@@ -4301,8 +4295,9 @@ async function doTweetMulti() {
   try {
     // Auto-engage params
     const autoEngage = document.getElementById('tm-auto-engage')?.checked || false;
-    const engageAccountIds = autoEngage ? getSelectedAccounts('tm-eng-accounts') : [];
+    const engageActionGroups = autoEngage ? apGroups('tmeng') : {};
     const engageActions = autoEngage ? getSelectedActions('tm-eng') : [];
+    const engageAccountIds = []; // أُلغي لصالح engageActionGroups (تخصيص لكل فعل)
     const engageReplyTexts = autoEngage
       ? (document.getElementById('tm-eng-reply-texts')?.value.trim().split('\n').filter(Boolean) || [])
       : [];
@@ -4327,6 +4322,7 @@ async function doTweetMulti() {
         autoEngage,
         engageAccountIds,
         engageActions,
+        engageActionGroups,
         engageReplyTexts,
         engageDelayMinMs: +engDelayParts[0],
         engageDelayMaxMs: +engDelayParts[1],
@@ -5202,59 +5198,66 @@ function toggleActionBtn(btn) {
   btn.style.background = '';
   btn.style.borderColor = '';
   btn.style.color = '';
-  // أعد رسم كتل الحسابات لو في سياق الحملة (كتلة لكل فعل مختار)
-  if (btn.closest('#eng-actions')) renderEngBlocks();
+  // أعد رسم كتل الحسابات حسب النطاق (حملة أو تفاعل تلقائي)
+  if (btn.closest('#eng-actions'))    apRender('eng');
+  if (btn.closest('#tm-eng-actions')) apRender('tmeng');
 }
 
-// ── مُختار حسابات لكل فعل (كتل) ──────────────────────────────
+// ── مُختار حسابات لكل فعل (كتل) — معمّم لنطاقات متعددة ──────────
 const ACT_AR = { like:'إعجاب', retweet:'ريتويت', bookmark:'حفظ', reply:'رد', quote_tweet:'اقتباس', tweet_dwell:'مشاهدة', follow_author:'متابعة', profile_visit:'زيارة', share:'مشاركة' };
-let engGroups = {}; // { action: Set(accountId) }
 
-// حسابات كتلة فعل بعد تطبيق فلتر الدور + البحث
-function _blkAccounts(action) {
-  const role = document.getElementById('blk-filter-' + action)?.value || '';
-  const q    = (document.getElementById('blk-search-' + action)?.value || '').toLowerCase().replace('@', '');
+// كل نطاق: prefix لقراءة الأفعال، حاوية الكتل، عدّاد، وحالة التحديد
+const AP = {
+  eng:   { groups:{}, prefix:'eng',    blocksId:'eng-action-blocks', countId:'eng-mx-count'    },
+  tmeng: { groups:{}, prefix:'tm-eng', blocksId:'tm-eng-blocks',     countId:'tm-eng-mx-count' },
+};
+
+function apFiltered(k, action) {
+  const role = document.getElementById(`blk-filter-${k}-${action}`)?.value || '';
+  const q    = (document.getElementById(`blk-search-${k}-${action}`)?.value || '').toLowerCase().replace('@', '');
   let list = role ? allActiveAccounts.filter(a => (a.role || 'mixed') === role) : allActiveAccounts;
   if (q) list = list.filter(a => a.username.toLowerCase().includes(q));
   return list;
 }
 
-function renderEngBlocks() {
-  const host = document.getElementById('eng-action-blocks');
+function apRender(k) {
+  const s = AP[k]; if (!s) return;
+  const host = document.getElementById(s.blocksId);
   if (!host) return;
-  const actions = getSelectedActions('eng');
-  if (!actions.length) { host.innerHTML = '<div style="color:var(--t3);font-size:12px;padding:8px">اختر إجراءات أول…</div>'; updateEngMxCount(); return; }
-  actions.forEach(a => { if (!engGroups[a]) engGroups[a] = new Set(); });
+  const actions = getSelectedActions(s.prefix);
+  if (!actions.length) { host.innerHTML = '<div style="color:var(--t3);font-size:12px;padding:8px">اختر إجراءات أول…</div>'; apCount(k); return; }
+  actions.forEach(a => { if (!s.groups[a]) s.groups[a] = new Set(); });
 
   host.innerHTML = actions.map(a => `
     <div style="border:1px solid var(--bd2);border-radius:8px;padding:8px;margin-bottom:8px">
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
         <b style="font-size:12.5px">${ACT_AR[a] || a}</b>
-        <span id="blk-cnt-${a}" style="font-size:11px;color:var(--blu2);font-family:var(--m)">${engGroups[a].size} محدد</span>
+        <span id="blk-cnt-${k}-${a}" style="font-size:11px;color:var(--blu2);font-family:var(--m)">${s.groups[a].size} محدد</span>
       </div>
       <div style="display:flex;gap:6px;margin-bottom:6px;flex-wrap:wrap;align-items:center">
-        <select id="blk-filter-${a}" onchange="renderBlockChips('${a}')" style="font-size:11.5px;padding:4px 8px">
+        <select id="blk-filter-${k}-${a}" onchange="apChips('${k}','${a}')" style="font-size:11.5px;padding:4px 8px">
           <option value="">كل الأدوار</option><option value="post">نشر</option><option value="engage">تفاعل</option><option value="support">دعم</option><option value="mixed">مختلط</option>
         </select>
-        <input id="blk-search-${a}" oninput="renderBlockChips('${a}')" placeholder="🔍 بحث @" style="font-size:11.5px;padding:4px 8px;flex:1;min-width:90px">
-        <button class="btn btn-sm" type="button" onclick="engBlockAll('${a}')">الكل</button>
-        <button class="btn btn-sm" type="button" onclick="engBlockClear('${a}')">مسح</button>
+        <input id="blk-search-${k}-${a}" oninput="apChips('${k}','${a}')" placeholder="🔍 بحث @" style="font-size:11.5px;padding:4px 8px;flex:1;min-width:90px">
+        <button class="btn btn-sm" type="button" onclick="apAll('${k}','${a}')">الكل</button>
+        <button class="btn btn-sm" type="button" onclick="apClear('${k}','${a}')">مسح</button>
       </div>
-      <div id="blk-chips-${a}" class="eng-acc-grid"></div>
+      <div id="blk-chips-${k}-${a}" class="eng-acc-grid"></div>
     </div>
   `).join('');
-  actions.forEach(a => renderBlockChips(a));
-  updateEngMxCount();
+  actions.forEach(a => apChips(k, a));
+  apCount(k);
 }
 
-function renderBlockChips(action) {
-  const host = document.getElementById('blk-chips-' + action);
+function apChips(k, action) {
+  const s = AP[k]; if (!s) return;
+  const host = document.getElementById(`blk-chips-${k}-${action}`);
   if (!host) return;
-  if (!engGroups[action]) engGroups[action] = new Set();
-  const list = _blkAccounts(action);
+  if (!s.groups[action]) s.groups[action] = new Set();
+  const list = apFiltered(k, action);
   host.innerHTML = list.length ? list.map(a => {
-    const on = engGroups[action].has(a._id);
-    return `<div class="eng-acc-chip${on ? ' selected' : ''}" onclick="engChipToggle('${action}','${a._id}',this)" data-id="${a._id}">
+    const on = s.groups[action].has(a._id);
+    return `<div class="eng-acc-chip${on ? ' selected' : ''}" onclick="apToggle('${k}','${action}','${a._id}',this)" data-id="${a._id}">
       <span class="eng-chip-dot"></span>
       <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">@${a.username}</span>
       <span style="font-size:9.5px;color:var(--t3)">${ROLE_AR[a.role] || ''}</span>
@@ -5262,35 +5265,43 @@ function renderBlockChips(action) {
   }).join('') : '<div style="color:var(--t3);font-size:11px;padding:6px">لا نتائج</div>';
 }
 
-function engChipToggle(action, id, el) {
-  if (!engGroups[action]) engGroups[action] = new Set();
-  if (engGroups[action].has(id)) { engGroups[action].delete(id); el.classList.remove('selected'); }
-  else { engGroups[action].add(id); el.classList.add('selected'); }
-  _blkCnt(action); updateEngMxCount();
+function apToggle(k, action, id, el) {
+  const s = AP[k]; if (!s.groups[action]) s.groups[action] = new Set();
+  if (s.groups[action].has(id)) { s.groups[action].delete(id); el.classList.remove('selected'); }
+  else { s.groups[action].add(id); el.classList.add('selected'); }
+  apCnt(k, action); apCount(k);
 }
 
-function engBlockAll(action) {
-  if (!engGroups[action]) engGroups[action] = new Set();
-  _blkAccounts(action).forEach(a => engGroups[action].add(a._id)); // كل المعروض (بعد الفلتر)
-  renderBlockChips(action); _blkCnt(action); updateEngMxCount();
+function apAll(k, action) {
+  const s = AP[k]; if (!s.groups[action]) s.groups[action] = new Set();
+  apFiltered(k, action).forEach(a => s.groups[action].add(a._id)); // كل المعروض (بعد الفلتر)
+  apChips(k, action); apCnt(k, action); apCount(k);
 }
 
-function engBlockClear(action) {
-  engGroups[action] = new Set(); // امسح كل حسابات هذا الفعل
-  renderBlockChips(action); _blkCnt(action); updateEngMxCount();
+function apClear(k, action) {
+  AP[k].groups[action] = new Set();
+  apChips(k, action); apCnt(k, action); apCount(k);
 }
 
-function _blkCnt(action) {
-  const el = document.getElementById('blk-cnt-' + action);
-  if (el) el.textContent = `${engGroups[action]?.size || 0} محدد`;
+function apCnt(k, action) {
+  const el = document.getElementById(`blk-cnt-${k}-${action}`);
+  if (el) el.textContent = `${AP[k].groups[action]?.size || 0} محدد`;
 }
 
-function updateEngMxCount() {
+function apCount(k) {
   const total = new Set();
-  Object.values(engGroups).forEach(s => s.forEach(id => total.add(id)));
-  const el = document.getElementById('eng-mx-count');
+  Object.values(AP[k].groups).forEach(set => set.forEach(id => total.add(id)));
+  const el = document.getElementById(AP[k].countId);
   if (el) el.textContent = `${total.size} حساب`;
 }
+
+// يبني { action: [ids] } للأفعال المختارة فقط
+function apGroups(k) {
+  const s = AP[k]; const out = {};
+  getSelectedActions(s.prefix).forEach(a => { if (s.groups[a]?.size) out[a] = [...s.groups[a]]; });
+  return out;
+}
+function apReset(k) { AP[k].groups = {}; }
 
 function getSelectedActions(prefix) {
   const container = document.getElementById(prefix + '-actions');
@@ -5701,8 +5712,8 @@ async function loadEngagement() {
 async function openEngModal() {
   const modal = document.getElementById('eng-modal');
   if (modal) modal.style.display = 'flex';
-  engGroups = {};          // صفّر تخصيص الأفعال
-  renderEngBlocks();
+  apReset('eng');          // صفّر تخصيص الأفعال
+  apRender('eng');
 }
 function closeEngModal() { document.getElementById('eng-modal').style.display = 'none'; }
 
@@ -5733,9 +5744,8 @@ function buildEngPayload() {
   const name     = document.getElementById('eng-name').value.trim();
   const tweetUrl = document.getElementById('eng-tweet-url').value.trim();
   const actions      = getSelectedActions('eng');
-  // actionGroups: حسابات محدّدة لكل فعل (من المصفوفة)
-  const actionGroups = {};
-  actions.forEach(a => { if (engGroups[a]?.size) actionGroups[a] = [...engGroups[a]]; });
+  // actionGroups: حسابات محدّدة لكل فعل (من المُختار)
+  const actionGroups = apGroups('eng');
   const totalAssigned = new Set(Object.values(actionGroups).flat()).size;
   const replyTexts   = document.getElementById('eng-reply-texts')?.value.trim().split('\n').filter(Boolean) || [];
   const quoteMode    = document.querySelector('[name="eng-quote-mode"]:checked')?.value || 'manual';
@@ -5816,9 +5826,7 @@ function updateAutoEngageToggle() {
   const on  = document.getElementById('tm-auto-engage')?.checked;
   const body = document.getElementById('tm-auto-engage-body');
   if (body) body.style.display = on ? 'block' : 'none';
-  if (on && !document.querySelectorAll('#tm-eng-accounts option').length) {
-    fillEngTmAccounts();
-  }
+  if (on) apRender('tmeng'); // ارسم كتل التفاعل لكل فعل
 }
 function fillEngTmAccounts() {
   const sel = document.getElementById('tm-eng-accounts');
