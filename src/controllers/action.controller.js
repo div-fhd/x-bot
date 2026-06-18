@@ -199,7 +199,9 @@ const ActionCtrl = {
     const dir  = path.join(process.cwd(), 'data', 'media');
     fs.mkdirSync(dir, { recursive: true });
     const paths = [];
-    for (const file of (req.files?.images || [])) {
+    // صور + فيديو (X يقبل حتى ٤ صور أو فيديو واحد)
+    const files = [...(req.files?.images || []), ...(req.files?.video || [])];
+    for (const file of files) {
       const ext  = file.originalname.split('.').pop();
       const dest = path.join(dir, `media_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`);
       fs.writeFileSync(dest, file.buffer);

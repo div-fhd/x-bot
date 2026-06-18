@@ -111,12 +111,21 @@ const ActionSvc = {
         throw new Error(`Text did not land in tweet box for @${account.username}`);
       }
 
-      // Media
+      // Media (صور حتى ٤، أو فيديو واحد — X لا يسمح بخلطهما)
+      let hasVideo = false;
       if (content.mediaLocalPaths?.length) {
-        const valid = content.mediaLocalPaths.filter(p => fs.existsSync(p)).slice(0, 4);
-        if (valid.length) {
+        const exist = content.mediaLocalPaths.filter(p => fs.existsSync(p));
+        const isVid = p => /\.(mp4|mov|avi|webm|m4v)$/i.test(p);
+        const video = exist.find(isVid);
+        const files = video ? [video] : exist.filter(p => !isVid(p)).slice(0, 4);
+        if (files.length) {
+          hasVideo = !!video;
           const inp = await page.$(SEL.fileInput);
-          if (inp) { await inp.setInputFiles(valid); await sleep(2500, 4000); }
+          if (inp) {
+            await inp.setInputFiles(files);
+            // الفيديو يحتاج وقت معالجة أطول قبل أن يُفعّل زر النشر
+            await sleep(hasVideo ? 6000 : 2500, hasVideo ? 9000 : 4000);
+          }
         }
       }
 
@@ -124,9 +133,10 @@ const ActionSvc = {
       // Try tweetButtonInline first (inside compose modal), fallback to tweetButton
       const submitLocator = page.locator(`${SEL.tweetBtnInline}, ${SEL.tweetBtn}`).first();
 
-      // Wait up to 8s for button to become enabled
+      // انتظر تفعيل الزر — الفيديو يحتاج وقتاً أطول حتى يكتمل رفعه/معالجته
       let btnEnabled = false;
-      for (let attempt = 0; attempt < 8; attempt++) {
+      const maxAttempts = hasVideo ? 75 : 8; // ~75s للفيديو، ~8s للصور
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
         const count = await submitLocator.count().catch(() => 0);
         if (count > 0) {
           btnEnabled = await submitLocator.isEnabled().catch(() => false);

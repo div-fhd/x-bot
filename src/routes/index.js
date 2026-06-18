@@ -8,11 +8,11 @@ const { authMiddleware, requireFeature } = require('../middleware/index');
 // ── Actions ────────────────────────────────────────────────────
 const actionRouter = express.Router();
 actionRouter.use(authMiddleware);
-const multerAction = require('multer')({ storage: require('multer').memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
+const multerAction = require('multer')({ storage: require('multer').memoryStorage(), limits: { fileSize: 200 * 1024 * 1024 } }); // 200MB لدعم الفيديو
 actionRouter.get ('/jobs',              actCtrl.listJobs);
 actionRouter.post('/jobs/cancel-all',    actCtrl.cancelAllJobs);
 actionRouter.post('/jobs/:jobId/cancel', actCtrl.cancelJob);
-actionRouter.post('/upload-media',     multerAction.fields([{ name:'images', maxCount:100 }]), actCtrl.uploadMedia);
+actionRouter.post('/upload-media',     multerAction.fields([{ name:'images', maxCount:100 }, { name:'video', maxCount:1 }]), actCtrl.uploadMedia);
 actionRouter.post('/tweet',            actCtrl.tweet);
 actionRouter.post('/tweet-multi',      actCtrl.tweetMulti);
 actionRouter.post('/report-account', requireFeature('report'),   actCtrl.reportAccount);
