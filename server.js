@@ -248,9 +248,14 @@ if (process.env.REDIS_HOST || process.env.REDIS_URL) {
     require('./src/utils/logger').warn(`[Workers] Failed to start: ${err.message}`)
   );
 
+  // ── Scheduler: ينشر التغريدات المجدولة عند وقتها ──
+  const { startScheduler } = require('./src/scheduler/post-scheduler');
+  startScheduler();
+
   const graceful = async (sig) => {
     require('./src/utils/logger').info(`[Server] ${sig} — shutting down workers...`);
     const { stopWorkers } = require('./src/queues/workers');
+    require('./src/scheduler/post-scheduler').stopScheduler();
     await stopWorkers();
     await closeAllQueues();
     await closeRedis();

@@ -17,6 +17,7 @@ const QUEUE_NAMES = {
   PROFILE_SYNC:   `${PREFIX}profile-sync`,
   HEALTH_CHECK:   `${PREFIX}health-check`,
   ENGAGEMENT:     `${PREFIX}engagement`,
+  SCHEDULED_POST: `${PREFIX}scheduled-post`,
 };
 
 const DEFAULT_JOB_OPTS = {

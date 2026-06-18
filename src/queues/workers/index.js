@@ -18,6 +18,7 @@ const PROCESSOR_MAP = {
   [QUEUE_NAMES.PROFILE_SYNC]:   require('../processors/profile-sync.processor'),
   [QUEUE_NAMES.HEALTH_CHECK]:   require('../processors/health-check.processor'),
   [QUEUE_NAMES.ENGAGEMENT]:     require('../processors/engagement.processor'),
+  [QUEUE_NAMES.SCHEDULED_POST]: require('../processors/scheduled-post.processor'),
 };
 
 const _workers    = [];

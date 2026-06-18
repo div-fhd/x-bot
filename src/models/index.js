@@ -17,6 +17,7 @@ const ContentSchema = new mongoose.Schema({
   account: { type: mongoose.Schema.Types.ObjectId, ref: 'Account', required: true, index: true },
   text:    { type: String, required: true, maxlength: 280 },
   mediaUrls: [String],
+  mediaLocalPaths: [String], // مسارات الوسائط المحلية (صور/فيديو) للرفع عند النشر
   status: {
     type: String,
     enum: ['مسودة','بانتظار_موافقة','معتمد','مجدول','منشور','فشل','ملغى'],
