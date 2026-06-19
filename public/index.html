@@ -4674,8 +4674,13 @@ function updateSchedEngageToggle() {
 async function doSchedule() {
   const accountId  = document.getElementById('sc-acc').value;
   const text       = document.getElementById('sc-text').value.trim();
-  const scheduledAt= document.getElementById('sc-time').value;
-  if (!text || !scheduledAt) return toast('أكمل جميع الحقول', 'warn');
+  const localTime  = document.getElementById('sc-time').value;
+  if (!text || !localTime) return toast('أكمل جميع الحقول', 'warn');
+  // حوّل الوقت المحلي (datetime-local) إلى UTC ISO — مستقل عن توقيت السيرفر
+  const when = new Date(localTime);
+  if (isNaN(when.getTime())) return toast('وقت غير صحيح', 'warn');
+  if (when.getTime() <= Date.now()) return toast('اختر وقتاً في المستقبل', 'warn');
+  const scheduledAt = when.toISOString();
 
   try {
     // ١) رفع الوسائط (صور + فيديو)
