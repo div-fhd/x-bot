@@ -323,8 +323,9 @@ async function getPage(account) {
   page.setDefaultTimeout(120_000);
   page.setDefaultNavigationTimeout(120_000);
 
-  // Block media/tracking to reduce proxy bandwidth (~60-70% savings)
-  await page.route('**/*.{png,jpg,jpeg,gif,webp,mp4,webm,svg,woff,woff2,ttf,otf}', r => r.abort());
+  // نحجب الصور/الفيديو الثقيلة فقط لتوفير الباندويث.
+  // ⚠️ لا نحجب svg/fonts/css/js — X يعتمد عليها لإكمال الرسم؛ حجبها يعلّق على splash screen.
+  await page.route('**/*.{png,jpg,jpeg,gif,webp,mp4,webm,m4v,mov}', r => r.abort());
   await page.route('**/{ads,analytics,doubleclick,googlesyndication,pixel,tracking,telemetry}**', r => r.abort());
   await page.route('**/{i.ads.microsoft,adsystem,adservice,adclick}**', r => r.abort());
 
