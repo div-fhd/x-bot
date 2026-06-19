@@ -48,12 +48,10 @@ module.exports = wrapProcessor(async function scheduledPostProcessor(job) {
     }
     return { success: true, tweetId: r.tweetId };
   } catch (e) {
-    // SKIP/cap لا تُعَدّ فشلاً نهائياً — تبقى مجدولة لإعادة المحاولة
-    if (!e.message?.startsWith('SKIP:')) {
-      content.status = 'فشل'; content.failReason = e.message;
-      await content.save().catch(swallow('sched:save', 'warn'));
-      await Schedule.updateMany({ content: content._id, status: 'pending' }, { status: 'failed' }).catch(swallow('sched:schedUpd'));
-    }
+    // علّم "فشل" على أي خطأ (بما فيه SKIP) — وإلا تبقى "مجدول" ويعيد الـ scheduler صفّها كل دقيقة (حلقة)
+    content.status = 'فشل'; content.failReason = e.message;
+    await content.save().catch(swallow('sched:save', 'warn'));
+    await Schedule.updateMany({ content: content._id, status: 'pending' }, { status: 'failed' }).catch(swallow('sched:schedUpd'));
     throw e;
   }
 });

@@ -77,17 +77,25 @@ const ActionSvc = {
     const page = await Browser.getPage(account);
     const t0   = Date.now();
 
+    let navStatus = 'n/a';
     try {
-      // الذهاب مباشرة لصفحة الكتابة بدل home + ضغط زر compose
-      await page.goto('https://x.com/compose/post', { waitUntil: 'domcontentloaded', timeout: 60_000 });
+      // navigate يصنّف فشل البروكسي/الشبكة + status بوضوح
+      const navResp = await this._navigate(page, 'https://x.com/compose/post', account);
+      navStatus = navResp ? navResp.status() : 'no-resp';
 
-      if (page.url().includes('/login')) throw new Error(`Session expired for @${account.username}`);
-
-      // انتظر الـ textarea بطريقتين — أيهما أسرع
-      await Promise.race([
-        page.waitForSelector('[data-testid="tweetTextarea_0"]', { timeout: 60_000 }),
-        page.waitForSelector('[role="textbox"]', { timeout: 60_000 }),
-      ]);
+      // انتظر مُحرّر الكتابة — وإلا خطأ صريح (auth/splash/فارغ) بدل timeout غامض
+      const ready = await dom.present(page, Sel.compose.editor, { timeout: 30_000, state: 'visible' });
+      if (!ready) {
+        if (await dom.present(page, Sel.page.loginWall, { timeout: 1500 }))
+          throw new Error(`SKIP:@${account.username} — auth_required (جدار دخول على صفحة الكتابة)`);
+        const htmlLen = await page.evaluate(() => document.documentElement.outerHTML.length).catch(() => -1);
+        const title   = await page.title().catch(() => '');
+        if (htmlLen >= 0 && htmlLen < 600)
+          throw new Error(`EmptyDocument: @${account.username} — صفحة الكتابة فارغة (${htmlLen}b)`);
+        if (/^Loading/i.test(title) || !title)
+          throw new Error(`StillLoading: @${account.username} — صفحة الكتابة لم تكتمل (splash) — قيد/بطء على الحساب`);
+        throw new Error(`PageNotReady: صفحة الكتابة لم تُرسم (title="${title.slice(0, 40)}", navStatus=${navStatus})`);
+      }
       await sleep(500, 800);
       const box = page.locator(SEL.tweetBox).first();
       await box.evaluate(el => el.focus());
@@ -165,6 +173,9 @@ const ActionSvc = {
       return { success:true, tweetId, tweetUrl: tweetId ? `https://x.com/${account.username}/status/${tweetId}` : null };
 
     } catch (e) {
+      if (!/cap reached/i.test(e.message)) {
+        await this._captureDebug(page, account, 'tweet-fail', { navStatus, error: e.message.slice(0, 160) }).catch(() => {});
+      }
       await log(account._id, 'publish', 'tweet_failed', 'failure', { error:e.message });
       logger.error(`[Action] Tweet failed @${account.username}: ${e.message}`);
       throw e;
