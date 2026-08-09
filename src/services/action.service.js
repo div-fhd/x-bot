@@ -744,6 +744,18 @@ const ActionSvc = {
     });
 
     try {
+      const profileFormSelector = [
+        'input[name="displayName"]',
+        'textarea[name="description"]',
+        '[data-testid="Profile_Save_Button"]',
+      ].join(',');
+      const waitForProfileForm = (timeout = 20_000) => page.waitForFunction(selector =>
+        [...document.querySelectorAll(selector)].some(el => {
+          const style = window.getComputedStyle(el);
+          const rect = el.getBoundingClientRect();
+          return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
+        }), profileFormSelector, { timeout }).then(() => true).catch(() => false);
+
       // ── إحماء: حمّل home أولاً ليُهيّئ X حالة الجلسة قبل الذهاب لصفحة محمية ─
       // الانتقال المباشر لـ /settings/profile عند الإقلاع البارد يُعرض shell فارغ
       // (الـ SPA لا يُهيّئ auth في الوقت المناسب). home warm-up يحلّ ذلك — كما في _classify.
@@ -767,30 +779,35 @@ const ActionSvc = {
       await this._dismissPopups(page);
       await this._checkNotRedirected(page, account);
 
-      // انتظر ظهور الفورم — أي من هذه العناصر يكفي
-      const formReady = await Promise.race([
-        page.waitForSelector('input[name="displayName"]',          { state: 'visible', timeout: 20_000 }).then(() => 'displayName'),
-        page.waitForSelector('[data-testid="Profile_Save_Button"]', { state: 'attached', timeout: 20_000 }).then(() => 'saveBtn'),
-        page.waitForSelector('textarea[name="description"]',       { state: 'visible', timeout: 20_000 }).then(() => 'bio'),
-      ]).catch(() => null);
+      // انتظر ظهور أي عنصر مرئي من الفورم دون أن يُفشل انتظار عنصر آخر العملية.
+      let formReady = await waitForProfileForm();
 
       if (!formReady) {
         // الصفحة لم تحمّل الفورم — reload مع انتظار 'load' (تهيئة الـ SPA كاملة)
         logger.info(`[Action] @${account.username} — Settings form timeout, reloading...`);
-        await page.reload({ waitUntil: 'load', timeout: 40_000 }).catch(() => {});
-        // امنح React وقتاً ليُهيّئ بعد اكتمال الشبكة
-        await page.waitForLoadState('networkidle', { timeout: 10_000 }).catch(() => {});
+        await page.reload({ waitUntil: 'domcontentloaded', timeout: 40_000 }).catch(() => {});
+        // امنح React وقتاً ليُهيّئ؛ networkidle غير مناسب لاتصالات X المستمرة.
         await sleep(2000, 3000);
         await this._dismissPopups(page);
         await this._checkNotRedirected(page, account);
 
-        const retryReady = await Promise.race([
-          page.waitForSelector('input[name="displayName"]',          { state: 'visible',  timeout: 20_000 }).then(() => true),
-          page.waitForSelector('[data-testid="Profile_Save_Button"]', { state: 'attached', timeout: 20_000 }).then(() => true),
-          page.waitForSelector('textarea[name="description"]',       { state: 'visible',  timeout: 20_000 }).then(() => true),
-        ]).catch(() => false);
+        formReady = await waitForProfileForm();
 
-        if (!retryReady) {
+        if (!formReady) {
+          // بعض الجلسات تعيد /settings/profile إلى /home. افتح صفحة الحساب
+          // واضغط Edit profile من داخل واجهة X كمسار احتياطي.
+          logger.info(`[Action] @${account.username} — Opening profile editor through profile page...`);
+          await page.goto(`https://x.com/${account.username}`, { waitUntil: 'domcontentloaded', timeout: 40_000 }).catch(() => {});
+          await this._dismissPopups(page);
+          await this._checkNotRedirected(page, account);
+          const editBtn = page.locator('[data-testid="editProfileButton"]').first();
+          if (await editBtn.isVisible().catch(() => false)) {
+            await editBtn.evaluate(el => el.click()).catch(() => {});
+            formReady = await waitForProfileForm();
+          }
+        }
+
+        if (!formReady) {
           // التقط لقطة + HTML + console/network لتشخيص ما عرضه X فعلاً
           const diag = await this._captureDebug(page, account, 'settings-form-fail', {
             consoleErrs: _consoleErrs.slice(0, 5),
@@ -828,7 +845,11 @@ const ActionSvc = {
           await avatarInput.setInputFiles(updates.avatarPath);
           await sleep(3000, 4000);
           const applyBtn = await page.$('[data-testid="applyButton"]').catch(() => null);
-          if (applyBtn) { await applyBtn.evaluate(el => el.click()); await sleep(2000, 3000); }
+          if (applyBtn) {
+            await applyBtn.evaluate(el => el.click());
+            await page.locator('[data-testid="applyButton"]').waitFor({ state: 'hidden', timeout: 15_000 }).catch(() => {});
+            await sleep(800, 1200);
+          }
           logger.info(`[Action] @${account.username} — ✓ Avatar uploaded`);
         }
       } else if (updates.avatarPath) {
@@ -847,7 +868,11 @@ const ActionSvc = {
           await bannerInput.setInputFiles(updates.bannerPath);
           await sleep(3000, 4000);
           const applyBtn = await page.$('[data-testid="applyButton"]').catch(() => null);
-          if (applyBtn) { await applyBtn.evaluate(el => el.click()); await sleep(2000, 3000); }
+          if (applyBtn) {
+            await applyBtn.evaluate(el => el.click());
+            await page.locator('[data-testid="applyButton"]').waitFor({ state: 'hidden', timeout: 15_000 }).catch(() => {});
+            await sleep(800, 1200);
+          }
           logger.info(`[Action] @${account.username} — ✓ Banner uploaded`);
         }
       } else if (updates.bannerPath) {
@@ -861,21 +886,22 @@ const ActionSvc = {
         const count = await loc.count().catch(() => 0);
         if (!count) { logger.warn(`[Action] @${account.username} — Field not found: ${selector}`); return false; }
         await loc.scrollIntoViewIfNeeded().catch(() => {});
-        await loc.click({ clickCount: 3 });
-        await sleep(150, 250);
-        // استخدم page.fill عبر locator — يُطلق input/change events كاملة
-        await loc.fill('');
-        await sleep(100);
-        await loc.fill(String(value));
-        // تحقق أن القيمة وصلت
+        const nextValue = String(value);
+        // fill لا يحتاج pointer click، لذلك لا يتأثر بطبقة modal أثناء زوالها.
+        await loc.fill(nextValue, { timeout: 15_000 }).catch(async () => {
+          // fallback مباشر يدعم React controlled inputs بدون pointer events.
+          await loc.evaluate((el, val) => {
+            const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+            const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+            if (setter) setter.call(el, val);
+            else el.value = val;
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+            el.dispatchEvent(new Event('change', { bubbles: true }));
+          }, nextValue);
+        });
         const actual = await loc.inputValue().catch(() => '');
-        if (!actual && String(value).length > 0) {
-          // fallback: type حرفاً حرفاً عبر keyboard
-          await loc.click({ clickCount: 3 });
-          await sleep(100);
-          await page.keyboard.press('Control+a');
-          await page.keyboard.press('Delete');
-          await this._humanType(page, String(value));
+        if (actual !== nextValue) {
+          throw new Error(`Field value did not update: ${selector}`);
         }
         await sleep(400, 600);
         logger.info(`[Action] @${account.username} — ✓ Field filled: ${selector.match(/name="([^"]+)"/)?.[1] || selector}`);
