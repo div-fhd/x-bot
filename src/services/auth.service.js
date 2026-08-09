@@ -42,6 +42,15 @@ async function waitForXShell(page, timeout = X_SHELL_TIMEOUT) {
   }, null, { timeout }).then(() => true).catch(() => false);
 }
 
+function requestLabel(rawUrl) {
+  try {
+    const url = new URL(rawUrl);
+    return `${url.hostname}${url.pathname}`.slice(0, 240);
+  } catch {
+    return String(rawUrl).slice(0, 240);
+  }
+}
+
 // Global login serializer — only one login at a time across all accounts.
 // Simultaneous logins from the same IP trigger X's bot detection.
 let _loginLock    = false;
@@ -141,6 +150,21 @@ const AuthSvc = {
     // Track the page in BrowserService so its context cannot be closed while
     // X is still loading.
     const page = await Browser.getPage(account);
+    const loadFailures = [];
+    const rememberFailure = message => {
+      if (loadFailures.length < 12 && !loadFailures.includes(message)) loadFailures.push(message);
+    };
+    page.on('requestfailed', request => {
+      if (!['document', 'script', 'stylesheet', 'xhr', 'fetch'].includes(request.resourceType())) return;
+      rememberFailure(`${request.resourceType()} FAILED ${request.failure()?.errorText || 'unknown'} ${requestLabel(request.url())}`);
+    });
+    page.on('response', response => {
+      if (response.status() < 400) return;
+      const request = response.request();
+      if (!['document', 'script', 'stylesheet', 'xhr', 'fetch'].includes(request.resourceType())) return;
+      rememberFailure(`${request.resourceType()} HTTP ${response.status()} ${requestLabel(response.url())}`);
+    });
+    page.on('pageerror', error => rememberFailure(`PAGE ERROR ${String(error.message || error).slice(0, 240)}`));
     try {
       // تحقق من الـ cookies قبل التنقل — لو auth_token موجود في الـ context
       const cookies = await ctx.cookies('https://x.com').catch(() => []);
@@ -174,6 +198,14 @@ const AuthSvc = {
         shellReady = await waitForXShell(page);
         if (!shellReady) {
           logger.warn(`[Auth] @${account.username} — X shell is still unavailable after retry (${page.url()})`);
+          const domState = await page.evaluate(() => ({
+            title: document.title,
+            rootChildren: document.getElementById('react-root')?.children.length ?? -1,
+            scripts: document.scripts.length,
+            body: (document.body?.innerText || '').replace(/\s+/g, ' ').slice(0, 180),
+          })).catch(() => null);
+          if (domState) logger.warn(`[Auth] @${account.username} — DOM diagnostics: ${JSON.stringify(domState)}`);
+          for (const failure of loadFailures) logger.warn(`[Auth] @${account.username} — ${failure}`);
         }
       }
       // عرض حالة البروكسي فقط بدون فتح صفحة

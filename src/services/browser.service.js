@@ -326,7 +326,9 @@ async function getPage(account) {
   // نحجب الصور/الفيديو الثقيلة فقط لتوفير الباندويث.
   // ⚠️ لا نحجب svg/fonts/css/js — X يعتمد عليها لإكمال الرسم؛ حجبها يعلّق على splash screen.
   await page.route('**/*.{png,jpg,jpeg,gif,webp,mp4,webm,m4v,mov}', r => r.abort());
-  await page.route('**/{ads,analytics,doubleclick,googlesyndication,pixel,tracking,telemetry}**', r => r.abort());
+  // Avoid broad words such as "analytics", "tracking", and "telemetry" here.
+  // They can occur in first-party X bundle/API URLs and aborting one of those
+  // requests leaves the application stuck on its splash screen.
   await page.route('**/{i.ads.microsoft,adsystem,adservice,adclick}**', r => r.abort());
 
   // Track page count
