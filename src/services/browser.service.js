@@ -364,9 +364,18 @@ async function persistSession(account) {
 }
 
 // ── closeContext ──────────────────────────────────────────────
-async function closeContext(id) {
+async function closeContext(id, { force = false } = {}) {
   const e = POOL.get(id);
   if (!e) return;
+
+  // A context is shared by all work for one account. Closing it while another
+  // tracked page is active causes "Target page, context or browser has been
+  // closed" and can interrupt React while it is hydrating.
+  if (!force && e.pages > 0) {
+    logger.debug(`[Browser] Context close deferred (${e.pages} active page(s)): ${id}`);
+    resetIdle(id);
+    return false;
+  }
   clearTimeout(e.timer);
 
   // احفظ الجلسة قبل الإغلاق — يمنع race condition مع page.on('close') handler
@@ -387,11 +396,12 @@ async function closeContext(id) {
     e.ctx.close(),
     new Promise(r => setTimeout(r, 8000)),
   ]).catch(() => {});
+  return true;
 }
 
 // ── shutdown ──────────────────────────────────────────────────
 async function shutdown() {
-  for (const [id] of POOL) await closeContext(id);
+  for (const [id] of POOL) await closeContext(id, { force: true });
   await BROWSER?.close().catch(() => {});
   BROWSER = null;
 }

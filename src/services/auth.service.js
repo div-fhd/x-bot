@@ -21,7 +21,26 @@ const { swallow } = require('../utils/swallow');
 const X_LOGIN   = 'https://x.com/i/flow/login';
 const X_HOME    = 'https://x.com/home';
 const DEBUG_DIR = './data/debug';
+const X_SHELL_TIMEOUT = 15_000;
 fs.mkdirSync(DEBUG_DIR, { recursive: true });
+
+// X keeps fetch/WebSocket connections open, so networkidle is not a reliable
+// signal that its React application has finished loading. Wait for either an
+// authenticated shell marker or a URL that classifies the session instead.
+async function waitForXShell(page, timeout = X_SHELL_TIMEOUT) {
+  return page.waitForFunction(() => {
+    const url = window.location.href;
+    const terminalUrl = /\/(?:i\/flow\/login|login|account\/access|challenge|suspended)(?:[/?#]|$)/.test(url);
+    const shell = document.querySelector([
+      '[data-testid="primaryColumn"]',
+      '[data-testid="SideNav_NewTweet_Button"]',
+      '[data-testid="SideNav_AccountSwitcher_Button"]',
+      '[aria-label="Home timeline"]',
+    ].join(','));
+    const errorPage = /Something went wrong|Try again/i.test(document.body?.innerText || '');
+    return terminalUrl || !!shell || errorPage;
+  }, null, { timeout }).then(() => true).catch(() => false);
+}
 
 // Global login serializer — only one login at a time across all accounts.
 // Simultaneous logins from the same IP trigger X's bot detection.
@@ -119,7 +138,9 @@ const AuthSvc = {
 
   // ── Classify current session ──────────────────────────────────
   async _classify(account, ctx) {
-    const page = await ctx.newPage();
+    // Track the page in BrowserService so its context cannot be closed while
+    // X is still loading.
+    const page = await Browser.getPage(account);
     try {
       // تحقق من الـ cookies قبل التنقل — لو auth_token موجود في الـ context
       const cookies = await ctx.cookies('https://x.com').catch(() => []);
@@ -136,24 +157,24 @@ const AuthSvc = {
       }
 
       await sleep(500, 1000);
-      // استخدم 'load' بدل 'domcontentloaded' — ينتظر الـ JS يحمّل كامل
-      await page.goto(X_HOME, { waitUntil: 'load', timeout: 60_000 }).catch(async (e) => {
+      // DOMContentLoaded is enough here; waitForXShell below tracks React hydration.
+      await page.goto(X_HOME, { waitUntil: 'domcontentloaded', timeout: 60_000 }).catch(async (e) => {
         const url = page.url();
         if (url && url !== 'about:blank' && !url.includes('x.com/home')) throw e;
       });
-      await sleep(2000, 3000);
+      let shellReady = await waitForXShell(page);
 
-      // كشف الـ Splash screen detected, reloading (الشاشة السودة) — JS لم يحمّل بعد
-      const isSplash = await page.evaluate(() => {
-        // لو الـ react root فارغ ولا يوجد أي data-testid → Splash screen detected, reloading
-        const root = document.getElementById('react-root');
-        return !root || root.children.length === 0 || !document.querySelector('[data-testid]');
-      }).catch(() => false);
-
-      if (isSplash) {
-        logger.info(`[Auth] @${account.username} — Splash screen detected, reloading، Processing reload مع networkidle...`);
-        await page.reload({ waitUntil: 'networkidle', timeout: 45_000 }).catch(() => {});
-        await sleep(2000, 3000);
+      // Do not classify slow React hydration as a splash screen. Wait for the
+      // full shell timeout, then retry once without using networkidle.
+      if (!shellReady) {
+        logger.warn(`[Auth] @${account.username} — X shell did not load after ${X_SHELL_TIMEOUT / 1000}s; retrying once...`);
+        await page.reload({ waitUntil: 'domcontentloaded', timeout: 45_000 }).catch(e => {
+          logger.warn(`[Auth] @${account.username} — reload failed: ${e.message}`);
+        });
+        shellReady = await waitForXShell(page);
+        if (!shellReady) {
+          logger.warn(`[Auth] @${account.username} — X shell is still unavailable after retry (${page.url()})`);
+        }
       }
       // عرض حالة البروكسي فقط بدون فتح صفحة
       const hasProxy = !!account.network?.proxyUrl;
@@ -193,12 +214,15 @@ const AuthSvc = {
       }
 
       // انتظر أي علامة على إن الصفحة حملت
-      const ready = await Promise.race([
-        page.locator('[data-testid="primaryColumn"]').waitFor({ timeout: 10_000 }).then(() => true),
-        page.locator('[data-testid="SideNav_NewTweet_Button"]').waitFor({ timeout: 10_000 }).then(() => true),
-        page.locator('[data-testid="SideNav_AccountSwitcher_Button"]').waitFor({ timeout: 10_000 }).then(() => true),
-        page.locator('[aria-label="Home timeline"]').waitFor({ timeout: 10_000 }).then(() => true),
-      ]).catch(() => false);
+      // shellReady can also represent a terminal URL or an X error page, so
+      // verify an authenticated home marker before marking the account active.
+      const homeMarkers = page.locator([
+        '[data-testid="primaryColumn"]',
+        '[data-testid="SideNav_NewTweet_Button"]',
+        '[data-testid="SideNav_AccountSwitcher_Button"]',
+        '[aria-label="Home timeline"]',
+      ].join(','));
+      const ready = await homeMarkers.count().then(count => count > 0).catch(() => false);
 
       if (ready) {
         account.status        = 'active';
