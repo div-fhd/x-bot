@@ -71,31 +71,56 @@ const Vault = {
     try { await fs.promises.unlink(this.sessionPath(accountId)); } catch {}
   },
 
+  normalizeSessionState(state, creds = {}) {
+    if (!state) return null;
+
+    const original = Array.isArray(state.cookies) ? state.cookies : [];
+    const isSessionCookie = cookie =>
+      ['auth_token', 'ct0'].includes(cookie.name) &&
+      /^(?:\.?x\.com|\.?twitter\.com)$/i.test(cookie.domain || '');
+    const findValue = name => {
+      const matches = original.filter(cookie => cookie.name === name && isSessionCookie(cookie));
+      return matches.find(cookie => cookie.domain === '.x.com')?.value
+        || matches.find(cookie => cookie.domain === 'x.com')?.value
+        || matches[0]?.value
+        || null;
+    };
+
+    const authToken = creds.auth_token || findValue('auth_token');
+    // Prefer the ct0 saved by the live browser because X may rotate it.
+    const csrfToken = findValue('ct0') || creds.session_token;
+    const cookies = original.filter(cookie => !isSessionCookie(cookie));
+
+    if (authToken) cookies.push({
+      name: 'auth_token', value: authToken,
+      domain: '.x.com', path: '/', httpOnly: true, secure: true, sameSite: 'None',
+    });
+    if (csrfToken) cookies.push({
+      name: 'ct0', value: csrfToken,
+      domain: '.x.com', path: '/', httpOnly: false, secure: true, sameSite: 'Lax',
+    });
+
+    return { ...state, cookies };
+  },
+
   buildStateFromTokens(creds) {
     if (!creds.auth_token) return null;
 
     // نضع cookies على كل الدومينات التي X يستخدمها
-    const domains = ['.x.com', '.twitter.com', 'x.com', 'twitter.com'];
-    const cookies = [];
-
-    for (const domain of domains) {
-      cookies.push({
-        name: 'auth_token', value: creds.auth_token,
-        domain, path: '/', httpOnly: true, secure: true, sameSite: 'None',
-      });
-      if (creds.session_token) {
-        cookies.push({
-          name: 'ct0', value: creds.session_token,
-          domain, path: '/', httpOnly: false, secure: true, sameSite: 'Lax',
-        });
-      }
-    }
+    // A single domain cookie covers x.com and all its subdomains. Exact-domain
+    // duplicates can send different ct0 values and trigger X API error 353.
+    const cookies = [{
+      name: 'auth_token', value: creds.auth_token,
+      domain: '.x.com', path: '/', httpOnly: true, secure: true, sameSite: 'None',
+    }];
+    if (creds.session_token) cookies.push({
+      name: 'ct0', value: creds.session_token,
+      domain: '.x.com', path: '/', httpOnly: false, secure: true, sameSite: 'Lax',
+    });
 
     // guest_id عشوائي — X يتوقعه موجوداً
     const guestId = 'v1%3A' + Date.now() + Math.floor(Math.random() * 1e9);
-    for (const domain of ['.x.com', '.twitter.com']) {
-      cookies.push({ name: 'guest_id', value: guestId, domain, path: '/', secure: true, sameSite: 'None' });
-    }
+    cookies.push({ name: 'guest_id', value: guestId, domain: '.x.com', path: '/', secure: true, sameSite: 'None' });
 
     return { cookies, origins: [] };
   },

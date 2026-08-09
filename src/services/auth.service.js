@@ -208,6 +208,10 @@ const AuthSvc = {
           for (const failure of loadFailures) logger.warn(`[Auth] @${account.username} — ${failure}`);
         }
       }
+      if (loadFailures.some(failure => /codes?:\s*\[353\]/i.test(failure))) {
+        logger.warn(`[Auth] @${account.username} — X rejected the session because ct0 and x-csrf-token did not match`);
+        return 'expired';
+      }
       // عرض حالة البروكسي فقط بدون فتح صفحة
       const hasProxy = !!account.network?.proxyUrl;
       logger.info(`[IP] @${account.username} — proxy: ${hasProxy ? '✅ ' + (account.network.proxyUrl.split('@')[1]||'') : '❌ no proxy'}`);
@@ -491,7 +495,7 @@ const AuthSvc = {
           headers: {
             'Authorization':  `Bearer ${BEARER}`,
             'Cookie':         cookie,
-            'x-csrf-token':   creds.session_token || creds.auth_token.slice(0, 32),
+            ...(creds.session_token ? { 'x-csrf-token': creds.session_token } : {}),
             'User-Agent':     'TwitterAndroid/10.21.0-release.0 (310210000-r-0) ONEPLUS+A3010/9 (OnePlus;ONEPLUS+A3010;OnePlus;OnePlus3;0;;1;2016)',
             'x-twitter-client-language': 'en',
           },

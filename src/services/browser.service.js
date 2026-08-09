@@ -163,6 +163,7 @@ async function getContext(account) {
 
       // Priority: saved session → tokens → fresh
       let storageState = await Vault.loadSession(id);
+      if (storageState) storageState = Vault.normalizeSessionState(storageState, creds);
       if (!storageState && (creds.auth_token || creds.session_token)) {
         storageState = Vault.buildStateFromTokens(creds);
         if (storageState) logger.info(`[Browser] Built storage state from tokens: @${account.username}`);
@@ -283,23 +284,8 @@ async function getContext(account) {
         } catch {}
       });
 
-      // نضيف x-csrf-token على API calls (وليس على navigation — يسبب كشف automation).
-      // ملاحظة: المسار مُسجَّل دائماً حتى للحسابات بدون session_token مخزّن،
-      // لأن X يضبط كوكي ct0 تلقائياً بعد أول تحميل. نقرأ ct0 الحيّ من كوكيز الطلب
-      // نفسه (مضمون التطابق مع ما يرسله المتصفح، ويواكب تدوير X للرمز).
-      await ctx.route('**/i/api/**', async (route) => {
-        const h = await route.request().allHeaders();
-        const m = (h['cookie'] || '').match(/(?:^|;\s*)ct0=([^;]+)/);
-        const csrf = (m && m[1]) || creds.session_token || null;
-        const headers = {
-          ...h,
-          'x-twitter-auth-type':       'OAuth2Session',
-          'x-twitter-active-user':     'yes',
-          'x-twitter-client-language': 'en',
-        };
-        if (csrf) headers['x-csrf-token'] = csrf; // لا نضيف هيدر فارغ
-        await route.continue({ headers });
-      });
+      // X's client derives x-csrf-token from the live ct0 cookie. Rewriting it
+      // here can mismatch duplicate/rotated cookies and trigger API error 353.
 
       const entry = { ctx, lastUsed: Date.now(), timer: null, pages: 0 };
       POOL.set(id, entry);
