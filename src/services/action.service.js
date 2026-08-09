@@ -834,6 +834,28 @@ const ActionSvc = {
       logger.info(`[Action] @${account.username} — ✓ settings/profile Ready`);
       await sleep(500, 800);
 
+      const applyImageCrop = async label => {
+        const applyBtn = page.locator('[data-testid="applyButton"]:visible').last();
+        await applyBtn.waitFor({ state: 'visible', timeout: 20_000 });
+        await applyBtn.click({ force: true, timeout: 15_000 });
+
+        let closed = await applyBtn.waitFor({ state: 'hidden', timeout: 30_000 })
+          .then(() => true).catch(() => false);
+        if (!closed) {
+          // Retry with a complete pointer/mouse sequence for React crop dialogs.
+          await applyBtn.evaluate(el => {
+            for (const type of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click']) {
+              const EventType = type.startsWith('pointer') ? PointerEvent : MouseEvent;
+              el.dispatchEvent(new EventType(type, { bubbles: true, cancelable: true, pointerId: 1 }));
+            }
+          }).catch(() => {});
+          closed = await applyBtn.waitFor({ state: 'hidden', timeout: 20_000 })
+            .then(() => true).catch(() => false);
+        }
+        if (!closed) throw new Error(`${label} crop dialog did not close after Apply`);
+        await sleep(800, 1200);
+      };
+
       // ── رفع الصورة الشخصية ──────────────────────────────
       if (updates.avatarPath && fs.existsSync(updates.avatarPath)) {
         const avatarInputHandle = await page.evaluateHandle(() => {
@@ -843,13 +865,7 @@ const ActionSvc = {
         const avatarInput = avatarInputHandle?.asElement?.();
         if (avatarInput) {
           await avatarInput.setInputFiles(updates.avatarPath);
-          await sleep(3000, 4000);
-          const applyBtn = await page.$('[data-testid="applyButton"]').catch(() => null);
-          if (applyBtn) {
-            await applyBtn.evaluate(el => el.click());
-            await page.locator('[data-testid="applyButton"]').waitFor({ state: 'hidden', timeout: 15_000 }).catch(() => {});
-            await sleep(800, 1200);
-          }
+          await applyImageCrop('Avatar');
           logger.info(`[Action] @${account.username} — ✓ Avatar uploaded`);
         }
       } else if (updates.avatarPath) {
@@ -866,13 +882,7 @@ const ActionSvc = {
         const bannerInput = bannerInputHandle?.asElement?.();
         if (bannerInput) {
           await bannerInput.setInputFiles(updates.bannerPath);
-          await sleep(3000, 4000);
-          const applyBtn = await page.$('[data-testid="applyButton"]').catch(() => null);
-          if (applyBtn) {
-            await applyBtn.evaluate(el => el.click());
-            await page.locator('[data-testid="applyButton"]').waitFor({ state: 'hidden', timeout: 15_000 }).catch(() => {});
-            await sleep(800, 1200);
-          }
+          await applyImageCrop('Banner');
           logger.info(`[Action] @${account.username} — ✓ Banner uploaded`);
         }
       } else if (updates.bannerPath) {
@@ -932,9 +942,18 @@ const ActionSvc = {
           await saveBtn.waitFor({ state: 'visible', timeout: 10_000 });
           await saveBtn.scrollIntoViewIfNeeded().catch(() => {});
           await sleep(300, 500);
-          // locator.click() يُطلق pointer events كاملة — React يستجيب
-          await saveBtn.click();
-          logger.info(`[Action] @${account.username} — ✓ حُفظ`);
+          const saveResponse = page.waitForResponse(response =>
+            /update_profile|UpdateProfile/i.test(response.url()),
+            { timeout: 30_000 },
+          ).then(response => response.ok()).catch(() => null);
+          // force bypasses transient overlays; success is verified below.
+          await saveBtn.click({ force: true, timeout: 15_000 });
+          const apiSaved = await saveResponse;
+          const formClosed = await saveBtn.waitFor({ state: 'hidden', timeout: 15_000 })
+            .then(() => true).catch(() => false);
+          if (apiSaved === false) throw new Error('X rejected the profile update request');
+          if (apiSaved !== true && !formClosed) throw new Error('Profile save was not confirmed by X');
+          logger.info(`[Action] @${account.username} — ✓ Saved (verified)`);
           return true;
         } catch (e) {
           logger.warn(`[Action] @${account.username} — save btn error: ${e.message}`);
@@ -949,12 +968,17 @@ const ActionSvc = {
           b.dispatchEvent(new MouseEvent('click',     { bubbles:true }));
           return true;
         }).catch(() => false);
-        if (ok) { logger.info(`[Action] @${account.username} — ✓ Saved (dispatch)`); return true; }
+        if (ok) {
+          const closed = await page.locator('[data-testid="Profile_Save_Button"]').waitFor({ state: 'hidden', timeout: 15_000 })
+            .then(() => true).catch(() => false);
+          if (closed) { logger.info(`[Action] @${account.username} — ✓ Saved (dispatch verified)`); return true; }
+        }
         logger.warn(`[Action] @${account.username} — Save button not found`);
         return false;
       })();
 
-      if (saved) await sleep(3000, 4000);
+      if (!saved) throw new Error(`Profile save was not confirmed for @${account.username}`);
+      await sleep(3000, 4000);
 
       // احفظ الجلسة قبل إغلاق الصفحة — مهم
       await Browser.persistSession(account).catch(() => {});
