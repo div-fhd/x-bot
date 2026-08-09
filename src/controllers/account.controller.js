@@ -282,6 +282,7 @@ const AccountCtrl = {
 
     const queue = getQueue(QUEUE_NAMES.PROFILE_UPDATE);
     const parentJobId = `profile-update-${Date.now()}`;
+    const maxConcurrency = Math.max(1, Math.min(accounts.length, Number.parseInt(batchSize, 10) || 1));
 
     const jobs = accounts.map((account, idx) => {
       const jobUpdates = { ...updates };
@@ -291,8 +292,11 @@ const AccountCtrl = {
       if (banners.length)       jobUpdates.bannerPath  = banners[idx % banners.length];
       return {
         name: QUEUE_NAMES.PROFILE_UPDATE,
-        data: { accountId: account._id.toString(), updates: jobUpdates, useAI, niche, meta: { parentJobId, index: idx, total: accounts.length } },
-        opts: { delay: Math.floor(idx / batchSize) * 12000, jobId: `upd-${account._id}-${Date.now()}` },
+        data: {
+          accountId: account._id.toString(), updates: jobUpdates, useAI, niche,
+          meta: { parentJobId, index: idx, total: accounts.length, maxConcurrency },
+        },
+        opts: { jobId: `upd-${account._id}-${Date.now()}` },
       };
     });
 
