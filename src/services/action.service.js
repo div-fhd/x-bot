@@ -1,5 +1,6 @@
 'use strict';
 const fs      = require('fs');
+const path    = require('path');
 const Browser = require('./browser.service');
 const AuthSvc = require('./auth.service');
 const { log } = require('../models/index');
@@ -16,6 +17,7 @@ const SEL = {
   tweetBtnInline:'[data-testid="tweetButtonInline"]',
   tweetBtn:      '[data-testid="tweetButton"]',
   fileInput:     '[data-testid="fileInput"]',
+  mediaPreview:  '[data-testid="attachments"], [data-testid="mediaPreview"], [data-testid="tweetPhoto"], img[src^="blob:"], video',
   likeBtn:       '[data-testid="like"]',
   unlikeBtn:     '[data-testid="unlike"]',
   retweetBtn:    '[data-testid="retweet"]',
@@ -145,19 +147,49 @@ const ActionSvc = {
 
       // Media (صور حتى ٤، أو فيديو واحد — X لا يسمح بخلطهما)
       let hasVideo = false;
+      let attachedFiles = [];
+      let mediaPreviewBaseline = 0;
       if (content.mediaLocalPaths?.length) {
-        const exist = content.mediaLocalPaths.filter(p => fs.existsSync(p));
+        const requested = content.mediaLocalPaths.map(path => String(path || '')).filter(Boolean);
+        const missing = requested.filter(path => !fs.existsSync(path));
+        if (missing.length) {
+          throw new Error(`MediaFileMissing: ${missing.map(filePath => path.basename(filePath)).join(', ')}`);
+        }
+        const exist = requested.filter(path => fs.existsSync(path));
         const isVid = p => /\.(mp4|mov|avi|webm|m4v)$/i.test(p);
         const video = exist.find(isVid);
         const files = video ? [video] : exist.filter(p => !isVid(p)).slice(0, 4);
-        if (files.length) {
-          hasVideo = !!video;
-          const inp = await page.$(SEL.fileInput);
-          if (inp) {
-            await inp.setInputFiles(files);
-            // الفيديو يحتاج وقت معالجة أطول قبل أن يُفعّل زر النشر
-            await sleep(hasVideo ? 6000 : 2500, hasVideo ? 9000 : 4000);
-          }
+        if (!files.length) throw new Error(`MediaUnsupported: no supported media files for @${account.username}`);
+
+        hasVideo = !!video;
+        attachedFiles = files;
+        const input = page.locator(SEL.fileInput).first();
+        if (await input.count().catch(() => 0) < 1) {
+          throw new Error(`MediaInputMissing: X compose did not expose the upload input for @${account.username}`);
+        }
+        const previews = page.locator(SEL.mediaPreview);
+        mediaPreviewBaseline = await previews.count().catch(() => 0);
+        await input.setInputFiles(files);
+
+        // Do not publish text-only if X rejected or silently ignored the file.
+        const previewTimeout = hasVideo ? 120_000 : 45_000;
+        await page.waitForFunction(({ selector, baseline }) => {
+          const nodes = [...document.querySelectorAll(selector)];
+          return nodes.length > baseline && nodes.slice(baseline).some(node => {
+            const style = getComputedStyle(node);
+            const rect = node.getBoundingClientRect();
+            return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
+          });
+        }, { selector:SEL.mediaPreview, baseline:mediaPreviewBaseline }, { timeout:previewTimeout }).catch(() => {
+          throw new Error(`MediaPreviewMissing: X did not attach ${files.length} ${hasVideo ? 'video' : 'image'} file(s)`);
+        });
+        logger.info(`[Action] Media attached: ${files.length} ${hasVideo ? 'video' : 'image'} file(s) @${account.username}`);
+
+        // الفيديو يحتاج وقت معالجة أطول قبل أن يُفعّل زر النشر.
+        if (hasVideo) {
+          await sleep(2500, 4000);
+        } else {
+          await sleep(800, 1400);
         }
       }
 
@@ -180,6 +212,14 @@ const ActionSvc = {
       if (!btnEnabled) {
         const boxContent = await box.textContent().catch(() => '');
         throw new Error(`Tweet button stayed disabled — box: "${boxContent.slice(0,60)}" (${boxContent.length} chars)`);
+      }
+
+      if (attachedFiles.length) {
+        const previewCount = await page.locator(SEL.mediaPreview).count().catch(() => 0);
+        const stillAttached = previewCount > mediaPreviewBaseline;
+        if (!stillAttached) {
+          throw new Error(`MediaAttachmentLost: media disappeared before submit for @${account.username}`);
+        }
       }
 
       // The compose URL usually does not change after posting. Capture X's
