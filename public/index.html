@@ -704,6 +704,75 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   outline-offset: 2px;
 }
 
+/* Feature discovery tour */
+.feature-new-badge {
+  margin-right: auto;
+  padding: 2px 7px;
+  border-radius: 999px;
+  color: #06130f;
+  background: var(--grn);
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1.5;
+  animation: featureBadgePulse 1.8s ease-in-out infinite;
+}
+@keyframes featureBadgePulse {
+  0%,100% { box-shadow: 0 0 0 0 rgba(34,223,160,.15); }
+  50% { box-shadow: 0 0 0 6px rgba(34,223,160,0); }
+}
+.feature-tour-launch { white-space: nowrap; }
+.feature-tour-focus {
+  position: fixed;
+  z-index: 12000;
+  border: 2px solid var(--blu2);
+  border-radius: 11px;
+  box-shadow: 0 0 0 9999px rgba(2,4,12,.76), 0 0 0 5px rgba(91,141,249,.16), 0 10px 35px rgba(0,0,0,.35);
+  pointer-events: auto;
+  transition: top .22s ease, left .22s ease, width .22s ease, height .22s ease;
+}
+.feature-tour-focus::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: auto;
+}
+.feature-tour-card {
+  position: fixed;
+  z-index: 12002;
+  width: min(380px, calc(100vw - 24px));
+  padding: 17px;
+  border: 1px solid rgba(140,180,255,.35);
+  border-radius: 14px;
+  background: #11162a;
+  box-shadow: 0 20px 70px rgba(0,0,0,.58);
+  direction: rtl;
+}
+.feature-tour-card::before {
+  content: '';
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  background: #11162a;
+  border-top: 1px solid rgba(140,180,255,.35);
+  border-right: 1px solid rgba(140,180,255,.35);
+  transform: rotate(-45deg);
+  top: -6px;
+  right: var(--tour-arrow-right, 28px);
+}
+.feature-tour-card.above::before { top: auto; bottom: -6px; transform: rotate(135deg); }
+.feature-tour-kicker { color: var(--blu2); font-size: 10px; font-weight: 700; margin-bottom: 5px; }
+.feature-tour-title { color: var(--t0); font-size: 16px; font-weight: 700; margin-bottom: 6px; }
+.feature-tour-text { color: var(--t1); font-size: 12.5px; line-height: 1.8; }
+.feature-tour-progress { height: 4px; margin: 13px 0; overflow: hidden; border-radius: 999px; background: var(--s4); }
+.feature-tour-progress > div { height: 100%; background: linear-gradient(90deg,var(--blu3),var(--blu2)); transition: width .25s; }
+.feature-tour-actions { display: flex; align-items: center; gap: 7px; }
+.feature-tour-step-count { margin-left: auto; color: var(--t2); font: 10px var(--m); }
+@media (max-width: 768px) {
+  .feature-tour-card { bottom: 12px !important; top: auto !important; left: 12px !important; right: 12px !important; width: auto; }
+  .feature-tour-card::before { display:none; }
+  .feature-tour-launch .tour-launch-label { display:none; }
+}
+
 /* ── Number badge pulse on risks ── */
 @keyframes badgePulse { 0%,100% { opacity:1; } 50% { opacity:.55; } }
 
@@ -891,13 +960,15 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
       المحتوى
       <span class="nbadge nb-b" id="nb-content">—</span>
     </button>
-    <button class="nav-btn" onclick="nav('schedule',this)">
+    <button class="nav-btn" id="tour-nav-schedule" onclick="nav('schedule',this)">
       <svg class="nav-ico" viewBox="0 0 16 16" fill="none"><rect x="1.5" y="2.5" width="13" height="12" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M5 1v3M11 1v3M1.5 6.5h13" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
       الجدولة
+      <span class="feature-new-badge">جديد</span>
     </button>
-    <button class="nav-btn" onclick="nav('profiles',this)">
+    <button class="nav-btn" id="tour-nav-profiles" onclick="nav('profiles',this)">
       <svg class="nav-ico" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="5" r="3" stroke="currentColor" stroke-width="1.4"/><path d="M2 14c0-2.8 2.7-4.5 6-4.5s6 1.7 6 4.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="13" cy="11" r="2.5" fill="var(--s2)" stroke="currentColor" stroke-width="1.3"/><path d="M13 10v2M12 11h2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
       البروفايلات
+      <span class="feature-new-badge">جديد</span>
     </button>
 
     <div class="nav-sec">الذكاء الاصطناعي</div>
@@ -961,6 +1032,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
       <div style="width:6px;height:6px;border-radius:50%;background:var(--amb);animation:blink 1s infinite"></div>
       <span id="jobs-count" style="font-size:11.5px;font-weight:600;color:var(--amb);font-family:var(--m)">عملية جارية</span>
     </div>
+    <button class="btn btn-sm feature-tour-launch" onclick="startFeatureTour({manual:true})" title="استكشاف آخر الإضافات">✨ <span class="tour-launch-label">ما الجديد؟</span></button>
     <button class="btn btn-sm" onclick="refreshCurrent()" style="gap:5px">
       <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2 8a6 6 0 1 0 1.5-3.9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M2 4v4h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
       تحديث
@@ -1869,10 +1941,10 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
           <div id="sc-acc-container" style="margin-bottom:10px"></div>
           <div class="form-grid">
             <div class="field"><label>موعد النشر</label><input type="datetime-local" id="sc-time"></div>
-            <div class="field"><label>وضع النص</label><select id="sc-text-mode" onchange="updateScheduleTextMode()"><option value="same">نفس التغريدة لكل الحسابات</option><option value="list">تغريدات متعددة</option></select></div>
+            <div class="field" id="tour-schedule-text"><label>وضع النص</label><select id="sc-text-mode" onchange="updateScheduleTextMode()"><option value="same">نفس التغريدة لكل الحسابات</option><option value="list">تغريدات متعددة</option></select></div>
             <div class="field" id="sc-text-order-wrap" style="display:none"><label>توزيع التغريدات</label><select id="sc-text-order" onchange="renderSchedulePreview()"><option value="sequential">تسلسلي</option><option value="random">عشوائي</option></select></div>
             <div class="field fg-full"><label>نص التغريدة <small id="sc-text-help" style="color:var(--t2);font-weight:400"></small></label><textarea id="sc-text" oninput="renderSchedulePreview()" placeholder="اكتب التغريدة المراد جدولتها…" style="min-height:110px"></textarea></div>
-            <div class="field fg-full">
+            <div class="field fg-full" id="tour-schedule-media">
               <label>وسائط (صور حتى ٤ أو فيديو واحد)</label>
               <div style="display:flex;gap:8px;flex-wrap:wrap">
                 <input id="sc-images" type="file" accept="image/jpeg,image/png,image/gif,image/webp" multiple onchange="renderSchedulePreview()" style="font-size:11px">
@@ -2029,7 +2101,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
             <textarea id="prof-location" placeholder="Riyadh, KSA&#10;Dubai, UAE&#10;Cairo, Egypt&#10;..." style="min-height:80px;resize:vertical;font-family:var(--m)"></textarea>
           </div>
           <div class="field"><label>الموقع الإلكتروني</label><input id="prof-website" type="text" placeholder="https://" style="direction:ltr"></div>
-          <div class="field">
+          <div class="field" id="tour-profile-bio-mode">
             <label>وضع البيو</label>
             <select id="prof-bio-mode" onchange="onBioModeChange(this.value)">
               <option value="none">بلا تغيير في البيو</option>
@@ -2061,7 +2133,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
         </div>
 
         <!-- الصور -->
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+        <div id="tour-profile-images" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
           <div class="field">
             <label>صور الأفاتار
               <small style="color:var(--t2);font-weight:400"> — يمكن رفع أكثر من صورة</small>
@@ -2089,7 +2161,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
         </div>
         <div id="prof-upd-container" style="margin-bottom:10px"></div>
         <div id="prof-distribution-preview" style="display:none;margin-bottom:10px;background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:9px;max-height:180px;overflow:auto;font-size:11.5px"></div>
-        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <div id="tour-profile-run-mode" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
           <label style="font-size:11px;color:var(--t2);margin-bottom:3px;display:block">نمط التشغيل</label>
           <select id="prof-upd-batch" style="height:32px;font-size:12px;padding:0 8px;border-radius:6px;background:var(--s3);border:1px solid var(--bd2);color:var(--t1)">
             <option value="1">1 — تسلسلي</option>
@@ -2712,6 +2784,21 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
     </div>
   </div>
 </div>
+<!-- جولة استكشاف الميزات الجديدة -->
+<div id="feature-tour-focus" class="feature-tour-focus" style="display:none" aria-hidden="true"></div>
+<section id="feature-tour-card" class="feature-tour-card" style="display:none" role="dialog" aria-modal="true" aria-labelledby="feature-tour-title">
+  <div class="feature-tour-kicker" id="feature-tour-kicker">✨ ما الجديد في XOps؟</div>
+  <div class="feature-tour-title" id="feature-tour-title"></div>
+  <div class="feature-tour-text" id="feature-tour-text"></div>
+  <div class="feature-tour-progress"><div id="feature-tour-progress-bar"></div></div>
+  <div class="feature-tour-actions">
+    <button class="btn btn-sm" id="feature-tour-skip" onclick="finishFeatureTour(true)">تخطي</button>
+    <span class="feature-tour-step-count" id="feature-tour-step-count"></span>
+    <button class="btn btn-sm" id="feature-tour-prev" onclick="moveFeatureTour(-1)">السابق</button>
+    <button class="btn btn-sm btn-p" id="feature-tour-next" onclick="moveFeatureTour(1)">التالي</button>
+  </div>
+</section>
+
 <!-- إشعارات -->
 <div class="toast-wrap" id="toasts"></div>
 
@@ -2727,6 +2814,226 @@ let accPage   = 1;
 let auditPage = 1;
 let donutChart = null;
 let allActiveAccounts = [];
+
+/* ═══════════════════════════════════════════════════════════════
+   جولة استكشاف الميزات الجديدة
+═══════════════════════════════════════════════════════════════ */
+const FEATURE_TOUR_VERSION = 'profile-schedule-2026-08-v1';
+let _featureTourIndex = -1;
+let _featureTourActive = false;
+let _featureTourAutoScheduled = false;
+let _featureTourPositionFrame = null;
+let _featureTourRenderToken = 0;
+
+const FEATURE_TOUR_STEPS = [
+  {
+    target:'#tour-nav-profiles',
+    title:'تحديث البروفايلات بشكل أذكى',
+    text:'أضفنا توزيع بايوهات وصور مختلفة على عدة حسابات مع معاينة النتيجة قبل التشغيل.',
+    sidebar:true,
+  },
+  {
+    target:'#tour-profile-bio-mode', panel:'profiles',
+    title:'بايو واحد أو قائمة بايوهات',
+    text:'اختر «قائمة بايوهات»، ثم افصل بين كل بايو والآخر بسطر يحتوي على ---، وبعدها وزّعها تسلسليًا أو عشوائيًا.',
+    prepare:() => {
+      const select = document.getElementById('prof-bio-mode');
+      if (select) { select.value = 'list'; onBioModeChange('list'); }
+    },
+  },
+  {
+    target:'#tour-profile-images', panel:'profiles',
+    title:'تحكم كامل بالصور',
+    text:'ارفع عدة صور أفاتار وبانر، غيّر ترتيبها بالسحب، احذف ما لا تحتاجه، أو اختر صورة كل حساب يدويًا من المعاينة.',
+  },
+  {
+    target:'#tour-profile-run-mode', panel:'profiles',
+    title:'تسلسلي أو متوازي فعليًا',
+    text:'القيمة 1 تشغّل حسابًا واحدًا في كل مرة. القيم الأكبر تسمح بهذا العدد من الحسابات بالتوازي.',
+  },
+  {
+    target:'#tour-nav-schedule',
+    title:'جدولة جماعية جديدة',
+    text:'أصبحت الجدولة تدعم عدة حسابات ونصوص وصور في عملية واحدة، مع متابعة حالة كل منشور.',
+    sidebar:true,
+  },
+  {
+    target:'#sc-acc-container', panel:'schedule',
+    title:'اختر عدة حسابات',
+    text:'حدد الحسابات التي تريد النشر منها، وسيظهر توزيع المحتوى عليها قبل اعتماد الجدولة.',
+  },
+  {
+    target:'#tour-schedule-text', panel:'schedule',
+    title:'تغريدة واحدة أو عدة تغريدات',
+    text:'يمكنك نشر النص نفسه للجميع أو إدخال عدة تغريدات مفصولة بـ --- وتوزيعها بالتسلسل أو عشوائيًا.',
+    prepare:() => {
+      const select = document.getElementById('sc-text-mode');
+      if (select) { select.value = 'list'; updateScheduleTextMode(); }
+    },
+  },
+  {
+    target:'#tour-schedule-media', panel:'schedule',
+    title:'توزيع الوسائط مع مؤشر رفع',
+    text:'استخدم نفس الوسائط للجميع أو وزّع الصور بالتسلسل أو عشوائيًا. وسيظهر تقدم رفع الملفات بالنسبة المئوية.',
+  },
+  {
+    target:'#sc-batch-size', panel:'schedule',
+    title:'تحكم بطريقة النشر',
+    text:'اختر 1 للنشر التسلسلي، أو 3 و5 و10 لتحديد الحد الأقصى للحسابات التي تنشر بالتوازي عند حلول الموعد.',
+  },
+];
+
+function featureTourStorageKey() {
+  let identity = 'user';
+  try {
+    const saved = JSON.parse(localStorage.getItem('xops_user') || '{}');
+    identity = String(saved.name || 'user').toLowerCase().replace(/\s+/g,'_').slice(0,80);
+  } catch {}
+  return `xops_feature_tour:${FEATURE_TOUR_VERSION}:${identity}`;
+}
+
+function setFeatureBadgesVisible(visible) {
+  document.querySelectorAll('.feature-new-badge').forEach(badge => {
+    badge.style.display = visible ? '' : 'none';
+  });
+}
+
+function scheduleFeatureTour() {
+  if (_featureTourAutoScheduled) return;
+  _featureTourAutoScheduled = true;
+  const completed = localStorage.getItem(featureTourStorageKey()) === 'done';
+  setFeatureBadgesVisible(!completed);
+  if (!completed) setTimeout(() => startFeatureTour(), 1600);
+}
+
+async function startFeatureTour({ manual = false } = {}) {
+  if (_featureTourActive) return;
+  _featureTourActive = true;
+  _featureTourIndex = 0;
+  document.body.classList.add('feature-tour-active');
+  document.getElementById('feature-tour-focus').style.display = 'block';
+  document.getElementById('feature-tour-card').style.display = 'block';
+  if (manual) setFeatureBadgesVisible(true);
+  await showFeatureTourStep(0, 1);
+}
+
+function tourNavigate(panel) {
+  closeSidebar();
+  nav(panel);
+}
+
+function isTourTargetVisible(element) {
+  if (!element) return false;
+  const style = getComputedStyle(element);
+  const rect = element.getBoundingClientRect();
+  return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+}
+
+async function showFeatureTourStep(index, direction = 1) {
+  if (!_featureTourActive) return;
+  if (index < 0) return showFeatureTourStep(0, 1);
+  if (index >= FEATURE_TOUR_STEPS.length) return finishFeatureTour(false);
+  const renderToken = ++_featureTourRenderToken;
+  _featureTourIndex = index;
+  const step = FEATURE_TOUR_STEPS[index];
+
+  if (step.panel) {
+    const panelNav = document.getElementById(`tour-nav-${step.panel}`);
+    if (panelNav && getComputedStyle(panelNav).display === 'none') {
+      return showFeatureTourStep(index + direction, direction);
+    }
+  }
+
+  if (step.panel && currentPanel !== step.panel) tourNavigate(step.panel);
+  if (step.sidebar && window.innerWidth <= 768) {
+    const side = document.querySelector('.side');
+    if (!side.classList.contains('open')) toggleSidebar();
+  } else if (!step.sidebar && window.innerWidth <= 768) closeSidebar();
+  step.prepare?.();
+
+  await new Promise(resolve => setTimeout(resolve, step.panel ? 380 : 160));
+  if (!_featureTourActive || renderToken !== _featureTourRenderToken) return;
+  const target = document.querySelector(step.target);
+  if (!isTourTargetVisible(target)) {
+    const candidate = index + direction;
+    if (candidate < 0) return showFeatureTourStep(index + 1, 1);
+    return showFeatureTourStep(candidate, direction);
+  }
+
+  target.scrollIntoView({ behavior:'smooth', block:'center', inline:'nearest' });
+  await new Promise(resolve => setTimeout(resolve, 280));
+  if (!_featureTourActive || renderToken !== _featureTourRenderToken) return;
+  document.getElementById('feature-tour-title').textContent = step.title;
+  document.getElementById('feature-tour-text').textContent = step.text;
+  document.getElementById('feature-tour-step-count').textContent = `${index + 1} / ${FEATURE_TOUR_STEPS.length}`;
+  document.getElementById('feature-tour-progress-bar').style.width = `${(index + 1) * 100 / FEATURE_TOUR_STEPS.length}%`;
+  document.getElementById('feature-tour-prev').disabled = index === 0;
+  document.getElementById('feature-tour-next').textContent = index === FEATURE_TOUR_STEPS.length - 1 ? 'إنهاء' : 'التالي';
+  positionFeatureTour(target);
+  document.getElementById('feature-tour-next').focus({ preventScroll:true });
+}
+
+function positionFeatureTour(target = document.querySelector(FEATURE_TOUR_STEPS[_featureTourIndex]?.target)) {
+  if (!_featureTourActive || !isTourTargetVisible(target)) return;
+  const focus = document.getElementById('feature-tour-focus');
+  const card = document.getElementById('feature-tour-card');
+  const rect = target.getBoundingClientRect();
+  const pad = 7;
+  const left = Math.max(6, rect.left - pad);
+  const top = Math.max(6, rect.top - pad);
+  const width = Math.min(window.innerWidth - left - 6, rect.width + pad * 2);
+  const height = Math.min(window.innerHeight - top - 6, rect.height + pad * 2);
+  Object.assign(focus.style, { left:`${left}px`, top:`${top}px`, width:`${width}px`, height:`${height}px` });
+
+  if (window.innerWidth <= 768) return;
+  card.classList.remove('above');
+  const cardWidth = Math.min(380, window.innerWidth - 24);
+  const cardHeight = card.offsetHeight || 220;
+  let cardLeft = Math.min(window.innerWidth - cardWidth - 12, Math.max(12, rect.right - cardWidth));
+  let cardTop = rect.bottom + 15;
+  if (cardTop + cardHeight > window.innerHeight - 12) {
+    cardTop = Math.max(12, rect.top - cardHeight - 15);
+    card.classList.add('above');
+  }
+  Object.assign(card.style, { left:`${cardLeft}px`, right:'auto', top:`${cardTop}px`, bottom:'auto' });
+  const arrowRight = Math.max(22, Math.min(cardWidth - 28, cardLeft + cardWidth - (rect.left + rect.width / 2)));
+  card.style.setProperty('--tour-arrow-right', `${arrowRight}px`);
+}
+
+function moveFeatureTour(delta) {
+  showFeatureTourStep(_featureTourIndex + delta, delta < 0 ? -1 : 1);
+}
+
+function finishFeatureTour(skipped = false) {
+  if (!_featureTourActive) return;
+  _featureTourActive = false;
+  _featureTourRenderToken++;
+  _featureTourIndex = -1;
+  document.body.classList.remove('feature-tour-active');
+  document.getElementById('feature-tour-focus').style.display = 'none';
+  document.getElementById('feature-tour-card').style.display = 'none';
+  closeSidebar();
+  localStorage.setItem(featureTourStorageKey(), 'done');
+  setFeatureBadgesVisible(false);
+  if (!skipped) toast('✅ اكتملت جولة الميزات الجديدة — يمكنك إعادتها من زر «ما الجديد؟»', 'ok');
+}
+
+function queueFeatureTourPosition() {
+  if (!_featureTourActive || _featureTourPositionFrame) return;
+  _featureTourPositionFrame = requestAnimationFrame(() => {
+    _featureTourPositionFrame = null;
+    positionFeatureTour();
+  });
+}
+
+window.addEventListener('resize', queueFeatureTourPosition);
+window.addEventListener('scroll', queueFeatureTourPosition, true);
+document.addEventListener('keydown', event => {
+  if (!_featureTourActive) return;
+  if (event.key === 'Escape') finishFeatureTour(true);
+  if (event.key === 'ArrowLeft') moveFeatureTour(1);
+  if (event.key === 'ArrowRight') moveFeatureTour(-1);
+});
 
 /* ═══════════════════════════════════════════════════════════════
    تهيئة
@@ -2761,6 +3068,7 @@ function init() {
   loadOverview();
   loadActiveAccounts();
   loadLicense();
+  scheduleFeatureTour();
   setInterval(pollJobs, 5000);
   setInterval(() => {
     if (currentPanel === 'overview') loadOverview();
