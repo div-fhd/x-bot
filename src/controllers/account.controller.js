@@ -271,14 +271,30 @@ const AccountCtrl = {
     res.json({ started: true, total: accounts.length, jobId: parentJobId });
   },
   async bulkUpdateProfiles(req, res) {
-    const { accountIds, updates = {}, namesList = [], locationsList = [], useAI = false, niche, avatarPaths = [], bannerPaths = [], imageOrder = 'sequential', batchSize = 1 } = req.body;
+    const {
+      accountIds, updates = {}, namesList = [], locationsList = [], biosList = [],
+      bioOrder = 'sequential', useAI = false, niche,
+      avatarPaths = [], bannerPaths = [], imageOrder = 'sequential',
+      avatarAssignments = {}, bannerAssignments = {}, batchSize = 1,
+    } = req.body;
     const query = accountIds?.length ? { _id: { $in: accountIds }, isActive: true } : { isActive: true, status: 'active' };
-    const accounts = await Account.find(query);
+    const foundAccounts = await Account.find(query);
+    // MongoDB $in does not preserve the order selected in the UI. Keep that
+    // order so sequential bios/images are assigned to the expected accounts.
+    const accountMap = new Map(foundAccounts.map(account => [account._id.toString(), account]));
+    const accounts = accountIds?.length
+      ? accountIds.map(id => accountMap.get(String(id))).filter(Boolean)
+      : foundAccounts;
     if (!accounts.length) return res.json({ message: 'No accounts found', total: 0 });
 
     const shuffled = arr => [...arr].sort(() => Math.random() - 0.5);
+    const normalizedBios = biosList.map(bio => String(bio).trim()).filter(Boolean);
+    if (normalizedBios.some(bio => bio.length > 160)) {
+      return res.status(400).json({ error: 'Each bio must be 160 characters or fewer' });
+    }
     const avatars = imageOrder === 'random' ? shuffled(avatarPaths) : avatarPaths;
     const banners = imageOrder === 'random' ? shuffled(bannerPaths) : bannerPaths;
+    const bios = bioOrder === 'random' ? shuffled(normalizedBios) : normalizedBios;
 
     const queue = getQueue(QUEUE_NAMES.PROFILE_UPDATE);
     const parentJobId = `profile-update-${Date.now()}`;
@@ -288,8 +304,12 @@ const AccountCtrl = {
       const jobUpdates = { ...updates };
       if (namesList.length)     jobUpdates.displayName = namesList[idx % namesList.length];
       if (locationsList.length) jobUpdates.location    = locationsList[idx % locationsList.length];
-      if (avatars.length)       jobUpdates.avatarPath  = avatars[idx % avatars.length];
-      if (banners.length)       jobUpdates.bannerPath  = banners[idx % banners.length];
+      if (bios.length)          jobUpdates.bio         = bios[idx % bios.length];
+      const accountId = account._id.toString();
+      if (avatarAssignments[accountId]) jobUpdates.avatarPath = avatarAssignments[accountId];
+      else if (avatars.length) jobUpdates.avatarPath = avatars[imageOrder === 'same' ? 0 : idx % avatars.length];
+      if (bannerAssignments[accountId]) jobUpdates.bannerPath = bannerAssignments[accountId];
+      else if (banners.length) jobUpdates.bannerPath = banners[imageOrder === 'same' ? 0 : idx % banners.length];
       return {
         name: QUEUE_NAMES.PROFILE_UPDATE,
         data: {

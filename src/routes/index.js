@@ -45,8 +45,10 @@ contentRouter.post  ('/:id/publish-now',         cntCtrl.publishNow);
 contentRouter.post  ('/:id/cancel',              cntCtrl.cancel);
 contentRouter.delete('/:id',                     cntCtrl.remove);
 contentRouter.post  ('/schedule',  requireFeature('schedule'),                cntCtrl.schedule);
+contentRouter.post  ('/schedule/bulk', requireFeature('schedule'),            cntCtrl.bulkSchedule);
 contentRouter.get   ('/schedules/list',          cntCtrl.listSchedules);
 contentRouter.post  ('/schedules/:id/cancel',    cntCtrl.cancelSchedule);
+contentRouter.post  ('/schedules/:id/retry',     cntCtrl.retrySchedule);
 
 // ── Dashboard ──────────────────────────────────────────────────
 const dashRouter = express.Router();

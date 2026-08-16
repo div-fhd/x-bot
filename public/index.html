@@ -1866,18 +1866,25 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
       <div class="card">
         <div class="card-h"><span class="card-title">جدولة نشر جديد</span></div>
         <div class="card-b">
+          <div id="sc-acc-container" style="margin-bottom:10px"></div>
           <div class="form-grid">
-            <div class="field"><label>الحساب</label><select id="sc-acc"></select></div>
             <div class="field"><label>موعد النشر</label><input type="datetime-local" id="sc-time"></div>
-            <div class="field fg-full"><label>نص التغريدة</label><textarea id="sc-text" placeholder="اكتب التغريدة المراد جدولتها…" maxlength="280"></textarea></div>
+            <div class="field"><label>وضع النص</label><select id="sc-text-mode" onchange="updateScheduleTextMode()"><option value="same">نفس التغريدة لكل الحسابات</option><option value="list">تغريدات متعددة</option></select></div>
+            <div class="field" id="sc-text-order-wrap" style="display:none"><label>توزيع التغريدات</label><select id="sc-text-order" onchange="renderSchedulePreview()"><option value="sequential">تسلسلي</option><option value="random">عشوائي</option></select></div>
+            <div class="field fg-full"><label>نص التغريدة <small id="sc-text-help" style="color:var(--t2);font-weight:400"></small></label><textarea id="sc-text" oninput="renderSchedulePreview()" placeholder="اكتب التغريدة المراد جدولتها…" style="min-height:110px"></textarea></div>
             <div class="field fg-full">
               <label>وسائط (صور حتى ٤ أو فيديو واحد)</label>
               <div style="display:flex;gap:8px;flex-wrap:wrap">
-                <input id="sc-images" type="file" accept="image/jpeg,image/png,image/gif,image/webp" multiple style="font-size:11px">
-                <input id="sc-video" type="file" accept="video/mp4,video/quicktime,video/webm" style="font-size:11px">
+                <input id="sc-images" type="file" accept="image/jpeg,image/png,image/gif,image/webp" multiple onchange="renderSchedulePreview()" style="font-size:11px">
+                <input id="sc-video" type="file" accept="video/mp4,video/quicktime,video/webm" onchange="renderSchedulePreview()" style="font-size:11px">
               </div>
             </div>
+            <div class="field"><label>توزيع الوسائط</label><select id="sc-img-order" onchange="renderSchedulePreview()"><option value="same">نفس الوسائط للجميع</option><option value="sequential">صورة مختلفة بالتسلسل</option><option value="random">صورة مختلفة عشوائيًا</option></select></div>
+            <div class="field"><label>نمط النشر عند حلول الموعد</label><select id="sc-batch-size"><option value="1">1 — تسلسلي</option><option value="3">3 — متوازي</option><option value="5">5 — متوازي</option><option value="10">10 — متوازي</option></select></div>
           </div>
+
+          <div id="sc-distribution-preview" style="display:none;margin:10px 0;background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:9px;max-height:180px;overflow:auto;font-size:11.5px"></div>
+          <div id="sc-upload-progress" style="display:none;margin:10px 0"><div style="display:flex;justify-content:space-between;font-size:11px;color:var(--t2);margin-bottom:4px"><span id="sc-upload-label">رفع الوسائط…</span><span id="sc-upload-percent">0%</span></div><div style="height:7px;background:var(--s4);border-radius:999px;overflow:hidden"><div id="sc-upload-bar" style="width:0;height:100%;background:var(--blu);transition:width .2s"></div></div></div>
 
           <!-- تفاعل تلقائي بعد النشر -->
           <div style="margin:12px 0;border-top:1px solid var(--bd);padding-top:12px">
@@ -1914,7 +1921,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
             </div>
           </div>
 
-          <button class="btn btn-p" onclick="doSchedule()">جدولة النشر</button>
+          <button id="sc-submit-btn" class="btn btn-p" onclick="doSchedule()">جدولة النشر</button>
         </div>
       </div>
 
@@ -2026,14 +2033,28 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
             <label>وضع البيو</label>
             <select id="prof-bio-mode" onchange="onBioModeChange(this.value)">
               <option value="none">بلا تغيير في البيو</option>
-              <option value="manual">يدوي — نفس البيو للكل</option>
+              <option value="same">نفس البيو لكل الحسابات</option>
+              <option value="list">قائمة بايوهات — توزيع تلقائي</option>
               <option value="ai">🤖 AI — بيو مختلف لكل حساب</option>
             </select>
           </div>
         </div>
         <div id="prof-bio-wrap" class="field" style="display:none;margin-bottom:10px">
-          <label>البيو</label>
-          <textarea id="prof-bio" placeholder="اكتب البيو هنا…" style="min-height:70px;resize:vertical"></textarea>
+          <label>البايوهات
+            <small id="prof-bio-help" style="color:var(--t2);font-weight:400">— اكتب بيو واحدًا</small>
+          </label>
+          <textarea id="prof-bio" oninput="renderProfileDistributionPreview()" placeholder="اكتب البيو هنا…" style="min-height:110px;resize:vertical"></textarea>
+          <div style="display:flex;justify-content:space-between;gap:8px;margin-top:5px;font-size:11px;color:var(--t2)">
+            <span id="prof-bio-count">0 بايو</span>
+            <span>الحد الأقصى لكل بيو: 160 حرفًا</span>
+          </div>
+          <div id="prof-bio-order-wrap" style="display:none;margin-top:8px">
+            <label>توزيع البايوهات</label>
+            <select id="prof-bio-order" onchange="renderProfileDistributionPreview()">
+              <option value="sequential">تسلسلي — الأول للأول</option>
+              <option value="random">عشوائي بدون تكرار حتى انتهاء القائمة</option>
+            </select>
+          </div>
         </div>
         <div id="prof-ai-opts" style="display:none;margin-bottom:10px">
           <div class="field"><label>المجال للـ AI</label><input id="prof-ai-niche" type="text" placeholder="تقنية، أعمال، كريبتو…"></div>
@@ -2045,26 +2066,29 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
             <label>صور الأفاتار
               <small style="color:var(--t2);font-weight:400"> — يمكن رفع أكثر من صورة</small>
             </label>
-            <input id="prof-avatars" type="file" accept="image/*" multiple onchange="previewImages(this,'prof-avatars-preview')">
+            <input id="prof-avatars" type="file" accept="image/*" multiple onchange="setProfileImages(this,'avatars')">
             <div id="prof-avatars-preview" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px"></div>
           </div>
           <div class="field">
             <label>صور البانر
               <small style="color:var(--t2);font-weight:400"> — يمكن رفع أكثر من صورة</small>
             </label>
-            <input id="prof-banners" type="file" accept="image/*" multiple onchange="previewImages(this,'prof-banners-preview')">
+            <input id="prof-banners" type="file" accept="image/*" multiple onchange="setProfileImages(this,'banners')">
             <div id="prof-banners-preview" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px"></div>
           </div>
         </div>
         <div class="field" style="margin-bottom:12px">
           <label>ترتيب توزيع الصور على الحسابات</label>
-          <select id="prof-img-order">
+          <select id="prof-img-order" onchange="renderProfileDistributionPreview()">
+            <option value="same">نفس الصورة الأولى لكل الحسابات</option>
             <option value="sequential">بالترتيب — الحساب الأول يأخذ الصورة الأولى</option>
             <option value="random">عشوائي — كل حساب يأخذ صورة عشوائية</option>
+            <option value="manual">يدوي — اختيار صورة كل حساب من المعاينة</option>
           </select>
           <div style="font-size:11.5px;color:var(--t2);margin-top:4px">إذا رفعت صورة واحدة فقط تُطبَّق على كل الحسابات</div>
         </div>
         <div id="prof-upd-container" style="margin-bottom:10px"></div>
+        <div id="prof-distribution-preview" style="display:none;margin-bottom:10px;background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:9px;max-height:180px;overflow:auto;font-size:11.5px"></div>
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
           <label style="font-size:11px;color:var(--t2);margin-bottom:3px;display:block">نمط التشغيل</label>
           <select id="prof-upd-batch" style="height:32px;font-size:12px;padding:0 8px;border-radius:6px;background:var(--s3);border:1px solid var(--bd2);color:var(--t1)">
@@ -2073,8 +2097,12 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
             <option value="5">5 — متوازي</option>
             <option value="10">10 — متوازي</option>
           </select>
-          <button class="btn btn-p" onclick="doUpdateProfiles()">💾 تحديث الآن</button>
+          <button id="prof-update-btn" class="btn btn-p" onclick="doUpdateProfiles()">💾 تحديث الآن</button>
           <span id="prof-upd-status" style="font-size:12px;color:var(--t2)"></span>
+        </div>
+        <div id="prof-upload-progress" style="display:none;margin-top:10px">
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--t2);margin-bottom:4px"><span id="prof-upload-label">رفع الصور…</span><span id="prof-upload-percent">0%</span></div>
+          <div style="height:7px;background:var(--s4);border-radius:999px;overflow:hidden"><div id="prof-upload-bar" style="width:0;height:100%;background:var(--blu);transition:width .2s"></div></div>
         </div>
         <div id="prof-upd-progress" style="display:none;margin-top:10px;font-size:12px;font-family:var(--m);max-height:140px;overflow:auto;background:var(--s2);border-radius:8px;padding:8px"></div>
       </div>
@@ -2865,9 +2893,24 @@ function init() {
 
     socket.on('profile:update:progress', d => {
       const prog = document.getElementById('prof-upd-progress');
-      if (prog) prog.innerHTML += `<div>${d.error ? '❌' : '✅'} @${d.username} ${d.error || ''}</div>`;
-      if (d.done === d.total) {
-        document.getElementById('prof-upd-status').textContent = `✅ اكتمل التحديث (${d.total})`;
+      if (!prog) return;
+      const state = d.stage === 'processing' ? 'processing' : (d.error ? 'error' : 'success');
+      _profileUpdateResults.set(d.username, { state, error: d.error || '' });
+      const completed = [..._profileUpdateResults.values()].filter(item => item.state !== 'processing').length;
+      const total = _profileUpdateTotal || d.total || 0;
+      prog.innerHTML = [..._profileUpdateResults.entries()].map(([username, item]) =>
+        `<div style="padding:4px 0">${item.state === 'processing' ? '⏳' : item.state === 'error' ? '❌' : '✅'} @${username} ${item.error || (item.state === 'processing' ? 'جارٍ تحديث الصور والبيانات…' : 'تم الحفظ')}</div>`
+      ).join('');
+      document.getElementById('prof-upd-status').textContent = `التقدم: ${completed}/${total}`;
+      if (total > 0 && completed >= total) {
+        const failed = [..._profileUpdateResults.values()].filter(item => item.state === 'error').length;
+        document.getElementById('prof-upd-status').textContent = failed
+          ? `اكتمل: ${total - failed} نجح · ${failed} فشل`
+          : `✅ اكتمل التحديث (${total})`;
+        const btn = document.getElementById('prof-update-btn');
+        if (btn) { btn.disabled = false; btn.textContent = '💾 تحديث الآن'; }
+        const upload = document.getElementById('prof-upload-progress');
+        if (upload) setTimeout(() => { upload.style.display = 'none'; }, 1500);
       }
     });
     socket.on('tweet:multi:done', d => {
@@ -2964,7 +3007,13 @@ function nav(id, btn) {
   if (id === 'engagement') { loadEngagement(); if (!allActiveAccounts.length) loadActiveAccounts(); }
   if (id === 'audit')    { auditPage = 1; loadAudit(); }
   if (id === 'content')  loadContent();
-  if (id === 'schedule') { loadSchedules(); fillAccountSelects('sc-acc'); apReset('sched'); }
+  if (id === 'schedule') {
+    loadSchedules();
+    if (allActiveAccounts.length) buildSmartSelector('sc-acc-container', 'sc-accounts');
+    else loadActiveAccounts().then(() => buildSmartSelector('sc-acc-container', 'sc-accounts'));
+    apReset('sched');
+    updateScheduleTextMode();
+  }
   if (id === 'ai')       fillAccountSelects('ai-acc');
   if (id === 'actions') {
     fillAllActionSelects();
@@ -4250,6 +4299,8 @@ function updateSmartCount(containerId, selectId) {
     el.style.color = count > 0 ? 'var(--blu2)' : 'var(--t2)';
     el.style.fontWeight = count > 0 ? '700' : '400';
   }
+  if (selectId === 'prof-upd-acc') renderProfileDistributionPreview();
+  if (selectId === 'sc-accounts') renderSchedulePreview();
 }
 
 function onTweetModeChange(val) {
@@ -4381,17 +4432,209 @@ async function doTweetMulti() {
   }
 }
 
-function onBioModeChange(val) {
-  document.getElementById('prof-ai-opts').style.display  = val === 'ai'     ? 'block' : 'none';
-  document.getElementById('prof-bio-wrap').style.display = val === 'none'   ? 'none'  : 'block';
+function parseSeparatedBlocks(raw) {
+  return String(raw || '').trim()
+    .split(/^\s*---\s*$/m)
+    .map(text => text.trim())
+    .filter(Boolean);
 }
 
-function previewImages(input, previewId) {
-  const preview = document.getElementById(previewId);
-  preview.innerHTML = '';
-  [...input.files].forEach(file => {
-    const url = URL.createObjectURL(file);
-    preview.innerHTML += `<img src="${url}" style="width:52px;height:52px;object-fit:cover;border-radius:6px;border:1px solid var(--bd)">`;
+function escapeProfileText(value) {
+  return String(value).replace(/[&<>"']/g, char => ({
+    '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;',
+  })[char]);
+}
+
+let _profileBioShuffle = [];
+let _profileBioSignature = '';
+let _profileUpdateResults = new Map();
+let _profileUpdateTotal = 0;
+
+function getProfileBios({ reshuffle = false } = {}) {
+  const mode = document.getElementById('prof-bio-mode')?.value || 'none';
+  const raw = document.getElementById('prof-bio')?.value || '';
+  const bios = mode === 'list' ? parseSeparatedBlocks(raw) : (raw.trim() ? [raw.trim()] : []);
+  const order = document.getElementById('prof-bio-order')?.value || 'sequential';
+  if (mode !== 'list' || order !== 'random') return bios;
+  const signature = JSON.stringify(bios);
+  if (reshuffle || signature !== _profileBioSignature) {
+    _profileBioSignature = signature;
+    _profileBioShuffle = [...bios].sort(() => Math.random() - 0.5);
+  }
+  return [..._profileBioShuffle];
+}
+
+function reshuffleProfileBios() {
+  getProfileBios({ reshuffle: true });
+  renderProfileDistributionPreview();
+}
+
+function onBioModeChange(val) {
+  const bioWrap = document.getElementById('prof-bio-wrap');
+  const listMode = val === 'list';
+  document.getElementById('prof-ai-opts').style.display = val === 'ai' ? 'block' : 'none';
+  bioWrap.style.display = ['same','list'].includes(val) ? 'block' : 'none';
+  document.getElementById('prof-bio-order-wrap').style.display = listMode ? 'block' : 'none';
+  document.getElementById('prof-bio-help').innerHTML = listMode
+    ? '— افصل بين كل بيو والآخر بسطر <code style="background:var(--s4);padding:1px 5px;border-radius:4px">---</code>'
+    : '— سيُطبّق على كل الحسابات';
+  document.getElementById('prof-bio').placeholder = listMode
+    ? 'البايو الأول\nيمكن أن يكون على أكثر من سطر\n---\nالبايو الثاني\n---\nالبايو الثالث'
+    : 'اكتب البايو الذي سيُطبّق على الجميع…';
+  renderProfileDistributionPreview();
+}
+
+function renderProfileDistributionPreview() {
+  const preview = document.getElementById('prof-distribution-preview');
+  if (!preview) return;
+  const ids = getSelectedAccounts('prof-upd-acc');
+  const bios = getProfileBios();
+  const mode = document.getElementById('prof-bio-mode')?.value || 'none';
+  const imageMode = document.getElementById('prof-img-order')?.value || 'sequential';
+  const avatars = getOrderedProfileImages('avatars');
+  const banners = getOrderedProfileImages('banners');
+  const countEl = document.getElementById('prof-bio-count');
+  if (countEl) {
+    const tooLong = bios.filter(bio => bio.length > 160).length;
+    countEl.textContent = `${bios.length} بيو${tooLong ? ` · ${tooLong} يتجاوز 160 حرفًا` : ''}`;
+    countEl.style.color = tooLong ? 'var(--red)' : 'var(--t2)';
+  }
+  const hasBios = ['same','list'].includes(mode) && bios.length;
+  if (!ids.length || (!hasBios && !avatars.length && !banners.length)) {
+    preview.style.display = 'none';
+    preview.innerHTML = '';
+    return;
+  }
+  const accountMap = new Map(allActiveAccounts.map(account => [String(account._id), account]));
+  const random = mode === 'list' && document.getElementById('prof-bio-order')?.value === 'random';
+  const imageOptions = (files, selectedIndex) => files.map((file, index) =>
+    `<option value="${index}" ${index === selectedIndex ? 'selected' : ''}>${index + 1} — ${escapeProfileText(file.name)}</option>`
+  ).join('');
+  preview.style.display = 'block';
+  preview.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:7px">
+      <strong>معاينة التوزيع — ${ids.length} حساب</strong>
+      ${random ? '<button type="button" class="btn btn-sm" onclick="reshuffleProfileBios()">🔀 إعادة خلط</button>' : ''}
+    </div>
+    ${ids.map((id, index) => {
+      const account = accountMap.get(String(id));
+      const bio = hasBios ? bios[mode === 'same' ? 0 : index % bios.length] : '';
+      const avatarIndex = Number(_profileManualAssignments.avatars[id] ?? (imageMode === 'same' ? 0 : index % Math.max(avatars.length, 1)));
+      const bannerIndex = Number(_profileManualAssignments.banners[id] ?? (imageMode === 'same' ? 0 : index % Math.max(banners.length, 1)));
+      const avatar = avatars[avatarIndex % Math.max(avatars.length, 1)];
+      const banner = banners[bannerIndex % Math.max(banners.length, 1)];
+      return `<div style="padding:7px 0;border-top:1px solid var(--bd);display:grid;grid-template-columns:130px minmax(180px,1fr) 170px 170px;gap:8px;align-items:center">
+        <span style="color:var(--blu2)">@${account?.username || id}</span>
+        <span>${bio ? escapeProfileText(bio).replace(/\n/g,'<br>') : '<span style="color:var(--t3)">بدون تغيير</span>'}</span>
+        ${avatars.length ? (imageMode === 'manual'
+          ? `<select style="height:30px;font-size:10px" onchange="setProfileManualImage('avatars','${id}',this.value)">${imageOptions(avatars, avatarIndex)}</select>`
+          : `<span title="${escapeProfileText(avatar?.name || '')}">👤 ${escapeProfileText(avatar?.name || '—')}</span>`) : '<span style="color:var(--t3)">لا أفاتار</span>'}
+        ${banners.length ? (imageMode === 'manual'
+          ? `<select style="height:30px;font-size:10px" onchange="setProfileManualImage('banners','${id}',this.value)">${imageOptions(banners, bannerIndex)}</select>`
+          : `<span title="${escapeProfileText(banner?.name || '')}">🖼️ ${escapeProfileText(banner?.name || '—')}</span>`) : '<span style="color:var(--t3)">لا بانر</span>'}
+      </div>`;
+    }).join('')}`;
+}
+
+const _profileImages = { avatars: [], banners: [] };
+const _profileImageShuffle = { avatars: [], banners: [] };
+const _profileImageSignature = { avatars: '', banners: '' };
+const _profileManualAssignments = { avatars: {}, banners: {} };
+const _profileImageUrls = new WeakMap();
+let _profileDraggedImage = null;
+
+function setProfileImages(input, kind) {
+  const incoming = [...(input.files || [])];
+  const invalid = incoming.find(file => !file.type.startsWith('image/') || file.size > 10 * 1024 * 1024);
+  if (invalid) {
+    toast(`الصورة ${invalid.name} غير مدعومة أو أكبر من 10MB`, 'warn');
+    input.value = '';
+    return;
+  }
+  const keys = new Set(_profileImages[kind].map(file => `${file.name}:${file.size}:${file.lastModified}`));
+  for (const file of incoming) {
+    const key = `${file.name}:${file.size}:${file.lastModified}`;
+    if (!keys.has(key)) { _profileImages[kind].push(file); keys.add(key); }
+  }
+  input.value = '';
+  _profileImageSignature[kind] = '';
+  renderProfileImages(kind);
+  renderProfileDistributionPreview();
+}
+
+function renderProfileImages(kind) {
+  const preview = document.getElementById(`prof-${kind}-preview`);
+  if (!preview) return;
+  preview.innerHTML = _profileImages[kind].map((file, index) => {
+    if (!_profileImageUrls.has(file)) _profileImageUrls.set(file, URL.createObjectURL(file));
+    return `<div draggable="true" ondragstart="dragProfileImage('${kind}',${index})" ondragover="event.preventDefault()" ondrop="dropProfileImage('${kind}',${index})" style="width:92px;background:var(--s3);border:1px solid var(--bd);border-radius:7px;padding:4px;text-align:center">
+      <img src="${_profileImageUrls.get(file)}" style="width:82px;height:${kind === 'banners' ? '42px' : '62px'};object-fit:cover;border-radius:5px">
+      <div title="${escapeProfileText(file.name)}" style="font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:3px 0">${index + 1}. ${escapeProfileText(file.name)}</div>
+      <div style="display:flex;gap:3px;justify-content:center"><button type="button" class="btn btn-sm" onclick="moveProfileImage('${kind}',${index},-1)">→</button><button type="button" class="btn btn-sm" onclick="moveProfileImage('${kind}',${index},1)">←</button><button type="button" class="btn btn-sm btn-r" onclick="removeProfileImage('${kind}',${index})">×</button></div>
+    </div>`;
+  }).join('');
+}
+
+function removeProfileImage(kind, index) {
+  _profileImages[kind].splice(index, 1);
+  _profileImageSignature[kind] = '';
+  _profileManualAssignments[kind] = {};
+  renderProfileImages(kind);
+  renderProfileDistributionPreview();
+}
+
+function moveProfileImage(kind, index, delta) {
+  const target = index + delta;
+  if (target < 0 || target >= _profileImages[kind].length) return;
+  [_profileImages[kind][index], _profileImages[kind][target]] = [_profileImages[kind][target], _profileImages[kind][index]];
+  _profileImageSignature[kind] = '';
+  renderProfileImages(kind);
+  renderProfileDistributionPreview();
+}
+
+function dragProfileImage(kind, index) { _profileDraggedImage = { kind, index }; }
+function dropProfileImage(kind, target) {
+  if (!_profileDraggedImage || _profileDraggedImage.kind !== kind) return;
+  const [file] = _profileImages[kind].splice(_profileDraggedImage.index, 1);
+  _profileImages[kind].splice(target, 0, file);
+  _profileDraggedImage = null;
+  _profileImageSignature[kind] = '';
+  renderProfileImages(kind);
+  renderProfileDistributionPreview();
+}
+
+function getOrderedProfileImages(kind) {
+  const files = _profileImages[kind] || [];
+  const order = document.getElementById('prof-img-order')?.value || 'sequential';
+  if (order !== 'random') return [...files];
+  const signature = files.map(file => `${file.name}:${file.size}:${file.lastModified}`).join('|');
+  if (_profileImageSignature[kind] !== signature) {
+    _profileImageSignature[kind] = signature;
+    _profileImageShuffle[kind] = [...files].sort(() => Math.random() - 0.5);
+  }
+  return [..._profileImageShuffle[kind]];
+}
+
+function setProfileManualImage(kind, accountId, value) {
+  _profileManualAssignments[kind][accountId] = Number(value);
+}
+
+function uploadWithProgress(url, formData, onProgress) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', url);
+    xhr.setRequestHeader('Authorization', `Bearer ${TOKEN}`);
+    xhr.upload.onprogress = event => {
+      if (event.lengthComputable) onProgress?.(Math.round(event.loaded * 100 / event.total));
+    };
+    xhr.onerror = () => reject(new Error('تعذر الاتصال أثناء رفع الصور'));
+    xhr.onload = () => {
+      let data = {};
+      try { data = JSON.parse(xhr.responseText || '{}'); } catch {}
+      if (xhr.status >= 200 && xhr.status < 300) resolve(data);
+      else reject(new Error(data.error || `فشل الرفع (${xhr.status})`));
+    };
+    xhr.send(formData);
   });
 }
 
@@ -4489,7 +4732,7 @@ async function doUpdateProfiles() {
   const namesRaw   = document.getElementById('prof-name').value.trim();
   const namesList  = namesRaw ? namesRaw.split('\n').map(n => n.trim()).filter(Boolean) : [];
   const name       = namesList[0] || ''; // للـ updates العادي نأخذ الأول فقط
-  const bio        = document.getElementById('prof-bio').value.trim();
+  const biosList   = getProfileBios();
   const locRaw     = document.getElementById('prof-location').value.trim();
   const locsList   = locRaw ? locRaw.split('\n').map(l => l.trim()).filter(Boolean) : [];
   const loc        = locsList[0] || '';
@@ -4501,35 +4744,66 @@ async function doUpdateProfiles() {
   if (name) updates.displayName = name;
   if (loc)  updates.location    = loc;
   if (web)  updates.website     = web;
-  if (bio && mode === 'manual') updates.bio = bio;
+  if (mode === 'same' && biosList[0]) updates.bio = biosList[0];
+  if (['same','list'].includes(mode) && !biosList.length) return toast('أدخل بيو واحدًا على الأقل', 'warn');
+  const longBio = biosList.find(bio => bio.length > 160);
+  if (longBio) return toast(`يوجد بيو يتجاوز 160 حرفًا (${longBio.length})`, 'warn');
 
-  // مسارات الصور — الفرونت يرسل الأسماء فقط، الباكند يبحث في مجلد الصور
-  const avatarFiles = [...(document.getElementById('prof-avatars').files || [])].map(f => f.name);
-  const bannerFiles = [...(document.getElementById('prof-banners').files || [])].map(f => f.name);
+  const avatarFiles = getOrderedProfileImages('avatars');
+  const bannerFiles = getOrderedProfileImages('banners');
+  const btn = document.getElementById('prof-update-btn');
+  const uploadProgress = document.getElementById('prof-upload-progress');
+  const uploadBar = document.getElementById('prof-upload-bar');
+  const uploadPercent = document.getElementById('prof-upload-percent');
+  const uploadLabel = document.getElementById('prof-upload-label');
+  btn.disabled = true;
+  btn.textContent = '⏳ جارٍ التحضير…';
 
   // رفع الملفات أولاً عبر FormData
   let avatarPaths = [], bannerPaths = [];
   if (avatarFiles.length || bannerFiles.length) {
     const formData = new FormData();
-    [...document.getElementById('prof-avatars').files].forEach(f => formData.append('avatars', f));
-    [...document.getElementById('prof-banners').files].forEach(f => formData.append('banners', f));
+    avatarFiles.forEach(file => formData.append('avatars', file));
+    bannerFiles.forEach(file => formData.append('banners', file));
+    uploadProgress.style.display = 'block';
+    uploadLabel.textContent = `رفع ${avatarFiles.length + bannerFiles.length} صورة…`;
+    uploadBar.style.width = '0%';
+    uploadPercent.textContent = '0%';
     try {
-      const uploadRes = await fetch('/api/v1/accounts/upload-images', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${TOKEN}` },
-        body: formData,
+      const uploadData = await uploadWithProgress('/api/v1/accounts/upload-images', formData, percent => {
+        uploadBar.style.width = `${percent}%`;
+        uploadPercent.textContent = `${percent}%`;
       });
-      const uploadData = await uploadRes.json();
       avatarPaths = uploadData.avatarPaths || [];
       bannerPaths = uploadData.bannerPaths || [];
-    } catch(e) { return toast('فشل رفع الصور: ' + e.message, 'err'); }
+      uploadBar.style.width = '100%';
+      uploadPercent.textContent = '100%';
+      uploadLabel.textContent = '✅ اكتمل رفع الصور — بدء التحديث';
+    } catch(e) {
+      btn.disabled = false;
+      btn.textContent = '💾 تحديث الآن';
+      uploadLabel.textContent = '❌ فشل رفع الصور';
+      return toast('فشل رفع الصور: ' + e.message, 'err');
+    }
+  }
+
+  const avatarAssignments = {};
+  const bannerAssignments = {};
+  if (imageOrder === 'manual') {
+    ids.forEach((id, index) => {
+      if (avatarPaths.length) avatarAssignments[id] = avatarPaths[Number(_profileManualAssignments.avatars[id] ?? index % avatarPaths.length) % avatarPaths.length];
+      if (bannerPaths.length) bannerAssignments[id] = bannerPaths[Number(_profileManualAssignments.banners[id] ?? index % bannerPaths.length) % bannerPaths.length];
+    });
   }
 
   const stat = document.getElementById('prof-upd-status');
   const prog = document.getElementById('prof-upd-progress');
   stat.textContent = 'جارٍ التحديث…';
+  btn.textContent = '⏳ جارٍ التحديث…';
   prog.style.display = 'block';
   prog.innerHTML = '';
+  _profileUpdateResults = new Map();
+  _profileUpdateTotal = ids.length;
 
   try {
     const d = await api('/api/v1/accounts/bulk-update-profiles', {
@@ -4538,13 +4812,24 @@ async function doUpdateProfiles() {
         accountIds: ids, batchSize: +(document.getElementById('prof-upd-batch')?.value || 1), updates,
         namesList,
         locationsList: locsList,
+        biosList: mode === 'list' ? biosList : [],
+        // getProfileBios يحفظ الخلط الظاهر في المعاينة، لذلك يرسل بالترتيب النهائي.
+        bioOrder: 'sequential',
         useAI: mode === 'ai',
         niche: niche || undefined,
-        avatarPaths, bannerPaths, imageOrder,
+        avatarPaths, bannerPaths,
+        // الصور العشوائية رُتبت في الواجهة لتطابق المعاينة.
+        imageOrder: imageOrder === 'random' ? 'sequential' : imageOrder,
+        avatarAssignments, bannerAssignments,
       }),
     });
     stat.textContent = `جارٍ التحديث لـ ${d.total} حساب في الخلفية…`;
-  } catch(e) { stat.textContent = ''; toast(e.message, 'err'); }
+  } catch(e) {
+    stat.textContent = '';
+    btn.disabled = false;
+    btn.textContent = '💾 تحديث الآن';
+    toast(e.message, 'err');
+  }
 }
 
 async function doBulkCheck() {
@@ -4671,28 +4956,106 @@ function updateSchedEngageToggle() {
   if (on) apRender('sched');
 }
 
+let _scheduleTextShuffle = [];
+let _scheduleTextSignature = '';
+let _scheduleMediaShuffle = [];
+let _scheduleMediaSignature = '';
+
+function updateScheduleTextMode() {
+  const listMode = document.getElementById('sc-text-mode')?.value === 'list';
+  document.getElementById('sc-text-order-wrap').style.display = listMode ? 'block' : 'none';
+  document.getElementById('sc-text-help').innerHTML = listMode
+    ? '— افصل بين كل تغريدة والأخرى بسطر <code style="background:var(--s4);padding:1px 5px;border-radius:4px">---</code>'
+    : '— ستُنشر نفسها من كل الحسابات';
+  document.getElementById('sc-text').placeholder = listMode
+    ? 'التغريدة الأولى\n---\nالتغريدة الثانية\nيمكن أن تكون على عدة أسطر'
+    : 'اكتب التغريدة المراد جدولتها…';
+  renderSchedulePreview();
+}
+
+function getOrderedScheduleTexts() {
+  const mode = document.getElementById('sc-text-mode')?.value || 'same';
+  const raw = document.getElementById('sc-text')?.value || '';
+  const texts = mode === 'list' ? parseSeparatedBlocks(raw) : (raw.trim() ? [raw.trim()] : []);
+  if (mode !== 'list' || document.getElementById('sc-text-order')?.value !== 'random') return texts;
+  const signature = JSON.stringify(texts);
+  if (_scheduleTextSignature !== signature) {
+    _scheduleTextSignature = signature;
+    _scheduleTextShuffle = [...texts].sort(() => Math.random() - 0.5);
+  }
+  return [..._scheduleTextShuffle];
+}
+
+function getOrderedScheduleMediaFiles() {
+  const images = [...(document.getElementById('sc-images')?.files || [])];
+  const video = document.getElementById('sc-video')?.files?.[0];
+  const files = video ? [video] : images;
+  if (document.getElementById('sc-img-order')?.value !== 'random') return files;
+  const signature = files.map(file => `${file.name}:${file.size}:${file.lastModified}`).join('|');
+  if (_scheduleMediaSignature !== signature) {
+    _scheduleMediaSignature = signature;
+    _scheduleMediaShuffle = [...files].sort(() => Math.random() - 0.5);
+  }
+  return [..._scheduleMediaShuffle];
+}
+
+function renderSchedulePreview() {
+  const preview = document.getElementById('sc-distribution-preview');
+  if (!preview) return;
+  const ids = getSelectedAccounts('sc-accounts');
+  const texts = getOrderedScheduleTexts();
+  const media = getOrderedScheduleMediaFiles();
+  if (!ids.length || !texts.length) { preview.style.display = 'none'; preview.innerHTML = ''; return; }
+  const accountMap = new Map(allActiveAccounts.map(account => [String(account._id), account]));
+  const sameText = document.getElementById('sc-text-mode')?.value === 'same';
+  const mediaOrder = document.getElementById('sc-img-order')?.value || 'same';
+  preview.style.display = 'block';
+  preview.innerHTML = `<strong>معاينة الجدولة — ${texts.length} نص على ${ids.length} حساب</strong>${ids.map((id, index) => {
+    const text = texts[sameText ? 0 : index % texts.length];
+    const assigned = !media.length ? 'بدون وسائط' : mediaOrder === 'same'
+      ? media.map(file => file.name).join(' + ')
+      : media[index % media.length].name;
+    return `<div style="padding:6px 0;border-top:1px solid var(--bd);display:grid;grid-template-columns:130px 1fr 190px;gap:8px"><span style="color:var(--blu2)">@${accountMap.get(String(id))?.username || id}</span><span>${escapeProfileText(text).replace(/\n/g,'<br>')}</span><span>📎 ${escapeProfileText(assigned)}</span></div>`;
+  }).join('')}`;
+}
+
 async function doSchedule() {
-  const accountId  = document.getElementById('sc-acc').value;
-  const text       = document.getElementById('sc-text').value.trim();
+  const accountIds = getSelectedAccounts('sc-accounts');
+  const textsList  = getOrderedScheduleTexts();
   const localTime  = document.getElementById('sc-time').value;
-  if (!text || !localTime) return toast('أكمل جميع الحقول', 'warn');
+  if (!accountIds.length || !textsList.length || !localTime) return toast('اختر الحسابات وأدخل النص والموعد', 'warn');
+  const invalidText = textsList.find(text => text.length > 280);
+  if (invalidText) return toast(`توجد تغريدة تتجاوز 280 حرفًا (${invalidText.length})`, 'warn');
   // حوّل الوقت المحلي (datetime-local) إلى UTC ISO — مستقل عن توقيت السيرفر
   const when = new Date(localTime);
   if (isNaN(when.getTime())) return toast('وقت غير صحيح', 'warn');
   if (when.getTime() <= Date.now()) return toast('اختر وقتاً في المستقبل', 'warn');
   const scheduledAt = when.toISOString();
+  const images = [...(document.getElementById('sc-images')?.files || [])];
+  const video = document.getElementById('sc-video')?.files?.[0];
+  if (images.length && video) return toast('اختر صورًا أو فيديو، وليس الاثنين معًا', 'warn');
+  const imageOrder = document.getElementById('sc-img-order')?.value || 'same';
+  if (imageOrder === 'same' && images.length > 4) return toast('يمكن نشر 4 صور كحد أقصى للحساب الواحد', 'warn');
+  const btn = document.getElementById('sc-submit-btn');
+  btn.disabled = true;
+  btn.textContent = '⏳ جارٍ الجدولة…';
 
   try {
     // ١) رفع الوسائط (صور + فيديو)
     let mediaLocalPaths = [];
+    const orderedMedia = getOrderedScheduleMediaFiles();
     const fd = new FormData(); let hasFiles = false;
-    [...(document.getElementById('sc-images')?.files || [])].forEach(f => { fd.append('images', f); hasFiles = true; });
-    const vid = document.getElementById('sc-video')?.files?.[0];
-    if (vid) { fd.append('images', vid); hasFiles = true; }
+    orderedMedia.forEach(file => { fd.append('images', file); hasFiles = true; });
     if (hasFiles) {
-      const r = await fetch('/api/v1/actions/upload-media', { method:'POST', headers:{ Authorization:`Bearer ${TOKEN}` }, body: fd });
-      const d = await r.json();
+      const progress = document.getElementById('sc-upload-progress');
+      const bar = document.getElementById('sc-upload-bar');
+      const percent = document.getElementById('sc-upload-percent');
+      progress.style.display = 'block'; bar.style.width = '0%'; percent.textContent = '0%';
+      const d = await uploadWithProgress('/api/v1/actions/upload-media', fd, value => {
+        bar.style.width = `${value}%`; percent.textContent = `${value}%`;
+      });
       mediaLocalPaths = d.paths || [];
+      document.getElementById('sc-upload-label').textContent = '✅ اكتمل رفع الوسائط';
     }
 
     // ٢) إعداد التفاعل التلقائي
@@ -4710,15 +5073,21 @@ async function doSchedule() {
       };
     }
 
-    // ٣) أنشئ المحتوى المجدول (مع الوسائط والتفاعل) ثم سجّله
-    const item = await api('/api/v1/content', { method:'POST', body: JSON.stringify({ accountId, text, scheduledAt, mediaLocalPaths, engage }) });
-    await api('/api/v1/content/schedule', { method:'POST', body: JSON.stringify({ accountId, contentId: item._id, scheduledAt }) });
-    toast('✅ تمت الجدولة', 'ok');
+    // ٣) أنشئ جدولة مستقلة لكل حساب. requestId يمنع التكرار عند إعادة الطلب.
+    const requestId = globalThis.crypto?.randomUUID?.() || `schedule-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const result = await api('/api/v1/content/schedule/bulk', { method:'POST', body: JSON.stringify({
+      accountIds, textsList, textOrder:'sequential', scheduledAt, mediaLocalPaths,
+      imageOrder: imageOrder === 'random' ? 'sequential' : imageOrder,
+      engage, requestId, batchSize: +(document.getElementById('sc-batch-size')?.value || 1),
+    }) });
+    toast(`✅ تمت جدولة ${result.total} حساب`, 'ok');
     document.getElementById('sc-text').value = '';
     if (document.getElementById('sc-images')) document.getElementById('sc-images').value = '';
     if (document.getElementById('sc-video'))  document.getElementById('sc-video').value = '';
+    document.getElementById('sc-distribution-preview').style.display = 'none';
     loadSchedules();
   } catch(e) { toast(e.message,'err'); }
+  finally { btn.disabled = false; btn.textContent = 'جدولة النشر'; }
 }
 
 async function loadSchedules() {
@@ -4730,12 +5099,13 @@ async function loadSchedules() {
         <div class="sched-card">
           <div class="sched-time">${new Date(s.scheduledAt).toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'})}<br><span style="font-size:10px;color:var(--t2)">${new Date(s.scheduledAt).toLocaleDateString('ar-SA')}</span></div>
           <div class="sched-info">
-            <div class="sched-text">${s.content?.text||'—'}</div>
-            <div class="sched-meta">@${s.account?.username||'—'} · ${s.type}</div>
+            <div class="sched-text">${escapeProfileText(s.content?.text||'—')}</div>
+            <div class="sched-meta">@${escapeProfileText(s.account?.username||'—')} · ${s.status === 'pending' ? '⏳ بانتظار النشر' : s.status === 'done' ? '✅ منشور' : s.status === 'failed' ? '❌ فشل' : '⛔ ملغى'}</div>
+            ${s.content?.failReason ? `<div style="font-size:10px;color:var(--red);margin-top:3px">${escapeProfileText(s.content.failReason)}</div>` : ''}
           </div>
-          <button class="btn btn-sm btn-r" onclick="cancelSchedule('${s._id}')">إلغاء</button>
+          <div style="display:flex;gap:5px">${s.status === 'pending' ? `<button class="btn btn-sm btn-r" onclick="cancelSchedule('${s._id}')">إلغاء</button>` : ''}${s.status === 'failed' ? `<button class="btn btn-sm" onclick="retrySchedule('${s._id}')">إعادة المحاولة</button>` : ''}${s.content?.tweetUrl ? `<a class="btn btn-sm" href="${s.content.tweetUrl}" target="_blank">فتح</a>` : ''}</div>
         </div>`).join('')
-      : '<div style="text-align:center;padding:30px;color:var(--t2);font-size:12px">لا توجد جدولات منتظرة</div>';
+      : '<div style="text-align:center;padding:30px;color:var(--t2);font-size:12px">لا توجد جدولات</div>';
   } catch(e) { toast(e.message,'err'); }
 }
 
@@ -4743,6 +5113,14 @@ async function cancelSchedule(id) {
   try {
     await api(`/api/v1/content/schedules/${id}/cancel`, { method:'POST' });
     toast('تم إلغاء الجدولة', 'ok');
+    loadSchedules();
+  } catch(e) { toast(e.message,'err'); }
+}
+
+async function retrySchedule(id) {
+  try {
+    await api(`/api/v1/content/schedules/${id}/retry`, { method:'POST', body:JSON.stringify({}) });
+    toast('تمت إعادة جدولة المنشور للمحاولة الآن', 'ok');
     loadSchedules();
   } catch(e) { toast(e.message,'err'); }
 }

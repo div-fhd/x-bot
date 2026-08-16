@@ -13,6 +13,7 @@ module.exports = wrapProcessor(async function profileUpdateProcessor(job, { isCa
   if (!account?.isActive) throw new Error(`SKIP: @${account?.username} — inactive`);
   await job.updateProgress(10);
   try {
+    jobEvents.updateProg({ username: account.username, done: meta.index, total: meta.total, stage: 'processing' });
     let finalUpdates = { ...updates };
     if (useAI) {
       const s = await AISvc.suggestBio({ niche: niche || account.niche || 'general', name: account.profile?.displayName || account.username });
@@ -20,11 +21,11 @@ module.exports = wrapProcessor(async function profileUpdateProcessor(job, { isCa
     }
     await ActionSvc.updateProfile(account, finalUpdates);
     await job.updateProgress(100);
-    jobEvents.updateProg({ username: account.username, done: meta.index + 1, total: meta.total, success: true });
+    jobEvents.updateProg({ username: account.username, done: meta.index + 1, total: meta.total, stage: 'completed', success: true });
     return { success: true };
   } catch(e) {
     logger.warn(`[ProfileUpdate] @${account.username}: ${e.message}`);
-    jobEvents.updateProg({ username: account.username, done: meta.index + 1, total: meta.total, error: e.message });
+    jobEvents.updateProg({ username: account.username, done: meta.index + 1, total: meta.total, stage: 'completed', error: e.message });
     throw e;
   }
 }

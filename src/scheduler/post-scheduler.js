@@ -1,6 +1,6 @@
 'use strict';
 const cron   = require('node-cron');
-const { Content } = require('../models/index');
+const { Content, Schedule } = require('../models/index');
 const { getQueue, QUEUE_NAMES } = require('../queues/queues');
 const logger = require('../utils/logger');
 
@@ -18,9 +18,14 @@ async function tick() {
 
     const queue = getQueue(QUEUE_NAMES.SCHEDULED_POST);
     for (const c of due) {
+      const schedule = await Schedule.findOne({ content:c._id, status:'pending' }).lean();
+      const meta = schedule?.requestId ? {
+        parentJobId: schedule.requestId,
+        maxConcurrency: schedule.maxConcurrency || 1,
+      } : null;
       await queue.add(
         QUEUE_NAMES.SCHEDULED_POST,
-        { accountId: String(c.account), contentId: String(c._id) },
+        { accountId: String(c.account), contentId: String(c._id), ...(meta ? { meta } : {}) },
         { jobId: `schedpost-${c._id}`, attempts: 2, backoff: { type: 'fixed', delay: 30_000 },
           removeOnComplete: true, removeOnFail: 100 },
       );

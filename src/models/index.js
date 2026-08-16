@@ -87,9 +87,15 @@ const ScheduleSchema = new mongoose.Schema({
   type:        { type: String, enum: ['post','engage','check'], required: true },
   scheduledAt: { type: Date, required: true, index: true },
   status:      { type: String, enum: ['pending','done','failed','cancelled'], default: 'pending' },
+  requestId:   { type: String, index: true },
+  maxConcurrency: { type: Number, min: 1, default: 1 },
   note:        String,
   createdBy:   { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
 }, { timestamps: true });
+ScheduleSchema.index(
+  { requestId:1, account:1 },
+  { unique:true, partialFilterExpression:{ requestId:{ $type:'string' } } },
+);
 const Schedule = mongoose.model('Schedule', ScheduleSchema);
 
 // ── EngageCampaign ────────────────────────────────────────────
