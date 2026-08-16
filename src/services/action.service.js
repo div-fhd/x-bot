@@ -66,6 +66,30 @@ async function xApi(creds, method, path, body = null) {
   });
 }
 
+function extractCreatedTweetId(payload) {
+  const root = payload?.data?.create_tweet?.tweet_results?.result
+    || payload?.data?.create_tweet?.tweet_results
+    || payload?.data?.create_tweet;
+  if (!root || typeof root !== 'object') return null;
+
+  // Keep this path-specific. A broad recursive search may accidentally pick
+  // the author's user rest_id from `core.user_results` and report a false post.
+  const candidates = [
+    root.rest_id,
+    root.tweet?.rest_id,
+    root.legacy?.id_str,
+    root.result?.rest_id,
+    root.result?.tweet?.rest_id,
+    root.result?.legacy?.id_str,
+    root.tweet_results?.result?.rest_id,
+    root.tweet_results?.result?.legacy?.id_str,
+  ];
+  for (const candidate of candidates) {
+    if (/^\d+$/.test(String(candidate || ''))) return String(candidate);
+  }
+  return null;
+}
+
 const ActionSvc = {
 
   // ── Tweet ─────────────────────────────────────────────────────
@@ -158,19 +182,43 @@ const ActionSvc = {
         throw new Error(`Tweet button stayed disabled — box: "${boxContent.slice(0,60)}" (${boxContent.length} chars)`);
       }
 
+      // The compose URL usually does not change after posting. Capture X's
+      // CreateTweet response instead; a click alone is not proof of success.
+      const createTweetResponse = page.waitForResponse(response => {
+        const url = response.url();
+        return response.request().method() === 'POST' && /\/CreateTweet(?:\?|$)/i.test(url);
+      }, { timeout: 20_000 }).catch(() => null);
       await submitLocator.evaluate(el => el.click());
-      await sleep(3000, 5000);
+      const response = await createTweetResponse;
+      await sleep(1200, 2200);
 
-      const url     = page.url();
-      const tweetId = url.match(/\/status\/(\d+)/)?.[1] || null;
+      let tweetId = null;
+      if (response) {
+        const payload = await response.json().catch(() => null);
+        tweetId = extractCreatedTweetId(payload);
+        if (!response.ok() || (!tweetId && payload?.errors?.length)) {
+          const detail = payload?.errors?.map(error => error.message || error.code).filter(Boolean).join('; ');
+          throw new Error(`CreateTweetRejected: HTTP ${response.status()}${detail ? ` — ${detail}` : ''}`);
+        }
+      }
+
+      // Defensive fallback for UI/API variants where the network response is
+      // hidden: verify an exact, freshly-created post on the account profile.
+      if (!tweetId) tweetId = await this._findRecentPublishedTweet(page, account, content.text);
+      if (!tweetId) {
+        const error = new Error(`TweetConfirmationUnknown: @${account.username} — submit clicked but no new tweet could be verified`);
+        error.code = 'TWEET_CONFIRMATION_UNKNOWN';
+        throw error;
+      }
+      const tweetUrl = `https://x.com/${account.username}/status/${tweetId}`;
 
       await account.bump('post').catch(swallow('bump:post', 'warn'));
       await Browser.persistSession(account);
-      await log(account._id, 'publish', 'tweet_posted', 'success', { tweetId, ms: Date.now()-t0 });
+      await log(account._id, 'publish', 'tweet_posted', 'success', { tweetId, tweetUrl, verified:true, ms: Date.now()-t0 });
       if (global.io) global.io.emit('action:done', { type:'tweet', account:account.username, tweetId });
 
-      logger.info(`[Action] Tweet posted: @${account.username} ${tweetId||''} (${Date.now()-t0}ms)`);
-      return { success:true, tweetId, tweetUrl: tweetId ? `https://x.com/${account.username}/status/${tweetId}` : null };
+      logger.info(`[Action] Tweet posted+verified: @${account.username} ${tweetId} (${Date.now()-t0}ms)`);
+      return { success:true, verified:true, tweetId, tweetUrl };
 
     } catch (e) {
       if (!/cap reached/i.test(e.message)) {
@@ -181,6 +229,37 @@ const ActionSvc = {
       throw e;
     } finally {
       await page.close().catch(() => {});
+    }
+  },
+
+  async _findRecentPublishedTweet(page, account, expectedText) {
+    try {
+      await this._navigate(page, `https://x.com/${account.username}`, account);
+      const ready = await dom.present(page, 'article', { timeout: 20_000, state: 'visible' });
+      if (!ready) return null;
+      await sleep(900, 1500);
+      return await page.locator('article').evaluateAll((articles, args) => {
+        const normalize = value => String(value || '').replace(/\s+/g, ' ').trim();
+        const expected = normalize(args.expectedText);
+        const handle = String(args.username || '').toLowerCase();
+        const now = Date.now();
+        for (const article of articles.slice(0, 8)) {
+          const text = normalize(article.querySelector('[data-testid="tweetText"]')?.textContent);
+          if (!text || text !== expected) continue;
+          const time = article.querySelector('time')?.getAttribute('datetime');
+          const timestamp = time ? Date.parse(time) : NaN;
+          if (!Number.isFinite(timestamp) || Math.abs(now - timestamp) > 10 * 60_000) continue;
+          for (const link of article.querySelectorAll('a[href*="/status/"]')) {
+            const href = link.getAttribute('href') || '';
+            const match = href.match(/\/([^/]+)\/status\/(\d+)/i);
+            if (match && match[1].toLowerCase() === handle) return match[2];
+          }
+        }
+        return null;
+      }, { expectedText, username: account.username });
+    } catch (error) {
+      logger.warn(`[Action] Tweet verification fallback @${account.username}: ${error.message}`);
+      return null;
     }
   },
 

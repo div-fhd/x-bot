@@ -20,7 +20,7 @@ const ContentSchema = new mongoose.Schema({
   mediaLocalPaths: [String], // مسارات الوسائط المحلية (صور/فيديو) للرفع عند النشر
   status: {
     type: String,
-    enum: ['مسودة','بانتظار_موافقة','معتمد','مجدول','منشور','فشل','ملغى'],
+    enum: ['مسودة','بانتظار_موافقة','معتمد','مجدول','قيد_النشر','منشور','فشل','ملغى'],
     default: 'مسودة', index: true,
   },
   scheduledAt:   { type: Date, index: true },
@@ -86,7 +86,7 @@ const ScheduleSchema = new mongoose.Schema({
   content:     { type: mongoose.Schema.Types.ObjectId, ref: 'Content' },
   type:        { type: String, enum: ['post','engage','check'], required: true },
   scheduledAt: { type: Date, required: true, index: true },
-  status:      { type: String, enum: ['pending','done','failed','cancelled'], default: 'pending' },
+  status:      { type: String, enum: ['pending','running','done','failed','cancelled'], default: 'pending' },
   requestId:   { type: String, index: true },
   maxConcurrency: { type: Number, min: 1, default: 1 },
   note:        String,

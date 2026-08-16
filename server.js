@@ -115,24 +115,35 @@ cron.schedule('0 0 * * *', async () => {
   logger.info(`[Cron] Daily counters reset (${r.modifiedCount} accounts)`);
 });
 
-// ── CRON: run due scheduled posts (every 2 min) ──────────────
-cron.schedule('*/2 * * * *', async () => {
+// ── Legacy scheduler fallback ─────────────────────────────────
+// When Redis/BullMQ is enabled, src/scheduler/post-scheduler.js is the single
+// scheduling authority. Running this direct publisher as well caused the same
+// scheduled content to be posted twice.
+if (!process.env.REDIS_HOST && !process.env.REDIS_URL) cron.schedule('*/2 * * * *', async () => {
   const { Content, Schedule } = require('./src/models/index');
   const Account   = require('./src/models/Account');
   const ActionSvc = require('./src/services/action.service');
 
-  const due = await Schedule.find({ status:'pending', scheduledAt: { $lte: new Date() } })
-    .populate('account').populate('content').limit(10);
+  const dueIds = await Schedule.find({ status:'pending', scheduledAt: { $lte: new Date() } })
+    .select('_id').limit(10).lean();
 
-  for (const sched of due) {
+  for (const row of dueIds) {
+    const sched = await Schedule.findOneAndUpdate(
+      { _id:row._id, status:'pending' },
+      { $set:{ status:'running' } },
+      { new:true },
+    ).populate('account').populate('content');
+    if (!sched) continue;
     if (!sched.account?.isOperational || !sched.content?.text) {
       sched.status = 'failed'; await sched.save(); continue;
     }
     try {
       const result = await ActionSvc.tweet(sched.account, { text: sched.content.text });
+      if (!result?.tweetId || !result?.tweetUrl) throw new Error('TweetNotConfirmed: X did not return a tweet id');
       sched.content.status = 'منشور';
       sched.content.publishedAt = new Date();
       sched.content.tweetId = result.tweetId;
+      sched.content.tweetUrl = result.tweetUrl;
       await sched.content.save();
       sched.status = 'done';
       await sched.save();

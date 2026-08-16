@@ -10,6 +10,23 @@ let task = null;
 // jobId ثابت لكل محتوى → BullMQ يمنع الازدواج أثناء وجود job معلّق/نشط.
 async function tick() {
   try {
+    // A process crash after claiming a job must not leave it looking active
+    // forever or retry it blindly (the click may already have reached X).
+    const staleCutoff = new Date(Date.now() - 15 * 60_000);
+    const stale = await Schedule.find({ status:'running', updatedAt:{ $lt:staleCutoff } }).select('content').lean();
+    if (stale.length) {
+      const contentIds = stale.map(item => item.content).filter(Boolean);
+      await Schedule.updateMany(
+        { status:'running', updatedAt:{ $lt:staleCutoff } },
+        { $set:{ status:'failed', note:'انقطع التنفيذ قبل تأكيد نتيجة النشر' } },
+      );
+      await Content.updateMany(
+        { _id:{ $in:contentIds }, status:'قيد_النشر' },
+        { $set:{ status:'فشل', failReason:'انقطع التنفيذ قبل تأكيد نتيجة النشر — تحقق من الحساب قبل إعادة المحاولة' } },
+      );
+      logger.warn(`[Scheduler] marked ${stale.length} stale running posts as failed (manual verification required)`);
+    }
+
     const due = await Content.find({
       status: 'مجدول',
       scheduledAt: { $lte: new Date() },
@@ -19,6 +36,9 @@ async function tick() {
     const queue = getQueue(QUEUE_NAMES.SCHEDULED_POST);
     for (const c of due) {
       const schedule = await Schedule.findOne({ content:c._id, status:'pending' }).lean();
+      // A running/done/failed schedule has already been claimed. Do not create
+      // another BullMQ job merely because the content write is still pending.
+      if (!schedule) continue;
       const meta = schedule?.requestId ? {
         parentJobId: schedule.requestId,
         maxConcurrency: schedule.maxConcurrency || 1,

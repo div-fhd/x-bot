@@ -5199,7 +5199,7 @@ async function loadContent() {
     const d = await api(`/api/v1/content?${params}`);
     if (!d) return;
     const statusLabel = s => {
-      const m = { 'مسودة':'p-n','بانتظار_موافقة':'p-a','معتمد':'p-b','مجدول':'p-b','منشور':'p-g','فشل':'p-r','ملغى':'p-n' };
+      const m = { 'مسودة':'p-n','بانتظار_موافقة':'p-a','معتمد':'p-b','مجدول':'p-b','قيد_النشر':'p-a','منشور':'p-g','فشل':'p-r','ملغى':'p-n' };
       return `<span class="pill ${m[s]||'p-n'}">${s}</span>`;
     };
     const qColor = q => !q ? 'var(--t2)' : q>7?'var(--grn)':q>4?'var(--amb)':'var(--red)';
@@ -5218,7 +5218,7 @@ async function loadContent() {
                 ? `<button class="btn btn-sm btn-p" onclick="publishNow('${item._id}')">نشر</button>` : ''}
               ${item.status==='مسودة'
                 ? `<button class="btn btn-sm btn-g" onclick="approveContent('${item._id}')">اعتماد</button>` : ''}
-              ${!['منشور'].includes(item.status)
+              ${!['منشور','قيد_النشر'].includes(item.status)
                 ? `<button class="btn btn-sm btn-r" onclick="cancelContent('${item._id}')">إلغاء</button>` : ''}
             </div>
           </td>
@@ -5408,7 +5408,7 @@ async function loadSchedules() {
           <div class="sched-time">${new Date(s.scheduledAt).toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'})}<br><span style="font-size:10px;color:var(--t2)">${new Date(s.scheduledAt).toLocaleDateString('ar-SA')}</span></div>
           <div class="sched-info">
             <div class="sched-text">${escapeProfileText(s.content?.text||'—')}</div>
-            <div class="sched-meta">@${escapeProfileText(s.account?.username||'—')} · ${s.status === 'pending' ? '⏳ بانتظار النشر' : s.status === 'done' ? '✅ منشور' : s.status === 'failed' ? '❌ فشل' : '⛔ ملغى'}</div>
+            <div class="sched-meta">@${escapeProfileText(s.account?.username||'—')} · ${s.status === 'pending' ? '⏳ بانتظار النشر' : s.status === 'running' ? '🚀 جارٍ النشر والتحقق' : s.status === 'done' ? '✅ منشور ومؤكد' : s.status === 'failed' ? '❌ فشل' : '⛔ ملغى'}</div>
             ${s.content?.failReason ? `<div style="font-size:10px;color:var(--red);margin-top:3px">${escapeProfileText(s.content.failReason)}</div>` : ''}
           </div>
           <div style="display:flex;gap:5px">${s.status === 'pending' ? `<button class="btn btn-sm btn-r" onclick="cancelSchedule('${s._id}')">إلغاء</button>` : ''}${s.status === 'failed' ? `<button class="btn btn-sm" onclick="retrySchedule('${s._id}')">إعادة المحاولة</button>` : ''}${s.content?.tweetUrl ? `<a class="btn btn-sm" href="${s.content.tweetUrl}" target="_blank">فتح</a>` : ''}</div>
