@@ -988,9 +988,10 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
       العمليات النشطة
       <span class="nbadge nb-a" id="nb-jobs" style="display:none">0</span>
     </button>
-    <button class="nav-btn" onclick="nav('ops-console',this)">
+    <button class="nav-btn" id="tour-nav-ops-console" onclick="nav('ops-console',this)">
       <svg class="nav-ico" viewBox="0 0 16 16" fill="none"><rect x="1.5" y="1.5" width="13" height="13" rx="2" stroke="currentColor" stroke-width="1.4"/><path d="M4 5.5l2.5 2.5L4 10.5M8.5 10.5h3.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
       وحدة التحكم
+      <span class="feature-new-badge">جديد</span>
       <span class="nbadge nb-a" id="nb-ops" style="display:none">0</span>
     </button>
     <button class="nav-btn" onclick="nav('risks',this)">
@@ -2145,7 +2146,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
               <small style="color:var(--t2);font-weight:400"> — يمكن رفع أكثر من صورة</small>
             </label>
             <input id="prof-avatars" type="file" accept="image/*" multiple onchange="setProfileImages(this,'avatars')">
-            <button type="button" class="btn btn-sm" onclick="openMediaLibrary('avatars','images')" style="margin-top:6px">🗂️ اختيار من المكتبة</button>
+            <button type="button" id="tour-profile-media-library" class="btn btn-sm" onclick="openMediaLibrary('avatars','images')" style="margin-top:6px">🗂️ اختيار من المكتبة</button>
             <div id="prof-avatars-preview" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px"></div>
           </div>
           <div class="field">
@@ -2289,7 +2290,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
     </div>
 
     <!-- Queue Jobs Inspector -->
-    <div class="card" style="margin-bottom:14px">
+    <div class="card" id="tour-queue-jobs" style="margin-bottom:14px">
       <div class="card-h" style="gap:8px;flex-wrap:wrap">
         <span class="card-title">🧱 مهام الطوابير</span>
         <select id="queue-jobs-queue" onchange="loadQueueJobs()" style="font-size:11px;padding:4px 7px;background:var(--s3);border:1px solid var(--bd2);color:var(--t1);border-radius:5px">
@@ -2852,7 +2853,7 @@ let allActiveAccounts = [];
 /* ═══════════════════════════════════════════════════════════════
    جولة استكشاف الميزات الجديدة
 ═══════════════════════════════════════════════════════════════ */
-const FEATURE_TOUR_VERSION = 'profile-schedule-2026-08-v1';
+const FEATURE_TOUR_VERSION = 'media-queue-controls-2026-08-v2';
 let _featureTourIndex = -1;
 let _featureTourActive = false;
 let _featureTourAutoScheduled = false;
@@ -2878,12 +2879,22 @@ const FEATURE_TOUR_STEPS = [
   {
     target:'#tour-profile-images', panel:'profiles',
     title:'تحكم كامل بالصور',
-    text:'ارفع عدة صور أفاتار وبانر، غيّر ترتيبها بالسحب، احذف ما لا تحتاجه، أو اختر صورة كل حساب يدويًا من المعاينة.',
+    text:'ارفع عدة صور أفاتار وبانر، غيّر ترتيبها بالسحب، احذف ما لا تحتاجه، أو اختر صورة كل حساب يدويًا من المعاينة. الملفات المحفوظة تبقى متاحة لإعادة الاستخدام.',
+  },
+  {
+    target:'#tour-profile-media-library', panel:'profiles',
+    title:'مكتبة وسائط قابلة لإعادة الاستخدام',
+    text:'زر «اختيار من المكتبة» يعرض الصور والفيديوهات التي رفعتها سابقًا، لتستخدمها مجددًا في البروفايلات والنشر والردود والجدولة دون رفعها كل مرة.',
   },
   {
     target:'#tour-profile-run-mode', panel:'profiles',
     title:'تسلسلي أو متوازي فعليًا',
     text:'القيمة 1 تشغّل حسابًا واحدًا في كل مرة. القيم الأكبر تسمح بهذا العدد من الحسابات بالتوازي.',
+  },
+  {
+    target:'#tour-profile-run-mode', panel:'profiles',
+    title:'إيقاف تحديث البروفايلات',
+    text:'أثناء تنفيذ التحديث يظهر زر أحمر لإيقاف العملية. يمكنك أيضًا متابعتها وإيقافها من وحدة التحكم، مع إلغاء المهام المنتظرة وإغلاق الجلسات النشطة بأمان.',
   },
   {
     target:'#tour-nav-schedule',
@@ -2908,12 +2919,23 @@ const FEATURE_TOUR_STEPS = [
   {
     target:'#tour-schedule-media', panel:'schedule',
     title:'توزيع الوسائط مع مؤشر رفع',
-    text:'استخدم نفس الوسائط للجميع أو وزّع الصور بالتسلسل أو عشوائيًا. وسيظهر تقدم رفع الملفات بالنسبة المئوية.',
+    text:'استخدم نفس الوسائط للجميع أو وزّع الصور بالتسلسل أو عشوائيًا، واختر ملفات محفوظة من المكتبة عند الحاجة. وسيظهر تقدم رفع الملفات بالنسبة المئوية.',
   },
   {
     target:'#sc-batch-size', panel:'schedule',
     title:'تحكم بطريقة النشر',
     text:'اختر 1 للنشر التسلسلي، أو 3 و5 و10 لتحديد الحد الأقصى للحسابات التي تنشر بالتوازي عند حلول الموعد.',
+  },
+  {
+    target:'#tour-nav-ops-console',
+    title:'متابعة العمليات والطوابير',
+    text:'وحدة التحكم تعرض العمليات الجارية ومهام الطوابير المنتظرة والنشطة والمتأخرة والفاشلة، وتمنحك أدوات التحكم المناسبة لكل حالة.',
+    sidebar:true,
+  },
+  {
+    target:'#tour-queue-jobs', panel:'ops-console',
+    title:'فحص مهام الطوابير والتحكم بها',
+    text:'صفِّ المهام حسب الطابور والحالة، ثم ألغِ المهمة المنتظرة أو أوقف عمليتها النشطة أو أعد محاولة المهمة الفاشلة واحذفها. المنشورات المجدولة محمية وتُدار من صفحة الجدولة.',
   },
 ];
 
