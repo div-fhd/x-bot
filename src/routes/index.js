@@ -81,11 +81,16 @@ proxyRouter.post  ('/bulk-validate',       proxyCtrl.bulkValidate);
 // ── Operations Management ────────────────────────────────────
 const opsCtrl   = require('../ops/ops.controller');
 const opsRouter = require('express').Router();
+opsRouter.use(authMiddleware);
 opsRouter.get   ('/',                   opsCtrl.getActive);
 opsRouter.get   ('/all',                opsCtrl.getAll);
 opsRouter.get   ('/browsers',           opsCtrl.getBrowsers);
 opsRouter.get   ('/queues',             opsCtrl.getQueues);
 opsRouter.get   ('/queues/stats',       opsCtrl.getQueueStats);
+opsRouter.get   ('/queue-jobs',         opsCtrl.listQueueJobs);
+opsRouter.post  ('/queue-jobs/:queueKey/:jobId/cancel', opsCtrl.cancelQueueJob);
+opsRouter.post  ('/queue-jobs/:queueKey/:jobId/retry',  opsCtrl.retryQueueJob);
+opsRouter.delete('/queue-jobs/:queueKey/:jobId',        opsCtrl.removeQueueJob);
 opsRouter.get   ('/:id',                opsCtrl.getOne);
 opsRouter.post  ('/:id/cancel',         opsCtrl.cancel);
 opsRouter.post  ('/:id/pause',          opsCtrl.pause);

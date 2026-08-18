@@ -2288,6 +2288,32 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
       <div style="text-align:center;padding:40px;color:var(--t2);font-size:13px">✓ لا توجد عمليات</div>
     </div>
 
+    <!-- Queue Jobs Inspector -->
+    <div class="card" style="margin-bottom:14px">
+      <div class="card-h" style="gap:8px;flex-wrap:wrap">
+        <span class="card-title">🧱 مهام الطوابير</span>
+        <select id="queue-jobs-queue" onchange="loadQueueJobs()" style="font-size:11px;padding:4px 7px;background:var(--s3);border:1px solid var(--bd2);color:var(--t1);border-radius:5px">
+          <option value="">كل الطوابير</option>
+          <option value="PROFILE_UPDATE">تحديث البروفايل</option><option value="PROFILE_SYNC">مزامنة البروفايل</option>
+          <option value="TWEET_MULTI">النشر الجماعي</option><option value="SCHEDULED_POST">النشر المجدول</option>
+          <option value="FOLLOW">المتابعة</option><option value="LIKE">الإعجاب</option><option value="RETWEET">الريتويت</option>
+          <option value="MUTUAL_FOLLOW">المتابعة التبادلية</option><option value="ENGAGEMENT">التفاعل</option>
+          <option value="REPORT_ACCOUNT">إبلاغ حساب</option><option value="REPORT_TWEET">إبلاغ تغريدة</option><option value="HEALTH_CHECK">فحص الصحة</option>
+        </select>
+        <select id="queue-jobs-state" onchange="loadQueueJobs()" style="font-size:11px;padding:4px 7px;background:var(--s3);border:1px solid var(--bd2);color:var(--t1);border-radius:5px">
+          <option value="waiting,active,delayed,failed,prioritized">المعلقة والنشطة والفاشلة</option>
+          <option value="waiting,delayed,prioritized">المنتظرة فقط</option><option value="active">النشطة فقط</option><option value="failed">الفاشلة فقط</option>
+        </select>
+        <button class="btn btn-sm" onclick="loadQueueJobs()" style="margin-right:auto">↻ تحديث</button>
+        <span id="queue-jobs-count" style="font-size:10px;color:var(--t2)"></span>
+      </div>
+      <div class="tbl-wrap" style="max-height:360px;overflow:auto">
+        <table class="tbl"><thead><tr><th>الحالة</th><th>الطابور</th><th>الحساب</th><th>الانتظار/التقدم</th><th>المحاولات</th><th>العملية</th><th>التحكم</th></tr></thead>
+          <tbody id="queue-jobs-body"><tr><td colspan="7" style="text-align:center;padding:24px;color:var(--t2)">جارٍ التحميل…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
     <!-- Live Logs -->
     <div class="card" style="margin-bottom:14px">
       <div class="card-h">
@@ -3243,6 +3269,24 @@ function init() {
 /* ═══════════════════════════════════════════════════════════════
    API helper
 ═══════════════════════════════════════════════════════════════ */
+async function withBtn(button, action, { successMsg } = {}) {
+  const previousText = button?.textContent;
+  if (button) {
+    button.disabled = true;
+    button.textContent = '⏳';
+  }
+  try {
+    const result = await action();
+    if (successMsg) toast(successMsg, 'ok');
+    return result;
+  } finally {
+    if (button?.isConnected) {
+      button.disabled = false;
+      button.textContent = previousText;
+    }
+  }
+}
+
 async function api(path, opts = {}) {
   const res = await fetch(path, {
     ...opts,
@@ -5946,6 +5990,7 @@ async function loadOpsConsole() {
     renderBrowsers(br);
     const qh = await api('/api/v1/ops/queues');
     renderQueues(qh);
+    await loadQueueJobs();
     document.getElementById('ops-live-badge').style.display = 'inline-flex';
   } catch(e) { console.error('[OpsConsole]', e); }
 }
@@ -5975,6 +6020,79 @@ function updateOpsKPIs() {
   document.getElementById('ops-k-jobs').textContent    = _opsList.reduce((s,o)=>s+o.done,0);
   document.getElementById('ops-k-success').textContent = _opsList.reduce((s,o)=>s+o.success,0);
   document.getElementById('ops-k-failed').textContent  = _opsList.reduce((s,o)=>s+o.failed,0);
+}
+
+const QUEUE_JOB_LABELS = {
+  PROFILE_UPDATE:'تحديث بروفايل', PROFILE_SYNC:'مزامنة بروفايل', TWEET_MULTI:'نشر جماعي',
+  SCHEDULED_POST:'نشر مجدول', FOLLOW:'متابعة', LIKE:'إعجاب', RETWEET:'ريتويت',
+  MUTUAL_FOLLOW:'متابعة تبادلية', ENGAGEMENT:'تفاعل', REPORT_ACCOUNT:'إبلاغ حساب',
+  REPORT_TWEET:'إبلاغ تغريدة', HEALTH_CHECK:'فحص صحة',
+};
+const QUEUE_JOB_STATES = {
+  waiting:['انتظار','p-n'], prioritized:['أولوية','p-n'], active:['نشطة','p-g'],
+  delayed:['مؤجلة','p-a'], failed:['فشلت','p-r'], completed:['مكتملة','p-b'],
+};
+let _queueJobsLoading = false;
+
+function queueJobTiming(job) {
+  if (job.state === 'delayed' && job.runAt) {
+    const seconds = Math.max(0, Math.round((new Date(job.runAt) - Date.now()) / 1000));
+    return `بعد ${seconds > 60 ? Math.ceil(seconds / 60) + ' د' : seconds + ' ث'}`;
+  }
+  const since = job.state === 'active' ? job.processedAt : job.createdAt;
+  const seconds = since ? Math.max(0, Math.round((Date.now() - new Date(since)) / 1000)) : 0;
+  const progress = typeof job.progress === 'number' && job.progress > 0 ? ` · ${job.progress}%` : '';
+  return `${seconds > 60 ? Math.floor(seconds / 60) + ' د' : seconds + ' ث'}${progress}`;
+}
+
+async function loadQueueJobs() {
+  if (_queueJobsLoading) return;
+  const body = document.getElementById('queue-jobs-body');
+  if (!body) return;
+  _queueJobsLoading = true;
+  try {
+    const queue = document.getElementById('queue-jobs-queue')?.value || '';
+    const states = document.getElementById('queue-jobs-state')?.value || 'waiting,active,delayed,failed,prioritized';
+    const data = await api(`/api/v1/ops/queue-jobs?states=${encodeURIComponent(states)}&queue=${encodeURIComponent(queue)}&limit=150`);
+    const jobs = data.jobs || [];
+    document.getElementById('queue-jobs-count').textContent = `${jobs.length} Job`;
+    body.innerHTML = jobs.length ? jobs.map(job => {
+      const state = QUEUE_JOB_STATES[job.state] || [job.state, 'p-n'];
+      const account = job.username ? `@${escapeProfileText(job.username)}` : (job.accountId ? escapeProfileText(job.accountId).slice(-10) : '—');
+      let controls = '<span style="color:var(--t3)">—</span>';
+      if (job.protected) {
+        controls = '<button class="btn btn-sm" onclick="nav(\'schedule\')">الجدولة</button>';
+      } else if (job.state === 'active' && job.parentJobId) {
+        controls = `<button class="btn btn-sm btn-r" onclick="queueJobAction('${job.queueKey}','${job.id}','cancel',this)">إيقاف العملية</button>`;
+      } else if (['waiting','delayed','prioritized'].includes(job.state)) {
+        controls = `<button class="btn btn-sm btn-r" onclick="queueJobAction('${job.queueKey}','${job.id}','cancel',this)">إلغاء</button>`;
+      } else if (job.state === 'failed') {
+        controls = `<div style="display:flex;gap:4px"><button class="btn btn-sm" onclick="queueJobAction('${job.queueKey}','${job.id}','retry',this)">↻ إعادة</button><button class="btn btn-sm btn-r" onclick="queueJobAction('${job.queueKey}','${job.id}','remove',this)">حذف</button></div>`;
+      }
+      return `<tr>
+        <td><span class="pill ${state[1]}" style="font-size:9px">${state[0]}</span>${job.failedReason ? `<div title="${escapeProfileText(job.failedReason)}" style="max-width:170px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--red);font-size:9px;margin-top:3px">${escapeProfileText(job.failedReason)}</div>` : ''}</td>
+        <td style="font-size:11px">${QUEUE_JOB_LABELS[job.queueKey] || job.queueKey}</td>
+        <td style="font-family:var(--m);font-size:10px">${account}${job.total ? `<div style="color:var(--t3)">${Number(job.index || 0) + 1}/${job.total}</div>` : ''}</td>
+        <td style="font-size:10px;color:var(--t2)">${queueJobTiming(job)}</td>
+        <td style="font-family:var(--m);font-size:10px">${job.attemptsMade}/${job.maxAttempts}</td>
+        <td title="${escapeProfileText(job.parentJobId || job.id)}" style="font-family:var(--m);font-size:9px;color:var(--t3)">${escapeProfileText(job.parentJobId || job.id).slice(-14)}</td>
+        <td>${controls}</td>
+      </tr>`;
+    }).join('') : '<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--t2)">✓ لا توجد مهام بهذه الحالة</td></tr>';
+  } catch (error) {
+    body.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--red)">${escapeProfileText(error.message)}</td></tr>`;
+  } finally { _queueJobsLoading = false; }
+}
+
+async function queueJobAction(queueKey, jobId, action, button) {
+  const prompts = { cancel:'إلغاء هذه المهمة؟', retry:'إعادة محاولة هذه المهمة؟', remove:'حذف سجل المهمة الفاشلة؟' };
+  if (!confirm(prompts[action] || 'تنفيذ الإجراء؟')) return;
+  const method = action === 'remove' ? 'DELETE' : 'POST';
+  const suffix = action === 'remove' ? '' : `/${action}`;
+  try {
+    await withBtn(button, () => api(`/api/v1/ops/queue-jobs/${encodeURIComponent(queueKey)}/${encodeURIComponent(jobId)}${suffix}`, { method }), { successMsg:'✓ تم التنفيذ' });
+    await loadQueueJobs();
+  } catch (error) { toast(error.message, 'err'); }
 }
 
 // ── Live log append ──────────────────────────────────────────
@@ -6139,7 +6257,10 @@ function initOpsSocketEvents(socket) {
     if (el) el.textContent = br?.stats?.total||0;
   });
   socket.on('queues:health', qh => {
-    if (currentPanel==='ops-console') renderQueues(qh);
+    if (currentPanel==='ops-console') {
+      renderQueues(qh);
+      loadQueueJobs();
+    }
   });
 }
 

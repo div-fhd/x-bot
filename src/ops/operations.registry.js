@@ -67,6 +67,18 @@ class OperationsRegistry extends EventEmitter {
     if (op.state === OP_STATES.COMPLETED) this.emit('op:completed', this._snap(op));
   }
 
+  jobRetried(parentJobId) {
+    const op = this._ops.get(parentJobId);
+    if (!op) return false;
+    op.done = Math.max(0, op.done - 1);
+    op.failed = Math.max(0, op.failed - 1);
+    op.state = OP_STATES.RETRYING;
+    op.completedAt = null;
+    op.updatedAt = new Date();
+    this.emit('op:retrying', this._snap(op));
+    return true;
+  }
+
   async cancel(parentJobId) {
     const op = this._ops.get(parentJobId);
     if (!op || op.state === OP_STATES.COMPLETED) return false;
@@ -160,7 +172,14 @@ class OperationsRegistry extends EventEmitter {
     let retried = 0;
     const ids = new Set(op.bullJobIds.map(String));
     for (const job of failed) { if (ids.has(String(job.id))) { await job.retry(); retried++; } }
-    if (retried > 0) { op.state = OP_STATES.RETRYING; op.failed = Math.max(0, op.failed - retried); op.updatedAt = new Date(); this.emit('op:retrying', this._snap(op)); }
+    if (retried > 0) {
+      op.state = OP_STATES.RETRYING;
+      op.done = Math.max(0, op.done - retried);
+      op.failed = Math.max(0, op.failed - retried);
+      op.completedAt = null;
+      op.updatedAt = new Date();
+      this.emit('op:retrying', this._snap(op));
+    }
     return retried;
   }
 
