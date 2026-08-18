@@ -297,6 +297,23 @@ const AccountCtrl = {
     const bios = bioOrder === 'random' ? shuffled(normalizedBios) : normalizedBios;
 
     const queue = getQueue(QUEUE_NAMES.PROFILE_UPDATE);
+    let workerCount;
+    try {
+      workerCount = await queue.getWorkersCount();
+    } catch (error) {
+      logger.error(`[bulkUpdateProfiles] Queue health check failed: ${error.message}`);
+      return res.status(503).json({
+        code: 'PROFILE_QUEUE_UNAVAILABLE',
+        error: 'تعذر الاتصال بطابور تحديث الملفات الشخصية. أعد تشغيل السيرفر ثم حاول مجددًا.',
+      });
+    }
+    if (workerCount < 1) {
+      logger.error('[bulkUpdateProfiles] Rejected request: no profile-update worker is connected');
+      return res.status(503).json({
+        code: 'PROFILE_WORKER_UNAVAILABLE',
+        error: 'عامل تحديث الملفات الشخصية غير متصل. أعد تشغيل السيرفر ثم حاول مجددًا.',
+      });
+    }
     const parentJobId = `profile-update-${Date.now()}`;
     const maxConcurrency = Math.max(1, Math.min(accounts.length, Number.parseInt(batchSize, 10) || 1));
 
@@ -332,7 +349,7 @@ const AccountCtrl = {
     });
     registry.registerJobs(parentJobId, added.map(j => j.id));
 
-    logger.info(`[bulkUpdateProfiles] Queued ${accounts.length} update jobs → ${parentJobId}`);
+    logger.info(`[bulkUpdateProfiles] Queued ${accounts.length} update jobs → ${parentJobId} (workers: ${workerCount})`);
     res.json({ started: true, total: accounts.length, jobId: parentJobId });
   },
 

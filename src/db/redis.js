@@ -6,15 +6,12 @@ async function connectRedis() {
   const url = process.env.REDIS_URL
     || (process.env.REDIS_HOST
         ? `redis://${process.env.REDIS_HOST}:${process.env.REDIS_PORT || 6379}`
-        : null);
-  if (!url) {
-    logger.warn('[Redis] REDIS_URL not set — Redis disabled');
-    return null;
-  }
+        : 'redis://127.0.0.1:6379');
   logger.info(`[Redis] Connecting to ${url}`);
   try {
     const Redis = require('ioredis');
     client = new Redis(url, {
+      password: process.env.REDIS_URL ? undefined : (process.env.REDIS_PASSWORD || undefined),
       maxRetriesPerRequest: 2,
       lazyConnect: false,
       connectTimeout: 5000,

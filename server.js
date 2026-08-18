@@ -116,10 +116,11 @@ cron.schedule('0 0 * * *', async () => {
 });
 
 // ── Legacy scheduler fallback ─────────────────────────────────
-// When Redis/BullMQ is enabled, src/scheduler/post-scheduler.js is the single
-// scheduling authority. Running this direct publisher as well caused the same
-// scheduled content to be posted twice.
-if (!process.env.REDIS_HOST && !process.env.REDIS_URL) cron.schedule('*/2 * * * *', async () => {
+// This direct publisher is only a fallback. `bullMqReady` is based on the
+// actual Redis/worker connection, not merely on REDIS_* being present in .env.
+let bullMqReady = false;
+cron.schedule('*/2 * * * *', async () => {
+  if (bullMqReady) return;
   const { Content, Schedule } = require('./src/models/index');
   const Account   = require('./src/models/Account');
   const ActionSvc = require('./src/services/action.service');
@@ -247,21 +248,27 @@ async function start() {
   logger.info('==========================================');
 
   await connectMongo();
-  await connectRedis().catch(() => {}); // Redis is optional
+  const redisClient = await connectRedis().catch(() => null); // Redis is optional
 
   // ── BullMQ Workers ───────────────────────────────────────────
-if (process.env.REDIS_HOST || process.env.REDIS_URL) {
+if (redisClient) {
   const { startWorkers } = require('./src/queues/workers');
   const { closeAllQueues } = require('./src/queues/queues');
   const { closeRedis }     = require('./src/queues/connection');
 
-  startWorkers(global.io).catch(err =>
-    require('./src/utils/logger').warn(`[Workers] Failed to start: ${err.message}`)
-  );
+  try {
+    await startWorkers(global.io);
+    bullMqReady = true;
+  } catch (err) {
+    logger.warn(`[Workers] Failed to start; legacy scheduler fallback is active: ${err.message}`);
+    await require('./src/queues/workers').stopWorkers().catch(() => {});
+  }
 
   // ── Scheduler: ينشر التغريدات المجدولة عند وقتها ──
-  const { startScheduler } = require('./src/scheduler/post-scheduler');
-  startScheduler();
+  if (bullMqReady) {
+    const { startScheduler } = require('./src/scheduler/post-scheduler');
+    startScheduler();
+  }
 
   const graceful = async (sig) => {
     require('./src/utils/logger').info(`[Server] ${sig} — shutting down workers...`);
@@ -274,6 +281,8 @@ if (process.env.REDIS_HOST || process.env.REDIS_URL) {
   };
   process.once('SIGTERM', () => graceful('SIGTERM'));
   process.once('SIGINT',  () => graceful('SIGINT'));
+} else {
+  logger.warn('[Workers] Redis unavailable; queued operations are disabled and will return HTTP 503');
 }
 
 server.listen(cfg.port, () => {

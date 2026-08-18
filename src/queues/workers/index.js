@@ -63,6 +63,9 @@ async function startWorkers(io) {
     _queueEvents.push(attachQueueEvents(queueName));
   }
 
+  // Only announce readiness after the workers have actually registered in
+  // Redis. Otherwise producers can queue jobs that nobody is consuming.
+  await Promise.all(_workers.map(worker => worker.waitUntilReady()));
   logger.info(`[Workers] Started ${_workers.length} workers (concurrency: ${BROWSER_LIMIT})`);
 }
 
