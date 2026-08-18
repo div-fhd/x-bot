@@ -388,46 +388,46 @@ const AccountCtrl = {
 
   async uploadImages(req, res) {
     try {
-      const path  = require('path');
-      const fs    = require('fs');
       const sharp = require('sharp').default || require('sharp');
-      const uploadDir = path.join(process.cwd(), 'data', 'uploads');
-      fs.mkdirSync(uploadDir, { recursive: true });
+      const MediaLibrary = require('../services/media-library.service');
+      const contentIndex = MediaLibrary.buildContentIndex();
 
       const avatarPaths = [];
       const bannerPaths = [];
+      let reused = 0;
 
       for (const file of (req.files?.avatars || [])) {
         const fname = `avatar_${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
-        const fpath = path.join(uploadDir, fname);
-        await sharp(file.buffer).resize(400, 400, { fit: 'cover' }).jpeg({ quality: 85 }).toFile(fpath);
-        avatarPaths.push(fpath);
+        const buffer = await sharp(file.buffer).resize(400, 400, { fit: 'cover' }).jpeg({ quality: 85 }).toBuffer();
+        const saved = MediaLibrary.saveUniqueBuffer({ bucket:'profiles', buffer, filename:fname, index:contentIndex });
+        if (saved.reused) reused += 1;
+        if (!avatarPaths.includes(saved.path)) avatarPaths.push(saved.path);
       }
       for (const file of (req.files?.banners || [])) {
         const fname = `banner_${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
-        const fpath = path.join(uploadDir, fname);
-        await sharp(file.buffer).resize(1500, 500, { fit: 'cover' }).jpeg({ quality: 85 }).toFile(fpath);
-        bannerPaths.push(fpath);
+        const buffer = await sharp(file.buffer).resize(1500, 500, { fit: 'cover' }).jpeg({ quality: 85 }).toBuffer();
+        const saved = MediaLibrary.saveUniqueBuffer({ bucket:'profiles', buffer, filename:fname, index:contentIndex });
+        if (saved.reused) reused += 1;
+        if (!bannerPaths.includes(saved.path)) bannerPaths.push(saved.path);
       }
-      res.json({ avatarPaths, bannerPaths });
+      res.json({ avatarPaths, bannerPaths, reused });
     } catch(e) {
       // fallback: save without processing
-      const path = require('path');
-      const fs   = require('fs');
-      const uploadDir = path.join(process.cwd(), 'data', 'uploads');
-      fs.mkdirSync(uploadDir, { recursive: true });
+      const MediaLibrary = require('../services/media-library.service');
+      const contentIndex = MediaLibrary.buildContentIndex();
       const avatarPaths = [], bannerPaths = [];
+      let reused = 0;
       for (const file of (req.files?.avatars || [])) {
-        const fpath = path.join(uploadDir, `avatar_${Date.now()}.jpg`);
-        fs.writeFileSync(fpath, file.buffer);
-        avatarPaths.push(fpath);
+        const saved = MediaLibrary.saveUniqueBuffer({ bucket:'profiles', buffer:file.buffer, filename:`avatar_${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`, index:contentIndex });
+        if (saved.reused) reused += 1;
+        if (!avatarPaths.includes(saved.path)) avatarPaths.push(saved.path);
       }
       for (const file of (req.files?.banners || [])) {
-        const fpath = path.join(uploadDir, `banner_${Date.now()}.jpg`);
-        fs.writeFileSync(fpath, file.buffer);
-        bannerPaths.push(fpath);
+        const saved = MediaLibrary.saveUniqueBuffer({ bucket:'profiles', buffer:file.buffer, filename:`banner_${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`, index:contentIndex });
+        if (saved.reused) reused += 1;
+        if (!bannerPaths.includes(saved.path)) bannerPaths.push(saved.path);
       }
-      res.json({ avatarPaths, bannerPaths });
+      res.json({ avatarPaths, bannerPaths, reused });
     }
   },
 

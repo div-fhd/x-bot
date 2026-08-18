@@ -194,20 +194,30 @@ const ActionCtrl = {
   },
 
   async uploadMedia(req, res) {
-    const fs   = require('fs');
     const path = require('path');
-    const dir  = path.join(process.cwd(), 'data', 'media');
-    fs.mkdirSync(dir, { recursive: true });
+    const MediaLibrary = require('../services/media-library.service');
+    const contentIndex = MediaLibrary.buildContentIndex();
     const paths = [];
+    let reused = 0;
     // صور + فيديو (X يقبل حتى ٤ صور أو فيديو واحد)
     const files = [...(req.files?.images || []), ...(req.files?.video || [])];
     for (const file of files) {
-      const ext  = file.originalname.split('.').pop();
-      const dest = path.join(dir, `media_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`);
-      fs.writeFileSync(dest, file.buffer);
-      paths.push(dest);
+      const originalExt = path.extname(file.originalname || '').toLowerCase();
+      const mimeExt = {
+        'image/jpeg':'.jpg', 'image/png':'.png', 'image/gif':'.gif', 'image/webp':'.webp',
+        'video/mp4':'.mp4', 'video/quicktime':'.mov', 'video/webm':'.webm', 'video/x-msvideo':'.avi',
+      }[file.mimetype];
+      const ext = mimeExt || (originalExt && /^\.[a-z0-9]{1,8}$/.test(originalExt) ? originalExt : '.bin');
+      const saved = MediaLibrary.saveUniqueBuffer({
+        bucket: 'posts',
+        buffer: file.buffer,
+        filename: `media_${Date.now()}_${Math.random().toString(36).slice(2)}${ext}`,
+        index: contentIndex,
+      });
+      if (saved.reused) reused += 1;
+      if (!paths.includes(saved.path)) paths.push(saved.path);
     }
-    res.json({ paths });
+    res.json({ paths, reused });
   },
 
   async listMediaLibrary(req, res) {

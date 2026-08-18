@@ -1,6 +1,7 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 const ROOTS = {
   posts: path.resolve(process.cwd(), 'data', 'media'),
@@ -37,6 +38,43 @@ function classify(bucket, filename, mime) {
   return 'profile';
 }
 
+function contentHash(buffer) {
+  return crypto.createHash('sha256').update(buffer).digest('hex');
+}
+
+function fileHash(fullPath) {
+  return contentHash(fs.readFileSync(fullPath));
+}
+
+function buildContentIndex() {
+  const index = new Map();
+  for (const root of Object.values(ROOTS)) {
+    if (!fs.existsSync(root)) continue;
+    for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+      const mime = MIME[path.extname(entry.name).toLowerCase()];
+      if (!entry.isFile() || !mime?.startsWith('image/')) continue;
+      const fullPath = path.join(root, entry.name);
+      try { index.set(fileHash(fullPath), fullPath); } catch {}
+    }
+  }
+  return index;
+}
+
+function saveUniqueBuffer({ bucket, buffer, filename, index = buildContentIndex() }) {
+  if (!ROOTS[bucket]) throw new Error(`Unknown media bucket: ${bucket}`);
+  const hash = contentHash(buffer);
+  const existingPath = index.get(hash);
+  if (existingPath && fs.existsSync(existingPath)) {
+    return { path: existingPath, reused: true, hash };
+  }
+  fs.mkdirSync(ROOTS[bucket], { recursive: true });
+  const safeName = path.basename(filename);
+  const fullPath = path.join(ROOTS[bucket], safeName);
+  fs.writeFileSync(fullPath, buffer);
+  index.set(hash, fullPath);
+  return { path: fullPath, reused: false, hash };
+}
+
 function list({ kind = 'all', limit = 250 } = {}) {
   const items = [];
   for (const [bucket, root] of Object.entries(ROOTS)) {
@@ -63,7 +101,21 @@ function list({ kind = 'all', limit = 250 } = {}) {
       });
     }
   }
-  return items.sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, Math.max(1, Math.min(+limit || 250, 500)));
+  const unique = [];
+  const seenHashes = new Set();
+  for (const item of items.sort((a, b) => b.createdAt.localeCompare(a.createdAt))) {
+    if (!item.mime.startsWith('image/')) {
+      unique.push(item);
+      continue;
+    }
+    try {
+      const hash = fileHash(item.path);
+      if (seenHashes.has(hash)) continue;
+      seenHashes.add(hash);
+      unique.push({ ...item, hash });
+    } catch {}
+  }
+  return unique.slice(0, Math.max(1, Math.min(+limit || 250, 500)));
 }
 
 function resolve(id) {
@@ -73,4 +125,4 @@ function resolve(id) {
   return mime ? { ...decoded, mime } : null;
 }
 
-module.exports = { list, resolve };
+module.exports = { list, resolve, buildContentIndex, saveUniqueBuffer };
