@@ -880,33 +880,36 @@ const ActionSvc = {
           return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
         }), profileFormSelector, { timeout }).then(() => true).catch(() => false);
 
-      // ── إحماء: حمّل home أولاً ليُهيّئ X حالة الجلسة قبل الذهاب لصفحة محمية ─
-      // الانتقال المباشر لـ /settings/profile عند الإقلاع البارد يُعرض shell فارغ
-      // (الـ SPA لا يُهيّئ auth في الوقت المناسب). home warm-up يحلّ ذلك — كما في _classify.
-      await page.goto('https://x.com/home', { waitUntil: 'domcontentloaded', timeout: 40_000 }).catch(() => {});
-      throwIfCancelled();
-      await this._dismissPopups(page);
-      await this._checkNotRedirected(page, account);
-      // انتظر مؤشر تسجيل دخول فعّال (أيٌّ منها يكفي)
-      await page.waitForSelector(
-        '[data-testid="AppTabBar_Home_Link"], [data-testid="SideNav_AccountSwitcher_Button"], [data-testid="primaryColumn"]',
-        { timeout: 20_000 },
-      ).catch(() => {});
-      await sleep(800, 1500);
+      const openSettingsDirectly = async () => {
+        await page.goto('https://x.com/settings/profile', {
+          waitUntil: 'domcontentloaded',
+          timeout: 40_000,
+        }).catch(() => {});
+        throwIfCancelled();
+        await sleep(500, 800);
+        await this._dismissPopups(page);
+        await this._checkNotRedirected(page, account);
+      };
 
-      // ── ثم الانتقال لصفحة إعدادات البروفايل ─────────
-      await page.goto('https://x.com/settings/profile', {
-        waitUntil: 'domcontentloaded',
-        timeout: 40_000,
-      }).catch(() => {});
-      throwIfCancelled();
+      // المسار السريع: الحسابات السليمة لا تحتاج فتح home قبل كل تحديث.
+      await openSettingsDirectly();
+      let formReady = await waitForProfileForm(10_000);
 
-      await sleep(1000, 1500);
-      await this._dismissPopups(page);
-      await this._checkNotRedirected(page, account);
-
-      // انتظر ظهور أي عنصر مرئي من الفورم دون أن يُفشل انتظار عنصر آخر العملية.
-      let formReady = await waitForProfileForm();
+      if (!formReady) {
+        // الإقلاع البارد لبعض جلسات X يعرض shell فارغًا عند فتح الإعدادات
+        // مباشرة. في هذه الحالة فقط نُحمّي الجلسة عبر home ثم نعيد المحاولة.
+        logger.info(`[Action] @${account.username} — Direct settings load was slow, warming session through home...`);
+        await page.goto('https://x.com/home', { waitUntil: 'domcontentloaded', timeout: 40_000 }).catch(() => {});
+        throwIfCancelled();
+        await this._dismissPopups(page);
+        await this._checkNotRedirected(page, account);
+        await page.waitForSelector(
+          '[data-testid="AppTabBar_Home_Link"], [data-testid="SideNav_AccountSwitcher_Button"], [data-testid="primaryColumn"]',
+          { timeout: 12_000 },
+        ).catch(() => {});
+        await openSettingsDirectly();
+        formReady = await waitForProfileForm();
+      }
 
       if (!formReady) {
         // الصفحة لم تحمّل الفورم — reload مع انتظار 'load' (تهيئة الـ SPA كاملة)
