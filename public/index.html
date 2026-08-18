@@ -4666,7 +4666,7 @@ function renderSmartAccountCards(containerId, selectId) {
     const name = escapeProfileText(account.profile?.displayName || account.label || account.username);
     const username = escapeProfileText(account.username);
     const avatar = account.profile?.avatarUrl
-      ? `<img class="smart-account-avatar" src="${escapeProfileText(account.profile.avatarUrl)}" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
+      ? `<img class="smart-account-avatar" src="${escapeProfileText(account.profile.avatarUrl)}" alt="صورة @${username}" referrerpolicy="no-referrer" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
       : '';
     const fallbackDisplay = avatar ? 'none' : 'flex';
     const statusColor = account.status === 'active' ? 'var(--grn)' : 'var(--amb)';

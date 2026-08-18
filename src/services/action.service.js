@@ -1127,6 +1127,27 @@ const ActionSvc = {
 
   // ── Sync profile stats ────────────────────────────────────────
   async syncProfile(account) {
+    const apiProfile = await AuthSvc.fetchOwnProfile(account).catch(() => null);
+    if (apiProfile) {
+      const currentProfile = account.profile?.toObject?.() || account.profile || {};
+      account.profile = {
+        ...currentProfile,
+        displayName: apiProfile.displayName,
+        bio: apiProfile.bio,
+        location: apiProfile.location,
+        website: apiProfile.website,
+        avatarUrl: apiProfile.avatarUrl || currentProfile.avatarUrl || '',
+        followersCount: apiProfile.followersCount,
+        followingCount: apiProfile.followingCount,
+        tweetsCount: apiProfile.tweetsCount,
+        lastSyncedAt: new Date(),
+      };
+      await account.save();
+      logger.info(`[ProfileSync] @${account.username}: synced via credentials API${apiProfile.avatarUrl ? ' with avatar' : ''}`);
+      return account.profile;
+    }
+
+    logger.warn(`[ProfileSync] @${account.username}: credentials API unavailable; falling back to profile DOM`);
     const page = await this._readyPage(account);
     try {
       const profileUrl = `https://x.com/${account.username}`;
@@ -1188,7 +1209,9 @@ const ActionSvc = {
         displayName: data.displayName || currentProfile.displayName || account.username,
         bio: data.bio ?? currentProfile.bio ?? '',
         location: data.location ?? currentProfile.location ?? '',
-        avatarUrl: data.avatarUrl ? data.avatarUrl.replace(/_normal(?=\.[a-z]+(?:\?|$))/i, '_400x400') : (currentProfile.avatarUrl || ''),
+        avatarUrl: data.avatarUrl
+          ? (data.avatarUrl.includes('/profile_images/') ? data.avatarUrl.replace(/_normal(?=\.[a-z]+(?:\?|$))/i, '_400x400') : data.avatarUrl)
+          : (currentProfile.avatarUrl || ''),
         followersCount: followersCount ?? currentProfile.followersCount ?? 0,
         followingCount: followingCount ?? currentProfile.followingCount ?? 0,
         tweetsCount: tweetsCount ?? currentProfile.tweetsCount ?? 0,

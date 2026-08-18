@@ -478,7 +478,7 @@ const AuthSvc = {
   },
 
   // ── التحقق من صلاحية auth_token عبر API ─────────────────────
-  async _verifyViaAPI(creds) {
+  async _requestCredentialsViaAPI(creds) {
     try {
       const https  = require('https');
       const BEARER = 'AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA';
@@ -509,12 +509,45 @@ const AuthSvc = {
         req.end();
       });
 
-      logger.info(`[Auth] _verifyViaAPI @${creds.auth_token?.slice(0,8)}… → ${result.status}`);
-      // 200 = صالح، 403 = banned/suspended، 401 = منتهي الصلاحية
-      return result.status === 200;
+      return result;
     } catch (e) {
-      logger.warn(`[Auth] _verifyViaAPI error: ${e.message}`);
-      return false;
+      logger.warn(`[Auth] credentials API error: ${e.message}`);
+      return { status: 0, body: '' };
+    }
+  },
+
+  async _verifyViaAPI(creds) {
+    const result = await this._requestCredentialsViaAPI(creds);
+    logger.info(`[Auth] credentials API → ${result.status}`);
+    // 200 = صالح، 403 = banned/suspended، 401 = منتهي الصلاحية
+    return result.status === 200;
+  },
+
+  async fetchOwnProfile(account) {
+    const creds = Vault.decryptAccount(account.credentials || {});
+    if (!creds.auth_token) return null;
+    const result = await this._requestCredentialsViaAPI(creds);
+    if (result.status !== 200) return null;
+    try {
+      const user = JSON.parse(result.body);
+      if (!user?.screen_name) return null;
+      const rawAvatarUrl = user.profile_image_url_https || user.profile_image_url || '';
+      return {
+        screenName: user.screen_name,
+        displayName: user.name || user.screen_name,
+        bio: user.description || '',
+        location: user.location || '',
+        website: user.entities?.url?.urls?.[0]?.expanded_url || user.url || '',
+        avatarUrl: rawAvatarUrl.includes('/profile_images/')
+          ? rawAvatarUrl.replace(/_normal(?=\.[a-z]+(?:\?|$))/i, '_400x400')
+          : rawAvatarUrl,
+        followersCount: Number(user.followers_count) || 0,
+        followingCount: Number(user.friends_count) || 0,
+        tweetsCount: Number(user.statuses_count) || 0,
+      };
+    } catch (error) {
+      logger.warn(`[Auth] credentials profile parse failed: ${error.message}`);
+      return null;
     }
   },
 
