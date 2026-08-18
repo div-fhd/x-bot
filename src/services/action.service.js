@@ -1131,25 +1131,57 @@ const ActionSvc = {
     try {
       await page.goto(`https://x.com/${account.username}`, { waitUntil:'domcontentloaded' });
       await sleep(1500, 2500);
+      await page.waitForSelector('[data-testid="UserName"]', { state:'visible', timeout:15_000 })
+        .catch(() => { throw new Error(`Profile page did not load for @${account.username}`); });
       const parseCount = s => {
-        if (!s) return 0;
-        const n = s.replace(/,/g,'').trim();
-        if (n.endsWith('K')) return Math.round(parseFloat(n)*1000);
-        if (n.endsWith('M')) return Math.round(parseFloat(n)*1_000_000);
-        return parseInt(n,10)||0;
+        if (!s) return null;
+        const arabicDigits = '٠١٢٣٤٥٦٧٨٩';
+        const normalized = String(s)
+          .replace(/[٠-٩]/g, digit => arabicDigits.indexOf(digit))
+          .replace(/[٬,]/g, '')
+          .replace(/٫/g, '.');
+        const match = normalized.match(/([0-9]+(?:\.[0-9]+)?)\s*(K|M|B|ألف|آلاف|مليون|مليار)?/i);
+        if (!match) return null;
+        const multipliers = { k:1e3, m:1e6, b:1e9, 'ألف':1e3, 'آلاف':1e3, 'مليون':1e6, 'مليار':1e9 };
+        return Math.round(parseFloat(match[1]) * (multipliers[(match[2] || '').toLowerCase()] || 1));
       };
-      const [name,bio,followers,following] = await Promise.all([
-        page.$eval('[data-testid="UserName"] span',          e=>e.textContent).catch(()=>null),
-        page.$eval('[data-testid="UserDescription"]',        e=>e.textContent).catch(()=>null),
-        page.$eval('a[href$="/verified_followers"] span',    e=>e.textContent).catch(()=>null),
-        page.$eval('a[href$="/following"] span',             e=>e.textContent).catch(()=>null),
-      ]);
+      const data = await page.evaluate(username => {
+        const primary = document.querySelector('[data-testid="primaryColumn"]') || document;
+        const nameHost = primary.querySelector('[data-testid="UserName"]');
+        const nameParts = [...(nameHost?.querySelectorAll('span') || [])]
+          .map(element => element.textContent?.trim()).filter(Boolean);
+        const displayName = nameParts.find(text => !text.startsWith('@') && !/posts?|منشور|تغريدة/i.test(text)) || '';
+        const anchorText = suffixes => {
+          const links = [...primary.querySelectorAll('a[href]')];
+          const link = links.find(element => suffixes.some(suffix => element.getAttribute('href')?.endsWith(suffix)));
+          return link?.textContent?.trim() || '';
+        };
+        const avatar = primary.querySelector('[data-testid^="UserAvatar-Container-"] img[src*="profile_images"]')
+          || primary.querySelector('img[src*="profile_images"]');
+        return {
+          displayName,
+          bio: primary.querySelector('[data-testid="UserDescription"]')?.textContent?.trim() || '',
+          followers: anchorText(['/verified_followers', '/followers']),
+          following: anchorText(['/following']),
+          tweets: nameParts.find(text => /posts?|منشور|تغريدة/i.test(text)) || '',
+          avatarUrl: avatar?.currentSrc || avatar?.src || '',
+          location: primary.querySelector('[data-testid="UserLocation"]')?.textContent?.trim() || '',
+        };
+      }, account.username).catch(() => ({}));
+      const currentProfile = account.profile?.toObject?.() || account.profile || {};
+      const followersCount = parseCount(data.followers);
+      const followingCount = parseCount(data.following);
+      const tweetsCount = parseCount(data.tweets);
       account.profile = {
-        displayName:    name?.trim()     || account.username,
-        bio:            bio?.trim()      || '',
-        followersCount: parseCount(followers),
-        followingCount: parseCount(following),
-        lastSyncedAt:   new Date(),
+        ...currentProfile,
+        displayName: data.displayName || currentProfile.displayName || account.username,
+        bio: data.bio ?? currentProfile.bio ?? '',
+        location: data.location ?? currentProfile.location ?? '',
+        avatarUrl: data.avatarUrl ? data.avatarUrl.replace(/_normal(?=\.[a-z]+(?:\?|$))/i, '_400x400') : (currentProfile.avatarUrl || ''),
+        followersCount: followersCount ?? currentProfile.followersCount ?? 0,
+        followingCount: followingCount ?? currentProfile.followingCount ?? 0,
+        tweetsCount: tweetsCount ?? currentProfile.tweetsCount ?? 0,
+        lastSyncedAt: new Date(),
       };
       await account.save();
       return account.profile;

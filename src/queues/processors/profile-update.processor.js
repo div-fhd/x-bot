@@ -20,8 +20,12 @@ module.exports = wrapProcessor(async function profileUpdateProcessor(job, { isCa
       if (s?.bio) finalUpdates.bio = s.bio;
     }
     await ActionSvc.updateProfile(account, finalUpdates, { isCancelled });
+    const syncedProfile = await ActionSvc.syncProfile(account).catch(error => {
+      logger.warn(`[ProfileUpdate] @${account.username}: saved, but profile refresh failed: ${error.message}`);
+      return account.profile;
+    });
     await job.updateProgress(100);
-    jobEvents.updateProg({ username: account.username, done: meta.index + 1, total: meta.total, stage: 'completed', success: true });
+    jobEvents.updateProg({ username: account.username, done: meta.index + 1, total: meta.total, stage: 'completed', success: true, profile: syncedProfile });
     return { success: true };
   } catch(e) {
     const error = isCancelled()

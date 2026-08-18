@@ -3230,6 +3230,7 @@ function init() {
       if (d.done === d.total) {
         document.getElementById('prof-sync-status').textContent = `✅ اكتملت المزامنة (${d.total})`;
         loadAccounts();
+        refreshVisibleAccountSelectors();
       }
     });
     // Init ops console socket events
@@ -3258,6 +3259,8 @@ function init() {
         if (cancelBtn) cancelBtn.style.display = 'none';
         const upload = document.getElementById('prof-upload-progress');
         if (upload) setTimeout(() => { upload.style.display = 'none'; }, 1500);
+        loadAccounts();
+        refreshVisibleAccountSelectors();
       }
     });
     socket.on('tweet:multi:done', d => {
@@ -3964,6 +3967,22 @@ async function loadActiveAccounts() {
     // تملأ selects البروفايل إذا الصفحة مفتوحة
     fillAccountMultiSelects('prof-sync-acc','prof-upd-acc');
   } catch {}
+}
+
+async function refreshVisibleAccountSelectors() {
+  await loadActiveAccounts();
+  if (currentPanel === 'profiles') {
+    buildSmartSelector('prof-sync-container', 'prof-sync-acc');
+    buildSmartSelector('prof-upd-container', 'prof-upd-acc');
+  } else if (currentPanel === 'schedule') {
+    buildSmartSelector('sc-acc-container', 'sc-accounts');
+  } else if (currentPanel === 'actions') {
+    buildSmartSelector('tm-acc-container', 'tm-accounts');
+    buildSmartSelector('fl-acc-container', 'fl-acc');
+    buildSmartSelector('lk-acc-container', 'lk-acc');
+    buildSmartSelector('rp-acc-container', 'rp-acc');
+    buildSmartSelector('ry-acc-container', 'ry-acc');
+  }
 }
 
 function fillAccountSelects(...ids) {
