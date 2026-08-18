@@ -246,6 +246,46 @@ const ActionCtrl = {
     res.sendFile(media.fullPath);
   },
 
+  async deleteMediaLibraryItems(req, res) {
+    const MediaLibrary = require('../services/media-library.service');
+    const { Content } = require('../models/index');
+    const ids = [...new Set(Array.isArray(req.body?.ids) ? req.body.ids : [])].slice(0, 250);
+    if (!ids.length) return res.status(400).json({ error: 'اختر ملفاً واحداً على الأقل' });
+
+    const pendingStatuses = ['مسودة','بانتظار_موافقة','معتمد','مجدول','قيد_النشر'];
+    const queueStates = ['waiting','active','delayed','paused','prioritized','waiting-children'];
+    const queues = Object.values(QUEUE_NAMES);
+    const deleted = [], blocked = [], missing = [];
+    const containsPath = (value, target) => {
+      if (typeof value === 'string') return value === target;
+      if (Array.isArray(value)) return value.some(item => containsPath(item, target));
+      return Boolean(value && typeof value === 'object' && Object.values(value).some(item => containsPath(item, target)));
+    };
+    const queuedJobs = (await Promise.all(queues.map(queueName =>
+      getQueue(queueName).getJobs(queueStates, 0, 499, false).catch(() => [])
+    ))).flat();
+
+    for (const id of ids) {
+      const media = MediaLibrary.resolve(id);
+      if (!media) { missing.push(id); continue; }
+
+      const contentRef = await Content.exists({
+        mediaLocalPaths: media.fullPath,
+        status: { $in: pendingStatuses },
+      });
+      const queueRef = !contentRef && queuedJobs.some(job => containsPath(job.data, media.fullPath));
+
+      if (contentRef || queueRef) {
+        blocked.push({ id, name: media.filename, reason: contentRef ? 'مرتبط بمحتوى أو جدولة' : 'مستخدم في عملية بالطابور' });
+        continue;
+      }
+      if (MediaLibrary.remove(id)) deleted.push(id);
+    }
+
+    logger.info(`[MediaLibrary] deleted=${deleted.length}, blocked=${blocked.length}, missing=${missing.length}`);
+    res.json({ deleted, blocked, missing });
+  },
+
   async tweetMulti(req, res) {
     const {
       accountIds, text, mode = 'ai', varyText = false, manualTexts = [],

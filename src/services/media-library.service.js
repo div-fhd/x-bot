@@ -135,4 +135,12 @@ function resolve(id) {
   return mime ? { ...decoded, mime } : null;
 }
 
-module.exports = { list, resolve, buildContentIndex, saveUniqueBuffer };
+function remove(id) {
+  const media = resolve(id);
+  if (!media) return false;
+  fs.unlinkSync(media.fullPath);
+  FILE_HASH_CACHE.delete(media.fullPath);
+  return true;
+}
+
+module.exports = { list, resolve, remove, buildContentIndex, saveUniqueBuffer };

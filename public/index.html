@@ -894,6 +894,23 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .acc-role-pill.active-engage{ background:rgba(30,212,138,.1);color:var(--grn);border-color:rgba(30,212,138,.3) }
 .acc-role-pill.active-support{ background:rgba(245,166,35,.1);color:var(--amb);border-color:rgba(245,166,35,.3) }
 .acc-role-pill.active-mixed { background:rgba(255,255,255,.06);color:var(--t1);border-color:var(--bd2) }
+.smart-view-tools { display:flex;align-items:center;gap:7px;margin-bottom:8px }
+.smart-account-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px;max-height:290px;overflow:auto;padding:2px }
+.smart-account-card { display:flex;gap:9px;align-items:center;text-align:right;background:var(--s2);border:1px solid var(--bd);border-radius:9px;padding:9px;cursor:pointer;color:var(--t1);min-width:0;transition:.15s }
+.smart-account-card:hover { border-color:var(--bd3);transform:translateY(-1px) }
+.smart-account-card.selected { border-color:var(--blu);background:rgba(91,141,249,.11);box-shadow:inset 0 0 0 1px rgba(91,141,249,.18) }
+.smart-account-avatar { width:40px;height:40px;border-radius:50%;object-fit:cover;background:var(--s5);border:1px solid var(--bd2);flex-shrink:0 }
+.smart-account-meta { min-width:0;flex:1 }
+.smart-account-name { font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--t0) }
+.smart-account-user { font:10px var(--m);color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis }
+.smart-account-stats { display:flex;gap:8px;margin-top:5px;font:9px var(--m);color:var(--t2);flex-wrap:wrap }
+.media-manager-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:10px }
+.media-manager-item { position:relative;background:var(--s3);border:1px solid var(--bd);border-radius:10px;padding:7px;cursor:pointer;transition:.15s;min-width:0 }
+.media-manager-item:hover { border-color:var(--bd3);transform:translateY(-1px) }
+.media-manager-item.selected { border-color:var(--blu);background:rgba(91,141,249,.1);box-shadow:inset 0 0 0 1px rgba(91,141,249,.18) }
+.media-manager-thumb { height:118px;border-radius:7px;background:var(--s4);display:flex;align-items:center;justify-content:center;overflow:hidden;color:var(--t2) }
+.media-manager-thumb img { width:100%;height:100%;object-fit:cover }
+@media(max-width:700px){.smart-account-grid{grid-template-columns:1fr}.media-manager-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 </style>
 </style>
 </head>
@@ -960,6 +977,11 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
       المحتوى
       <span class="nbadge nb-b" id="nb-content">—</span>
     </button>
+    <button class="nav-btn" id="tour-nav-media" onclick="nav('media',this)">
+      <svg class="nav-ico" viewBox="0 0 16 16" fill="none"><rect x="1.5" y="2" width="13" height="12" rx="2" stroke="currentColor" stroke-width="1.4"/><circle cx="5" cy="6" r="1.3" fill="currentColor"/><path d="M3.5 12l3.2-3.2 2.1 2 1.5-1.5 2.2 2.7" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      مكتبة الوسائط
+      <span class="feature-new-badge">جديد</span>
+    </button>
     <button class="nav-btn" id="tour-nav-schedule" onclick="nav('schedule',this)">
       <svg class="nav-ico" viewBox="0 0 16 16" fill="none"><rect x="1.5" y="2.5" width="13" height="12" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M5 1v3M11 1v3M1.5 6.5h13" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
       الجدولة
@@ -967,7 +989,6 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
     <button class="nav-btn" id="tour-nav-profiles" onclick="nav('profiles',this)">
       <svg class="nav-ico" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="5" r="3" stroke="currentColor" stroke-width="1.4"/><path d="M2 14c0-2.8 2.7-4.5 6-4.5s6 1.7 6 4.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="13" cy="11" r="2.5" fill="var(--s2)" stroke="currentColor" stroke-width="1.3"/><path d="M13 10v2M12 11h2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
       البروفايلات
-      <span class="feature-new-badge">جديد</span>
     </button>
 
     <div class="nav-sec">الذكاء الاصطناعي</div>
@@ -990,7 +1011,6 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
     <button class="nav-btn" id="tour-nav-ops-console" onclick="nav('ops-console',this)">
       <svg class="nav-ico" viewBox="0 0 16 16" fill="none"><rect x="1.5" y="1.5" width="13" height="13" rx="2" stroke="currentColor" stroke-width="1.4"/><path d="M4 5.5l2.5 2.5L4 10.5M8.5 10.5h3.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
       وحدة التحكم
-      <span class="feature-new-badge">جديد</span>
       <span class="nbadge nb-a" id="nb-ops" style="display:none">0</span>
     </button>
     <button class="nav-btn" onclick="nav('risks',this)">
@@ -1936,6 +1956,32 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
     </div>
   </div>
 
+  <!-- ════════════ مكتبة الوسائط ════════════ -->
+  <div class="panel" id="p-media">
+    <div class="card">
+      <div class="card-h" style="gap:10px;flex-wrap:wrap">
+        <span class="card-title">مكتبة الوسائط</span>
+        <span id="media-manager-summary" style="font-size:11px;color:var(--t2)"></span>
+        <div style="margin-right:auto;display:flex;gap:7px;flex-wrap:wrap">
+          <button class="btn btn-sm" onclick="selectAllManagedMedia()">تحديد الظاهر</button>
+          <button class="btn btn-sm" onclick="clearManagedMediaSelection()">إلغاء التحديد</button>
+          <button id="media-manager-delete" class="btn btn-sm btn-r" onclick="deleteManagedMedia()" disabled>حذف المحدد</button>
+          <button class="btn btn-sm" onclick="loadMediaManager(true)">↻ تحديث</button>
+        </div>
+      </div>
+      <div class="card-b">
+        <div id="tour-media-manager" style="display:grid;grid-template-columns:minmax(180px,1fr) 170px;gap:9px;margin-bottom:14px">
+          <input id="media-manager-search" type="search" placeholder="ابحث باسم الملف…" oninput="renderMediaManager()">
+          <select id="media-manager-kind" onchange="loadMediaManager(true)">
+            <option value="all">كل الوسائط</option><option value="images">كل الصور</option><option value="videos">الفيديو</option><option value="post">صور المنشورات</option><option value="avatar">الصور الشخصية</option><option value="banner">صور الغلاف</option>
+          </select>
+        </div>
+        <div id="media-manager-loading" style="padding:38px;text-align:center;color:var(--t2)">جارٍ تحميل المكتبة…</div>
+        <div id="media-manager-grid" class="media-manager-grid"></div>
+      </div>
+    </div>
+  </div>
+
   <!-- ════════════ الجدولة ════════════ -->
   <div class="panel" id="p-schedule">
     <div class="g2">
@@ -2852,7 +2898,7 @@ let allActiveAccounts = [];
 /* ═══════════════════════════════════════════════════════════════
    جولة استكشاف الميزات الجديدة
 ═══════════════════════════════════════════════════════════════ */
-const FEATURE_TOUR_VERSION = 'profile-queue-replace-2026-08-v4';
+const FEATURE_TOUR_VERSION = 'media-manager-account-cards-2026-08-v5';
 let _featureTourIndex = -1;
 let _featureTourActive = false;
 let _featureTourAutoScheduled = false;
@@ -2861,9 +2907,15 @@ let _featureTourRenderToken = 0;
 
 const FEATURE_TOUR_STEPS = [
   {
-    target:'#tour-profile-run-mode', panel:'profiles',
-    title:'التحديث الجديد يستبدل السابق',
-    text:'عند بدء تحديث بروفايلات جديد، تُلغى تلقائيًا مهام تحديث البروفايل السابقة والمعلقة فقط، ويُستأنف الطابور قبل تشغيل المهمة الجديدة. بقية الطوابير والجدولة لا تتأثر.',
+    target:'#tour-media-manager', panel:'media',
+    title:'إدارة مكتبة الوسائط',
+    text:'ابحث في الصور والفيديوهات المحفوظة، صفّها حسب الاستخدام، وحدد الملفات غير المطلوبة لحذفها. الملفات المرتبطة بجدولة أو عملية نشطة محمية من الحذف.',
+  },
+  {
+    target:'#prof-upd-container-cards', panel:'profiles',
+    title:'الحسابات أصبحت أوضح',
+    text:'يمكنك تحديد الحسابات من بطاقات تعرض الصورة والاسم والمتابعين والتغريدات والحالة، أو الرجوع إلى القائمة المدمجة عند التعامل مع عدد كبير.',
+    prepare:() => buildSmartSelector('prof-upd-container', 'prof-upd-acc'),
   },
 ];
 
@@ -3300,7 +3352,7 @@ function logout() {
 /* ═══════════════════════════════════════════════════════════════
    التنقل
 ═══════════════════════════════════════════════════════════════ */
-const titles = { overview:'نظرة عامة', jobs:'العمليات النشطة', proxies:'البروكسيات', accounts:'الحسابات', import:'استيراد جماعي', actions:'إجراءات يدوية', content:'المحتوى', schedule:'الجدولة', ai:'اقتراحات الذكاء الاصطناعي', risks:'المخاطر', profiles:'البروفايلات', audit:'سجل النشاط' };
+const titles = { overview:'نظرة عامة', jobs:'العمليات النشطة', proxies:'البروكسيات', accounts:'الحسابات', import:'استيراد جماعي', actions:'إجراءات يدوية', content:'المحتوى', media:'مكتبة الوسائط', schedule:'الجدولة', ai:'اقتراحات الذكاء الاصطناعي', risks:'المخاطر', profiles:'البروفايلات', audit:'سجل النشاط' };
 
 function nav(id, btn) {
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('on'));
@@ -3320,6 +3372,7 @@ function nav(id, btn) {
   if (id === 'engagement') { loadEngagement(); if (!allActiveAccounts.length) loadActiveAccounts(); }
   if (id === 'audit')    { auditPage = 1; loadAudit(); }
   if (id === 'content')  loadContent();
+  if (id === 'media')    loadMediaManager();
   if (id === 'schedule') {
     loadSchedules();
     if (allActiveAccounts.length) buildSmartSelector('sc-acc-container', 'sc-accounts');
@@ -4511,6 +4564,8 @@ async function doReplyMulti() {
 function buildSmartSelector(containerId, selectId) {
   const container = document.getElementById(containerId);
   if (!container) return;
+  const previous = new Set(getSelectedAccounts(selectId));
+  const view = localStorage.getItem('xops_account_selector_view') || 'cards';
 
   const roles = [
     { val: 'all',     label: 'الكل',    cls: 'active-all' },
@@ -4545,8 +4600,13 @@ function buildSmartSelector(containerId, selectId) {
         </div>
       </div>
       <div class="field">
-        <label>الحسابات المحددة <span id="${containerId}-sel-count" style="color:var(--blu2);font-weight:700"></span></label>
-        <select id="${selectId}" multiple style="height:100px;font-family:var(--m)"></select>
+        <div class="smart-view-tools" id="tour-account-cards">
+          <label style="margin:0">الحسابات المحددة <span id="${containerId}-sel-count" style="color:var(--blu2);font-weight:700"></span></label>
+          <button type="button" class="btn btn-sm" style="margin-right:auto" onclick="setSmartSelectorView('${containerId}','${selectId}','cards')">▦ بطاقات</button>
+          <button type="button" class="btn btn-sm" onclick="setSmartSelectorView('${containerId}','${selectId}','list')">☷ قائمة</button>
+        </div>
+        <div id="${containerId}-cards" class="smart-account-grid" style="display:${view === 'cards' ? 'grid' : 'none'}"></div>
+        <select id="${selectId}" multiple style="height:130px;font-family:var(--m);display:${view === 'list' ? 'block' : 'none'}"></select>
       </div>
     </div>
   `;
@@ -4557,11 +4617,61 @@ function buildSmartSelector(containerId, selectId) {
     : '<option disabled>لا توجد حسابات نشطة</option>';
   const sel = document.getElementById(selectId);
   sel.innerHTML = opts;
+  [...sel.options].forEach(option => { option.selected = previous.has(option.value); });
   // ستايل عند التحديد
   sel.addEventListener('change', () => {
+    renderSmartAccountCards(containerId, selectId);
     updateSmartCount(containerId, selectId);
   });
+  renderSmartAccountCards(containerId, selectId);
   updateSmartCount(containerId, selectId);
+}
+
+function compactNumber(value) {
+  const number = Number(value || 0);
+  return new Intl.NumberFormat('ar', { notation:'compact', maximumFractionDigits:1 }).format(number);
+}
+
+function renderSmartAccountCards(containerId, selectId) {
+  const host = document.getElementById(`${containerId}-cards`);
+  const select = document.getElementById(selectId);
+  if (!host || !select) return;
+  const selected = new Set([...select.selectedOptions].map(option => option.value));
+  if (!allActiveAccounts.length) {
+    host.innerHTML = '<div style="grid-column:1/-1;padding:20px;text-align:center;color:var(--t2)">لا توجد حسابات نشطة</div>';
+    return;
+  }
+  host.innerHTML = allActiveAccounts.map(account => {
+    const name = escapeProfileText(account.profile?.displayName || account.label || account.username);
+    const username = escapeProfileText(account.username);
+    const avatar = account.profile?.avatarUrl
+      ? `<img class="smart-account-avatar" src="${escapeProfileText(account.profile.avatarUrl)}" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
+      : '';
+    const fallbackDisplay = avatar ? 'none' : 'flex';
+    const statusColor = account.status === 'active' ? 'var(--grn)' : 'var(--amb)';
+    return `<button type="button" class="smart-account-card ${selected.has(account._id) ? 'selected' : ''}" data-account-id="${account._id}" onclick="toggleSmartAccount('${containerId}','${selectId}','${account._id}')">
+      ${avatar}<span class="smart-account-avatar" style="display:${fallbackDisplay};align-items:center;justify-content:center;font-weight:700;color:var(--blu2)">${username.charAt(0).toUpperCase()}</span>
+      <span class="smart-account-meta"><span class="smart-account-name">${name}</span><span class="smart-account-user">@${username}</span><span class="smart-account-stats"><span>👥 ${compactNumber(account.profile?.followersCount)}</span><span>يتابع ${compactNumber(account.profile?.followingCount)}</span><span>✎ ${compactNumber(account.profile?.tweetsCount)}</span><span style="color:${statusColor}">● ${account.status === 'active' ? 'نشط' : escapeProfileText(account.status || 'غير معروف')}</span></span></span>
+      <span style="font-size:14px;color:${selected.has(account._id) ? 'var(--blu2)' : 'var(--t3)'}">${selected.has(account._id) ? '✓' : '○'}</span>
+    </button>`;
+  }).join('');
+}
+
+function toggleSmartAccount(containerId, selectId, accountId) {
+  const select = document.getElementById(selectId);
+  const option = [...(select?.options || [])].find(item => item.value === accountId);
+  if (!option) return;
+  option.selected = !option.selected;
+  renderSmartAccountCards(containerId, selectId);
+  updateSmartCount(containerId, selectId);
+}
+
+function setSmartSelectorView(containerId, selectId, view) {
+  localStorage.setItem('xops_account_selector_view', view);
+  const cards = document.getElementById(`${containerId}-cards`);
+  const select = document.getElementById(selectId);
+  if (cards) cards.style.display = view === 'cards' ? 'grid' : 'none';
+  if (select) select.style.display = view === 'list' ? 'block' : 'none';
 }
 
 function smartSelectRole(containerId, selectId, btn) {
@@ -4598,6 +4708,7 @@ function applySmartSelect(containerId, selectId) {
   const selected = new Set(options.slice(0, limit).map(o => o.value));
 
   [...select.options].forEach(o => { o.selected = selected.has(o.value); });
+  renderSmartAccountCards(containerId, selectId);
   updateSmartCount(containerId, selectId);
 }
 
@@ -4762,9 +4873,110 @@ const _mediaLibraryThumbs = new Map();
 const _mediaLibraryLists = new Map();
 let _mediaLibraryPicker = { target: '', selected: new Set(), items: [] };
 let _mediaLibraryRequestId = 0;
+let _managedMedia = [];
+let _managedMediaSelected = new Set();
 
 function invalidateMediaLibraryCache() {
   _mediaLibraryLists.clear();
+}
+
+async function loadMediaManager(force = false) {
+  const loading = document.getElementById('media-manager-loading');
+  const grid = document.getElementById('media-manager-grid');
+  if (!loading || !grid) return;
+  loading.style.display = 'block';
+  loading.textContent = '⏳ جارٍ تحميل مكتبة الوسائط…';
+  if (force) invalidateMediaLibraryCache();
+  try {
+    const kind = document.getElementById('media-manager-kind')?.value || 'all';
+    const data = await api(`/api/v1/actions/media-library?kind=${encodeURIComponent(kind)}&limit=500`);
+    _managedMedia = data.items || [];
+    const currentIds = new Set(_managedMedia.map(item => item.id));
+    _managedMediaSelected = new Set([..._managedMediaSelected].filter(id => currentIds.has(id)));
+    loading.style.display = 'none';
+    renderMediaManager();
+  } catch (error) {
+    loading.textContent = `❌ ${error.message}`;
+  }
+}
+
+function filteredManagedMedia() {
+  const query = (document.getElementById('media-manager-search')?.value || '').trim().toLowerCase();
+  return query ? _managedMedia.filter(item => item.name.toLowerCase().includes(query)) : _managedMedia;
+}
+
+function renderMediaManager() {
+  const grid = document.getElementById('media-manager-grid');
+  if (!grid) return;
+  const items = filteredManagedMedia();
+  const summary = document.getElementById('media-manager-summary');
+  if (summary) summary.textContent = `${items.length} ملف ظاهر · ${_managedMediaSelected.size} محدد`;
+  const deleteButton = document.getElementById('media-manager-delete');
+  if (deleteButton) deleteButton.disabled = _managedMediaSelected.size === 0;
+  if (!items.length) {
+    grid.innerHTML = '<div style="grid-column:1/-1;padding:45px;text-align:center;color:var(--t2)">لا توجد وسائط مطابقة.</div>';
+    return;
+  }
+  grid.innerHTML = items.map(item => {
+    const selected = _managedMediaSelected.has(item.id);
+    const kind = { post:'منشور', avatar:'صورة شخصية', banner:'غلاف', video:'فيديو', profile:'بروفايل' }[item.kind] || item.kind;
+    const size = item.size < 1024 * 1024 ? `${Math.ceil(item.size / 1024)} KB` : `${(item.size / 1024 / 1024).toFixed(1)} MB`;
+    return `<button type="button" class="media-manager-item ${selected ? 'selected' : ''}" onclick="toggleManagedMedia('${item.id}')">
+      <div class="media-manager-thumb" id="manager-thumb-${item.id}">${item.mime.startsWith('video/') ? '🎬 فيديو' : '⏳'}</div>
+      <div title="${escapeProfileText(item.name)}" style="font-size:10px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:7px">${selected ? '✅ ' : ''}${escapeProfileText(item.name)}</div>
+      <div style="display:flex;justify-content:space-between;gap:6px;margin-top:4px;font-size:9px;color:var(--t2)"><span>${kind}</span><span>${size}</span></div>
+    </button>`;
+  }).join('');
+  items.filter(item => item.mime.startsWith('image/')).forEach(async item => {
+    const host = document.getElementById(`manager-thumb-${item.id}`);
+    if (!host) return;
+    try { host.innerHTML = `<img src="${await getMediaLibraryThumb(item)}" alt="${escapeProfileText(item.name)}">`; }
+    catch { host.textContent = 'تعذر عرض الصورة'; }
+  });
+}
+
+function toggleManagedMedia(id) {
+  if (_managedMediaSelected.has(id)) _managedMediaSelected.delete(id);
+  else _managedMediaSelected.add(id);
+  renderMediaManager();
+}
+
+function selectAllManagedMedia() {
+  filteredManagedMedia().forEach(item => _managedMediaSelected.add(item.id));
+  renderMediaManager();
+}
+
+function clearManagedMediaSelection() {
+  _managedMediaSelected.clear();
+  renderMediaManager();
+}
+
+async function deleteManagedMedia() {
+  const ids = [..._managedMediaSelected];
+  if (!ids.length) return;
+  if (!confirm(`حذف ${ids.length} ملف من مكتبة الوسائط؟ لا يمكن التراجع عن الحذف.`)) return;
+  const button = document.getElementById('media-manager-delete');
+  button.disabled = true;
+  button.textContent = '⏳ جارٍ الحذف…';
+  try {
+    const result = await api('/api/v1/actions/media-library/delete', { method:'POST', body:JSON.stringify({ ids }) });
+    for (const id of result.deleted || []) {
+      const objectUrl = _mediaLibraryThumbs.get(id);
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      _mediaLibraryThumbs.delete(id);
+      _managedMediaSelected.delete(id);
+    }
+    invalidateMediaLibraryCache();
+    const blocked = result.blocked || [];
+    if (blocked.length) toast(`حُذف ${(result.deleted || []).length} ملف، وتعذر حذف ${blocked.length} لأنها مستخدمة بجدولة أو عملية نشطة`, 'warn');
+    else toast(`✅ تم حذف ${(result.deleted || []).length} ملف`, 'ok');
+    await loadMediaManager(true);
+  } catch (error) {
+    toast(error.message, 'err');
+  } finally {
+    button.textContent = 'حذف المحدد';
+    button.disabled = _managedMediaSelected.size === 0;
+  }
 }
 
 async function getMediaLibraryThumb(item) {
