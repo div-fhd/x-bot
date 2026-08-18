@@ -64,6 +64,13 @@ function wrapProcessor(processorFn, opts = {}) {
     }
 
     if (parentJobId) registry.jobStarted(parentJobId, job.id, username);
+    if (accountId) {
+      browserRegistry.track(accountId, username, {
+        operationType: job.name,
+        parentJobId,
+      });
+      browserRegistry.setBusy(accountId, job.name);
+    }
 
     let success = false, skipped = false, errorMsg = null;
     try {

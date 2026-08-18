@@ -844,12 +844,17 @@ const ActionSvc = {
   },
 
   // ── Update profile ────────────────────────────────────────────
-  async updateProfile(account, updates = {}) {
+  async updateProfile(account, updates = {}, { isCancelled } = {}) {
     const fs = require('fs');
+    const throwIfCancelled = () => {
+      if (isCancelled?.()) throw new Error(`CANCELLED:@${account.username} — profile update stopped by user`);
+    };
 
     // نستخدم getPage مباشرة بعد API verify — بدون _readyPage لتجنب race condition
     // _readyPage تضيف page.on('close')→persistSession اللي يتعارض مع closeContext
+    throwIfCancelled();
     await AuthSvc.ensureSession(account);
+    throwIfCancelled();
     const page = await Browser.getPage(account);
 
     // ── جمع تشخيصي: أخطاء console وفشل الشبكة (يُدمج في تقرير الفشل) ──
@@ -879,6 +884,7 @@ const ActionSvc = {
       // الانتقال المباشر لـ /settings/profile عند الإقلاع البارد يُعرض shell فارغ
       // (الـ SPA لا يُهيّئ auth في الوقت المناسب). home warm-up يحلّ ذلك — كما في _classify.
       await page.goto('https://x.com/home', { waitUntil: 'domcontentloaded', timeout: 40_000 }).catch(() => {});
+      throwIfCancelled();
       await this._dismissPopups(page);
       await this._checkNotRedirected(page, account);
       // انتظر مؤشر تسجيل دخول فعّال (أيٌّ منها يكفي)
@@ -893,6 +899,7 @@ const ActionSvc = {
         waitUntil: 'domcontentloaded',
         timeout: 40_000,
       }).catch(() => {});
+      throwIfCancelled();
 
       await sleep(1000, 1500);
       await this._dismissPopups(page);
@@ -977,6 +984,7 @@ const ActionSvc = {
 
       // ── رفع الصورة الشخصية ──────────────────────────────
       if (updates.avatarPath && fs.existsSync(updates.avatarPath)) {
+        throwIfCancelled();
         const avatarInputHandle = await page.evaluateHandle(() => {
           const inputs = document.querySelectorAll('input[data-testid="fileInput"]');
           return inputs[1] || null; // الثاني للأفاتار في X.com
@@ -993,6 +1001,7 @@ const ActionSvc = {
 
       // ── رفع البانر ──────────────────────────────────────
       if (updates.bannerPath && fs.existsSync(updates.bannerPath)) {
+        throwIfCancelled();
         await sleep(1000, 1500);
         const bannerInputHandle = await page.evaluateHandle(() => {
           const inputs = document.querySelectorAll('input[data-testid="fileInput"]');
@@ -1011,6 +1020,7 @@ const ActionSvc = {
       // ── تحديث النصوص ────────────────────────────────────
       // React inputs تحتاج nativeInputValueSetter لإطلاق onChange صحيح
       const fillReact = async (selector, value) => {
+        throwIfCancelled();
         const loc = page.locator(selector).first();
         const count = await loc.count().catch(() => 0);
         if (!count) { logger.warn(`[Action] @${account.username} — Field not found: ${selector}`); return false; }
@@ -1054,6 +1064,7 @@ const ActionSvc = {
       }
 
       // ── حفظ ──────────────────────────────────────────────
+      throwIfCancelled();
       const saved = await (async () => {
         // انتظر زر الحفظ
         const saveBtn = page.locator('[data-testid="Profile_Save_Button"]');

@@ -2177,6 +2177,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
             <option value="10">10 — متوازي</option>
           </select>
           <button id="prof-update-btn" class="btn btn-p" onclick="doUpdateProfiles()">💾 تحديث الآن</button>
+          <button id="prof-cancel-btn" class="btn btn-r" onclick="cancelProfileUpdate(this)" style="display:none">⏹ إيقاف التحديث</button>
           <span id="prof-upd-status" style="font-size:12px;color:var(--t2)"></span>
         </div>
         <div id="prof-upload-progress" style="display:none;margin-top:10px">
@@ -3224,6 +3225,9 @@ function init() {
           : `✅ اكتمل التحديث (${total})`;
         const btn = document.getElementById('prof-update-btn');
         if (btn) { btn.disabled = false; btn.textContent = '💾 تحديث الآن'; }
+        _activeProfileUpdateJobId = null;
+        const cancelBtn = document.getElementById('prof-cancel-btn');
+        if (cancelBtn) cancelBtn.style.display = 'none';
         const upload = document.getElementById('prof-upload-progress');
         if (upload) setTimeout(() => { upload.style.display = 'none'; }, 1500);
       }
@@ -3342,6 +3346,7 @@ function nav(id, btn) {
     }, 100);
   }
   if (id === 'profiles') {
+    syncProfileUpdateControl();
     const _buildProfileSelectors = () => {
       buildSmartSelector('prof-sync-container', 'prof-sync-acc');
       buildSmartSelector('prof-upd-container',  'prof-upd-acc');
@@ -4900,6 +4905,39 @@ let _profileBioShuffle = [];
 let _profileBioSignature = '';
 let _profileUpdateResults = new Map();
 let _profileUpdateTotal = 0;
+let _activeProfileUpdateJobId = null;
+
+async function syncProfileUpdateControl() {
+  try {
+    const data = await api('/api/v1/ops/');
+    const operation = (data.ops || [])
+      .filter(op => op.type === 'profile-update')
+      .sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt))[0];
+    _activeProfileUpdateJobId = operation?.parentJobId || null;
+    const button = document.getElementById('prof-cancel-btn');
+    if (button) button.style.display = operation ? '' : 'none';
+  } catch {}
+}
+
+async function cancelProfileUpdate(button) {
+  const id = _activeProfileUpdateJobId;
+  if (!id) return toast('لا توجد عملية تحديث بروفايلات نشطة', 'warn');
+  if (!confirm('إيقاف تحديث البروفايلات؟ سيتم إلغاء الحسابات المنتظرة وإغلاق الحساب الجاري بأقرب نقطة آمنة.')) return;
+  button.disabled = true;
+  button.textContent = '⏳ جارٍ الإيقاف…';
+  try {
+    await api(`/api/v1/ops/${id}/cancel`, { method:'POST' });
+    _activeProfileUpdateJobId = null;
+    button.style.display = 'none';
+    document.getElementById('prof-upd-status').textContent = '⏹ تم إيقاف عملية التحديث';
+    toast('⏹ تم إيقاف تحديث البروفايلات', 'ok');
+  } catch (error) {
+    toast(error.message, 'err');
+  } finally {
+    button.disabled = false;
+    button.textContent = '⏹ إيقاف التحديث';
+  }
+}
 
 function getProfileBios({ reshuffle = false } = {}) {
   const mode = document.getElementById('prof-bio-mode')?.value || 'none';
@@ -5285,6 +5323,16 @@ async function doUpdateProfiles() {
         avatarAssignments, bannerAssignments,
       }),
     });
+    _activeProfileUpdateJobId = d.jobId;
+    const cancelButton = document.getElementById('prof-cancel-btn');
+    if (cancelButton) cancelButton.style.display = '';
+    if (d.operation) {
+      const index = _opsList.findIndex(op => op.parentJobId === d.operation.parentJobId);
+      if (index >= 0) _opsList[index] = d.operation;
+      else _opsList.push(d.operation);
+      renderOpsList();
+      updateOpsKPIs();
+    }
     stat.textContent = `جارٍ التحديث لـ ${d.total} حساب في الخلفية…`;
   } catch(e) {
     stat.textContent = '';
@@ -5831,6 +5879,7 @@ const OP_STATE_META = {
   'failed':     { cls:'p-r', lbl:'فشل',             color:'var(--red)' },
   'retrying':   { cls:'p-p', lbl:'إعادة المحاولة', color:'var(--pur)' },
 };
+const OP_VISIBLE_ACTIVE_STATES = ['active','waiting','paused','retrying','cancelling'];
 
 let _opsList = [];
 
@@ -5858,7 +5907,7 @@ function renderOp(op) {
         <!-- Controls -->
         <div style="display:flex;gap:5px">
           ${isActive ? `<button class="btn btn-sm" onclick="opPause('${op.parentJobId}')" title="${isPaused?'استئناف':'إيقاف مؤقت'}">${isPaused?'▶':'⏸'}</button>` : ''}
-          ${isActive ? `<button class="btn btn-sm btn-r" onclick="opCancel('${op.parentJobId}')">⏹</button>` : ''}
+          ${isActive ? `<button class="btn btn-sm btn-r" onclick="opCancel('${op.parentJobId}',this)">⏹</button>` : ''}
           ${op.failed > 0 ? `<button class="btn btn-sm" onclick="opRetry('${op.parentJobId}')" style="color:var(--amb);border-color:rgba(248,179,64,.3)" title="إعادة ${op.failed} فاشل">↻ ${op.failed}</button>` : ''}
         </div>
       </div>
@@ -5907,7 +5956,7 @@ function renderOpsList() {
   const filter = document.getElementById('ops-filter')?.value || 'active';
   let list = [..._opsList].sort((a,b) => new Date(b.startedAt) - new Date(a.startedAt));
   if (filter !== 'all') {
-    if (filter === 'active') list = list.filter(o => ['active','waiting','paused','retrying'].includes(o.state));
+    if (filter === 'active') list = list.filter(o => OP_VISIBLE_ACTIVE_STATES.includes(o.state));
     else list = list.filter(o => o.state === filter);
   }
   if (!list.length) {
@@ -5915,13 +5964,13 @@ function renderOpsList() {
   } else {
     el.innerHTML = list.map(op => renderOp(op)).join('');
   }
-  const active = _opsList.filter(o => ['active','waiting','paused','retrying'].includes(o.state)).length;
+  const active = _opsList.filter(o => OP_VISIBLE_ACTIVE_STATES.includes(o.state)).length;
   const nb = document.getElementById('nb-ops');
   if (nb) { nb.textContent = active; nb.style.display = active > 0 ? '' : 'none'; }
 }
 
 function updateOpsKPIs() {
-  const active  = _opsList.filter(o => ['active','waiting','paused','retrying'].includes(o.state));
+  const active  = _opsList.filter(o => OP_VISIBLE_ACTIVE_STATES.includes(o.state));
   document.getElementById('ops-k-active').textContent  = active.length;
   document.getElementById('ops-k-jobs').textContent    = _opsList.reduce((s,o)=>s+o.done,0);
   document.getElementById('ops-k-success').textContent = _opsList.reduce((s,o)=>s+o.success,0);
@@ -6014,9 +6063,9 @@ function renderQueues(qh) {
 }
 
 // ── Op Controls ──────────────────────────────────────────────
-async function opCancel(id) {
-  if (!confirm('إلغاء هذه العملية؟ الـ jobs الجارية ستكتمل لكن المنتظرة ستُلغى.')) return;
-  try { await withBtn(event.target.closest('button'), ()=>api(`/api/v1/ops/${id}/cancel`,{method:'POST'}), {successMsg:'⏹ ملغى'}); }
+async function opCancel(id, button = null) {
+  if (!confirm('إلغاء هذه العملية؟ ستُلغى الـ jobs المنتظرة وسيُغلق المتصفح الجاري لإيقافه بأقرب نقطة آمنة.')) return;
+  try { await withBtn(button, ()=>api(`/api/v1/ops/${id}/cancel`,{method:'POST'}), {successMsg:'⏹ ملغى'}); }
   catch(e) { toast(e.message,'err'); }
 }
 async function opPause(id) {
@@ -6030,7 +6079,7 @@ async function opRetry(id) {
   catch(e) { toast(e.message,'err'); }
 }
 async function cancelAllOps() {
-  const active=_opsList.filter(o=>['active','waiting','paused','retrying'].includes(o.state));
+  const active=_opsList.filter(o=>OP_VISIBLE_ACTIVE_STATES.includes(o.state));
   if (!active.length) return toast('لا توجد عمليات نشطة','warn');
   if (!confirm(`إلغاء ${active.length} عملية نشطة؟`)) return;
   for (const op of active) await api(`/api/v1/ops/${op.parentJobId}/cancel`,{method:'POST'}).catch(()=>{});
@@ -6057,9 +6106,18 @@ function initOpsSocketEvents(socket) {
     const idx = _opsList.findIndex(o=>o.parentJobId===data.parentJobId);
     if (idx>=0) _opsList[idx] = {..._opsList[idx],...data};
     else _opsList.push(data);
+    if (data.parentJobId === _activeProfileUpdateJobId && ['completed','cancelled','failed'].includes(data.state)) {
+      _activeProfileUpdateJobId = null;
+      const cancelBtn = document.getElementById('prof-cancel-btn');
+      if (cancelBtn) cancelBtn.style.display = 'none';
+      if (data.state === 'cancelled') {
+        const status = document.getElementById('prof-upd-status');
+        if (status) status.textContent = '⏹ تم إيقاف عملية التحديث';
+      }
+    }
     if (currentPanel==='ops-console') { renderOpsList(); updateOpsKPIs(); }
     // update nb-jobs indicator
-    const active = _opsList.filter(o=>['active','waiting','paused','retrying'].includes(o.state)).length;
+    const active = _opsList.filter(o=>OP_VISIBLE_ACTIVE_STATES.includes(o.state)).length;
     const nb = document.getElementById('nb-ops');
     if (nb) { nb.textContent=active; nb.style.display=active>0?'':'none'; }
     // Update nb-jobs topbar

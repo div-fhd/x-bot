@@ -316,6 +316,14 @@ const AccountCtrl = {
     }
     const parentJobId = `profile-update-${Date.now()}`;
     const maxConcurrency = Math.max(1, Math.min(accounts.length, Number.parseInt(batchSize, 10) || 1));
+    const { registry } = require('../ops/operations.registry');
+    registry.create({
+      parentJobId,
+      type:             'profile-update',
+      total:            accounts.length,
+      accountUsernames: accounts.map(a => a.username),
+      meta:             { maxConcurrency },
+    });
 
     const jobs = accounts.map((account, idx) => {
       const jobUpdates = { ...updates };
@@ -330,27 +338,29 @@ const AccountCtrl = {
       return {
         name: QUEUE_NAMES.PROFILE_UPDATE,
         data: {
-          accountId: account._id.toString(), updates: jobUpdates, useAI, niche,
+          accountId: account._id.toString(), username: account.username, updates: jobUpdates, useAI, niche,
           meta: { parentJobId, index: idx, total: accounts.length, maxConcurrency },
         },
         opts: { jobId: `upd-${account._id}-${Date.now()}` },
       };
     });
 
-    const added = await queue.addBulk(jobs);
-
-    // ── سجّل في OpsRegistry عشان تظهر في لوحة التحكم وتقدر توقفها ──
-    const { registry } = require('../ops/operations.registry');
-    registry.create({
-      parentJobId,
-      type:             'profile-update',
-      total:            accounts.length,
-      accountUsernames: accounts.map(a => a.username),
-    });
+    let added;
+    try {
+      added = await queue.addBulk(jobs);
+    } catch (error) {
+      registry.fail(parentJobId, error);
+      throw error;
+    }
     registry.registerJobs(parentJobId, added.map(j => j.id));
 
     logger.info(`[bulkUpdateProfiles] Queued ${accounts.length} update jobs → ${parentJobId} (workers: ${workerCount})`);
-    res.json({ started: true, total: accounts.length, jobId: parentJobId });
+    res.json({
+      started: true,
+      total: accounts.length,
+      jobId: parentJobId,
+      operation: registry._snap(registry.get(parentJobId)),
+    });
   },
 
   // ── Open browser for manual control ─────────────────────

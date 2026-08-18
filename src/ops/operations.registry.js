@@ -21,6 +21,7 @@ class OperationsRegistry extends EventEmitter {
   }
 
   create({ parentJobId, type, total, accountUsernames = [], meta = {} }) {
+    cancelTokens.delete(parentJobId);
     const op = {
       parentJobId, type, state: OP_STATES.WAITING,
       total, done: 0, success: 0, failed: 0, skipped: 0,
@@ -58,7 +59,7 @@ class OperationsRegistry extends EventEmitter {
     else op.failed++;
     op.activeAccounts = op.activeAccounts.filter(u => u !== username);
     op.updatedAt = new Date();
-    if (op.done >= op.total) {
+    if (op.done >= op.total && ![OP_STATES.CANCELLING, OP_STATES.CANCELLED].includes(op.state)) {
       op.state = OP_STATES.COMPLETED;
       op.completedAt = new Date();
     }
@@ -102,7 +103,7 @@ class OperationsRegistry extends EventEmitter {
         // closeContext يأخذ accountId — نحاول عبر الـ registry
         const { browserRegistry } = require('./browser.registry');
         const ctx = browserRegistry.getAll().find(c => c.username === username);
-        if (ctx?.accountId) await Browser.closeContext(ctx.accountId).catch(() => {});
+        if (ctx?.accountId) await Browser.closeContext(ctx.accountId, { force: true }).catch(() => {});
       }
     } catch(e) { logger.warn(`[OpsRegistry] Browser close error: ${e.message}`); }
 
@@ -110,8 +111,20 @@ class OperationsRegistry extends EventEmitter {
     op.completedAt = new Date();
     this.emit('op:cancelled', this._snap(op));
 
-    // نظّف الـ token بعد 30 ثانية (كافي لأي job نشط ينهي دورته)
-    setTimeout(() => cancelTokens.delete(parentJobId), 30_000);
+    // أبقِ token الإلغاء حتى تنظيف العملية. بعض jobs تكون active داخل بوابة
+    // التسلسل لأكثر من 30 ثانية، وحذفه مبكراً يسمح لها بالبدء بعد الإلغاء.
+    return true;
+  }
+
+  fail(parentJobId, error) {
+    const op = this._ops.get(parentJobId);
+    if (!op) return false;
+    op.state = OP_STATES.FAILED;
+    op.failed = Math.max(op.failed, op.total - op.done);
+    op.meta = { ...op.meta, error: error?.message || String(error || 'Queue error') };
+    op.updatedAt = new Date();
+    op.completedAt = new Date();
+    this.emit('op:progress', this._snap(op));
     return true;
   }
 
@@ -167,7 +180,7 @@ class OperationsRegistry extends EventEmitter {
 
   get(id) { return this._ops.get(id); }
   getAll() { return [...this._ops.values()].map(op => this._snap(op)); }
-  getActive() { return this.getAll().filter(op => [OP_STATES.ACTIVE, OP_STATES.WAITING, OP_STATES.PAUSED, OP_STATES.RETRYING].includes(op.state)); }
+  getActive() { return this.getAll().filter(op => [OP_STATES.ACTIVE, OP_STATES.WAITING, OP_STATES.PAUSED, OP_STATES.RETRYING, OP_STATES.CANCELLING].includes(op.state)); }
 
   _snap(op) {
     const elapsed = (Date.now() - op.startedAt) / 1000;
@@ -188,7 +201,13 @@ class OperationsRegistry extends EventEmitter {
 
   gc() {
     const cutoff = Date.now() - 3_600_000;
-    for (const [id, op] of this._ops) if (op.state === OP_STATES.COMPLETED && op.completedAt < cutoff) this._ops.delete(id);
+    const terminal = new Set([OP_STATES.COMPLETED, OP_STATES.CANCELLED, OP_STATES.FAILED]);
+    for (const [id, op] of this._ops) {
+      if (terminal.has(op.state) && op.completedAt < cutoff) {
+        this._ops.delete(id);
+        cancelTokens.delete(id);
+      }
+    }
   }
 }
 

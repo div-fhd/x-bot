@@ -19,14 +19,17 @@ module.exports = wrapProcessor(async function profileUpdateProcessor(job, { isCa
       const s = await AISvc.suggestBio({ niche: niche || account.niche || 'general', name: account.profile?.displayName || account.username });
       if (s?.bio) finalUpdates.bio = s.bio;
     }
-    await ActionSvc.updateProfile(account, finalUpdates);
+    await ActionSvc.updateProfile(account, finalUpdates, { isCancelled });
     await job.updateProgress(100);
     jobEvents.updateProg({ username: account.username, done: meta.index + 1, total: meta.total, stage: 'completed', success: true });
     return { success: true };
   } catch(e) {
-    logger.warn(`[ProfileUpdate] @${account.username}: ${e.message}`);
-    jobEvents.updateProg({ username: account.username, done: meta.index + 1, total: meta.total, stage: 'completed', error: e.message });
-    throw e;
+    const error = isCancelled()
+      ? new Error(`CANCELLED:@${account.username} — profile update stopped by user`)
+      : e;
+    logger.warn(`[ProfileUpdate] @${account.username}: ${error.message}`);
+    jobEvents.updateProg({ username: account.username, done: meta.index + 1, total: meta.total, stage: 'completed', error: error.message });
+    throw error;
   }
 }
 );
