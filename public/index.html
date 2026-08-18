@@ -904,6 +904,12 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .smart-account-name { font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--t0) }
 .smart-account-user { font:10px var(--m);color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis }
 .smart-account-stats { display:flex;gap:8px;margin-top:5px;font:9px var(--m);color:var(--t2);flex-wrap:wrap }
+.account-page-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(285px,1fr));gap:10px;padding:12px }
+.account-page-card { background:var(--s2);border:1px solid var(--bd);border-radius:11px;padding:12px;text-align:right;color:var(--t1);cursor:pointer;transition:.15s;min-width:0 }
+.account-page-card:hover { border-color:var(--bd3);transform:translateY(-1px) }
+.account-page-card.selected { border-color:var(--blu);background:rgba(91,141,249,.08);box-shadow:inset 0 0 0 1px rgba(91,141,249,.15) }
+.account-page-card-head { display:flex;align-items:center;gap:10px;min-width:0 }
+.account-page-card-actions { display:flex;gap:5px;flex-wrap:wrap;margin-top:10px;padding-top:9px;border-top:1px solid var(--bd) }
 .media-manager-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:10px }
 .media-manager-item { position:relative;background:var(--s3);border:1px solid var(--bd);border-radius:10px;padding:7px;cursor:pointer;transition:.15s;min-width:0 }
 .media-manager-item:hover { border-color:var(--bd3);transform:translateY(-1px) }
@@ -952,9 +958,10 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
       <svg class="nav-ico" viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="6" height="6" rx="1" fill="currentColor" opacity=".9"/><rect x="9" y="1" width="6" height="6" rx="1" fill="currentColor" opacity=".5"/><rect x="1" y="9" width="6" height="6" rx="1" fill="currentColor" opacity=".5"/><rect x="9" y="9" width="6" height="6" rx="1" fill="currentColor" opacity=".5"/></svg>
       نظرة عامة
     </button>
-    <button class="nav-btn" onclick="nav('accounts',this)">
+    <button class="nav-btn" id="tour-nav-accounts" onclick="nav('accounts',this)">
       <svg class="nav-ico" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="5.5" r="2.8" stroke="currentColor" stroke-width="1.4"/><path d="M2 14c0-3.3 2.7-5 6-5s6 1.7 6 5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
       الحسابات
+      <span class="feature-new-badge">جديد</span>
       <span class="nbadge nb-g" id="nb-active">—</span>
     </button>
     <button class="nav-btn" onclick="nav('import',this)">
@@ -980,7 +987,6 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
     <button class="nav-btn" id="tour-nav-media" onclick="nav('media',this)">
       <svg class="nav-ico" viewBox="0 0 16 16" fill="none"><rect x="1.5" y="2" width="13" height="12" rx="2" stroke="currentColor" stroke-width="1.4"/><circle cx="5" cy="6" r="1.3" fill="currentColor"/><path d="M3.5 12l3.2-3.2 2.1 2 1.5-1.5 2.2 2.7" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
       مكتبة الوسائط
-      <span class="feature-new-badge">جديد</span>
     </button>
     <button class="nav-btn" id="tour-nav-schedule" onclick="nav('schedule',this)">
       <svg class="nav-ico" viewBox="0 0 16 16" fill="none"><rect x="1.5" y="2.5" width="13" height="12" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M5 1v3M11 1v3M1.5 6.5h13" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
@@ -1148,6 +1154,10 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
           </select>
       <button class="btn btn-sm" id="bulk-check-btn" onclick="doBulkCheckSelected()" style="border-color:rgba(168,130,255,.35);color:var(--pur)">🔍 فحص المحدد</button>
       <button class="btn btn-sm btn-r" onclick="deleteSelectedAccounts()">🗑 حذف المحدد</button>
+      <div id="tour-account-page-view" style="margin-right:auto;display:flex;gap:6px">
+        <button class="btn btn-sm" onclick="setAccountsPageView('cards')">▦ بطاقات</button>
+        <button class="btn btn-sm" onclick="setAccountsPageView('table')">☷ جدول</button>
+      </div>
     </div>
     <!-- شريط تحديد سريع -->
     <div style="display:flex;gap:6px;margin-bottom:12px;align-items:center;padding:8px 12px;background:var(--s2);border-radius:10px;border:1px solid var(--bd)">
@@ -1167,7 +1177,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
       جارٍ الفحص… <span id="bulk-check-counter">0/0</span>
     </div>
     <div class="card">
-      <div class="tbl-wrap">
+      <div id="accounts-card-view" class="account-page-grid"></div>
+      <div id="accounts-table-view" class="tbl-wrap" style="display:none">
       <table class="tbl">
         <thead><tr><th style="width:32px"></th><th>المستخدم</th><th>الدور</th><th>الحالة</th><th>آخر نشاط</th><th>بروكسي</th><th>اليوم</th><th style="width:50px">رئيسي</th><th>إجراءات</th></tr></thead>
         <tbody id="acc-tbody">
@@ -2898,7 +2909,7 @@ let allActiveAccounts = [];
 /* ═══════════════════════════════════════════════════════════════
    جولة استكشاف الميزات الجديدة
 ═══════════════════════════════════════════════════════════════ */
-const FEATURE_TOUR_VERSION = 'media-manager-account-cards-2026-08-v5';
+const FEATURE_TOUR_VERSION = 'accounts-page-cards-2026-08-v6';
 let _featureTourIndex = -1;
 let _featureTourActive = false;
 let _featureTourAutoScheduled = false;
@@ -2907,15 +2918,10 @@ let _featureTourRenderToken = 0;
 
 const FEATURE_TOUR_STEPS = [
   {
-    target:'#tour-media-manager', panel:'media',
-    title:'إدارة مكتبة الوسائط',
-    text:'ابحث في الصور والفيديوهات المحفوظة، صفّها حسب الاستخدام، وحدد الملفات غير المطلوبة لحذفها. الملفات المرتبطة بجدولة أو عملية نشطة محمية من الحذف.',
-  },
-  {
-    target:'#prof-upd-container-cards', panel:'profiles',
-    title:'الحسابات أصبحت أوضح',
-    text:'يمكنك تحديد الحسابات من بطاقات تعرض الصورة والاسم والمتابعين والتغريدات والحالة، أو الرجوع إلى القائمة المدمجة عند التعامل مع عدد كبير.',
-    prepare:() => buildSmartSelector('prof-upd-container', 'prof-upd-acc'),
+    target:'#tour-account-page-view', panel:'accounts',
+    title:'بطاقات في صفحة الحسابات',
+    text:'يمكنك الآن عرض الحسابات كبطاقات فيها الصورة والاسم والإحصائيات والحالة والإجراءات، أو العودة إلى الجدول عند الحاجة.',
+    prepare:() => setAccountsPageView('cards'),
   },
 ];
 
@@ -3956,8 +3962,78 @@ async function loadAccounts() {
         </tr>`; }).join('')
       : '<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--t2)">لا توجد حسابات</td></tr>';
 
+    renderAccountPageCards(d.accounts);
+    setAccountsPageView(localStorage.getItem('xops_accounts_page_view') || 'cards');
     document.getElementById('acc-pager').textContent = `الصفحة ${d.page} من ${d.pages} · ${d.total} حساب`;
   } catch(e) { toast(e.message, 'err'); }
+}
+
+function setAccountsPageView(view) {
+  localStorage.setItem('xops_accounts_page_view', view);
+  const cards = document.getElementById('accounts-card-view');
+  const table = document.getElementById('accounts-table-view');
+  if (cards) cards.style.display = view === 'cards' ? 'grid' : 'none';
+  if (table) table.style.display = view === 'table' ? 'block' : 'none';
+}
+
+function renderAccountPageCards(accounts) {
+  const host = document.getElementById('accounts-card-view');
+  if (!host) return;
+  if (!accounts.length) {
+    host.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:35px;color:var(--t2)">لا توجد حسابات</div>';
+    return;
+  }
+  const roleLabel = role => ({ post:'نشر', engage:'تفاعل', support:'دعم', mixed:'مختلط' }[role] || 'مختلط');
+  const statusLabel = status => ({ active:'نشط', auth_required:'يحتاج مصادقة', locked:'نقطة تحقق', suspended:'محظور', dead:'غير نشط' }[status] || status);
+  host.innerHTML = accounts.map(account => {
+    const username = escapeProfileText(account.username);
+    const name = escapeProfileText(account.profile?.displayName || account.label || account.username);
+    const storedAvatar = Boolean(account.profile?.avatarStored);
+    const avatar = storedAvatar
+      ? `<img id="account-page-avatar-${account._id}" class="smart-account-avatar" style="width:52px;height:52px;display:none" alt="صورة @${username}">`
+      : account.profile?.avatarUrl
+        ? `<img class="smart-account-avatar" style="width:52px;height:52px" src="${escapeProfileText(account.profile.avatarUrl)}" alt="صورة @${username}" referrerpolicy="no-referrer" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
+        : '';
+    const fallbackDisplay = storedAvatar || !avatar ? 'flex' : 'none';
+    const roleClass = account.role === 'post' ? 'p-b' : account.role === 'engage' ? 'p-g' : account.role === 'support' ? 'p-a' : 'p-n';
+    const statusClass = account.status === 'active' ? 'p-g' : account.status === 'auth_required' ? 'p-a' : ['suspended','dead'].includes(account.status) ? 'p-r' : 'p-n';
+    return `<div class="account-page-card" data-account-card="${account._id}" role="button" tabindex="0" onclick="toggleAccountPageCard('${account._id}')">
+      <div class="account-page-card-head">
+        ${avatar}<span class="smart-account-avatar" style="width:52px;height:52px;display:${fallbackDisplay};align-items:center;justify-content:center;font-weight:700;color:var(--blu2);font-size:16px">${username.charAt(0).toUpperCase()}</span>
+        <div style="min-width:0;flex:1"><div style="font-size:13px;font-weight:700;color:var(--t0);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${name} ${account.isPrimary ? '<span title="حساب رئيسي" style="color:var(--amb)">★</span>' : ''}</div><div style="font:10.5px var(--m);color:var(--t2)">@${username}</div><div style="display:flex;gap:5px;margin-top:5px"><span class="pill ${roleClass}">${roleLabel(account.role)}</span><span class="pill ${statusClass}">${statusLabel(account.status)}</span></div></div>
+        <span data-account-check="${account._id}" style="font-size:17px;color:var(--t3)">○</span>
+      </div>
+      <div class="smart-account-stats" style="font-size:10px;margin-top:10px;justify-content:space-between"><span>👥 ${compactNumber(account.profile?.followersCount)}</span><span>يتابع ${compactNumber(account.profile?.followingCount)}</span><span>✎ ${compactNumber(account.profile?.tweetsCount)}</span><span>اليوم ${(account.todayCounters?.posts || 0)}/${account.dailyCaps?.post || 10}</span></div>
+      <div class="account-page-card-actions" onclick="event.stopPropagation()"><button class="btn btn-sm" onclick="checkAccount('${account._id}')">فحص</button><button class="btn btn-sm" onclick="openManualBrowser('${account._id}','${username}')" style="color:var(--grn)">متصفح</button><button class="btn btn-sm" onclick="editAccount('${account._id}')">تعديل</button><button class="btn btn-sm btn-r" onclick="deleteAccount('${account._id}','${username}')">حذف</button></div>
+    </div>`;
+  }).join('');
+  accounts.filter(account => account.profile?.avatarStored).forEach(async account => {
+    const image = document.getElementById(`account-page-avatar-${account._id}`);
+    if (!image) return;
+    try {
+      image.src = await getStoredAccountAvatar(account);
+      image.style.display = 'block';
+      if (image.nextElementSibling) image.nextElementSibling.style.display = 'none';
+    } catch {}
+  });
+  syncAccountPageCardSelection();
+}
+
+function toggleAccountPageCard(accountId) {
+  const checkbox = document.querySelector(`.acc-cb[data-id="${accountId}"]`);
+  if (!checkbox) return;
+  checkbox.checked = !checkbox.checked;
+  onAccCbChange(checkbox);
+}
+
+function syncAccountPageCardSelection() {
+  document.querySelectorAll('[data-account-card]').forEach(card => {
+    const id = card.dataset.accountCard;
+    const selected = Boolean(document.querySelector(`.acc-cb[data-id="${id}"]`)?.checked);
+    card.classList.toggle('selected', selected);
+    const indicator = card.querySelector(`[data-account-check="${id}"]`);
+    if (indicator) { indicator.textContent = selected ? '✓' : '○'; indicator.style.color = selected ? 'var(--blu2)' : 'var(--t3)'; }
+  });
 }
 
 async function loadActiveAccounts() {
@@ -4153,6 +4229,7 @@ function updateAccSelectedCount() {
   const total = document.querySelectorAll('.acc-cb').length;
   if (allCb) allCb.indeterminate = count > 0 && count < total;
   if (allCb) allCb.checked = count === total && total > 0;
+  syncAccountPageCardSelection();
 }
 
 function getSelectedAccountIds() {
