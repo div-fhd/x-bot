@@ -4489,6 +4489,8 @@ async function doReplyMulti() {
     try {
       const r = await fetch('/api/v1/actions/upload-media', { method:'POST', headers:{Authorization:`Bearer ${TOKEN}`}, body: fd });
       const d = await r.json();
+      if (!r.ok) throw new Error(d.error || `فشل الرفع (${r.status})`);
+      invalidateMediaLibraryCache();
       mediaPaths.push(...(d.paths || []));
     } catch(e) { return toast('فشل رفع الصورة: ' + e.message, 'err'); }
   }
@@ -4712,6 +4714,8 @@ async function doTweetMulti() {
         method: 'POST', headers: { 'Authorization': `Bearer ${TOKEN}` }, body: formData,
       });
       const d = await r.json();
+      if (!r.ok) throw new Error(d.error || `فشل الرفع (${r.status})`);
+      invalidateMediaLibraryCache();
       mediaPaths.push(...(d.paths || []));
     } catch(e) { return toast('فشل رفع الملفات: ' + e.message, 'err'); }
   }
@@ -4771,7 +4775,13 @@ async function doTweetMulti() {
 
 const _mediaLibrarySelections = { tweet: [], reply: [], schedule: [] };
 const _mediaLibraryThumbs = new Map();
+const _mediaLibraryLists = new Map();
 let _mediaLibraryPicker = { target: '', selected: new Set(), items: [] };
+let _mediaLibraryRequestId = 0;
+
+function invalidateMediaLibraryCache() {
+  _mediaLibraryLists.clear();
+}
 
 async function getMediaLibraryThumb(item) {
   if (_mediaLibraryThumbs.has(item.id)) return _mediaLibraryThumbs.get(item.id);
@@ -4802,24 +4812,37 @@ function ensureMediaLibraryModal() {
 }
 
 async function openMediaLibrary(target, kind = 'all') {
+  const requestId = ++_mediaLibraryRequestId;
   const modal = ensureMediaLibraryModal();
   modal.style.display = 'flex';
-  document.getElementById('media-library-loading').style.display = 'block';
+  const loading = document.getElementById('media-library-loading');
+  loading.textContent = '⏳ جارٍ تحميل الملفات المحفوظة…';
+  loading.style.display = 'block';
   document.getElementById('media-library-grid').innerHTML = '';
   const existing = ['avatars','banners'].includes(target)
     ? _profileImages[target].filter(item => item.libraryPath).map(item => item.libraryId)
     : (_mediaLibrarySelections[target] || []).map(item => item.id);
   _mediaLibraryPicker = { target, selected: new Set(existing), items: [] };
+  const cached = _mediaLibraryLists.get(kind);
+  if (cached && Date.now() - cached.loadedAt < 60_000) {
+    _mediaLibraryPicker.items = cached.items;
+    renderMediaLibraryGrid();
+    return;
+  }
   try {
     const data = await api(`/api/v1/actions/media-library?kind=${encodeURIComponent(kind)}&limit=300`);
+    if (requestId !== _mediaLibraryRequestId || _mediaLibraryPicker.target !== target) return;
     _mediaLibraryPicker.items = data.items || [];
+    _mediaLibraryLists.set(kind, { items:_mediaLibraryPicker.items, loadedAt:Date.now() });
     renderMediaLibraryGrid();
   } catch (error) {
+    if (requestId !== _mediaLibraryRequestId) return;
     document.getElementById('media-library-loading').textContent = `❌ ${error.message}`;
   }
 }
 
 function closeMediaLibrary() {
+  _mediaLibraryRequestId += 1;
   const modal = document.getElementById('media-library-modal');
   if (modal) modal.style.display = 'none';
 }
@@ -5284,6 +5307,7 @@ async function doUpdateProfiles() {
           uploadBar.style.width = `${percent}%`;
           uploadPercent.textContent = `${percent}%`;
         });
+        invalidateMediaLibraryCache();
       }
       const uploadedAvatars = [...(uploadData.avatarPaths || [])];
       const uploadedBanners = [...(uploadData.bannerPaths || [])];
@@ -5589,6 +5613,7 @@ async function doSchedule() {
       const d = await uploadWithProgress('/api/v1/actions/upload-media', fd, value => {
         bar.style.width = `${value}%`; percent.textContent = `${value}%`;
       });
+      invalidateMediaLibraryCache();
       const uploadedPaths = [...(d.paths || [])];
       mediaLocalPaths = orderedMedia.map(item => item.libraryPath || uploadedPaths.shift()).filter(Boolean);
       document.getElementById('sc-upload-label').textContent = '✅ اكتمل رفع الوسائط';

@@ -14,6 +14,8 @@ const MIME = {
   '.mov': 'video/quicktime', '.webm': 'video/webm', '.avi': 'video/x-msvideo',
 };
 
+const FILE_HASH_CACHE = new Map();
+
 function encodeId(bucket, filename) {
   return Buffer.from(`${bucket}:${filename}`, 'utf8').toString('base64url');
 }
@@ -43,7 +45,13 @@ function contentHash(buffer) {
 }
 
 function fileHash(fullPath) {
-  return contentHash(fs.readFileSync(fullPath));
+  const stat = fs.statSync(fullPath);
+  const signature = `${stat.size}:${stat.mtimeMs}`;
+  const cached = FILE_HASH_CACHE.get(fullPath);
+  if (cached?.signature === signature) return cached.hash;
+  const hash = contentHash(fs.readFileSync(fullPath));
+  FILE_HASH_CACHE.set(fullPath, { signature, hash });
+  return hash;
 }
 
 function buildContentIndex() {
@@ -71,6 +79,8 @@ function saveUniqueBuffer({ bucket, buffer, filename, index = buildContentIndex(
   const safeName = path.basename(filename);
   const fullPath = path.join(ROOTS[bucket], safeName);
   fs.writeFileSync(fullPath, buffer);
+  const stat = fs.statSync(fullPath);
+  FILE_HASH_CACHE.set(fullPath, { signature:`${stat.size}:${stat.mtimeMs}`, hash });
   index.set(hash, fullPath);
   return { path: fullPath, reused: false, hash };
 }
