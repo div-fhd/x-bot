@@ -19,6 +19,7 @@ router.post  ('/upload-images', upload.fields([{ name:'avatars', maxCount:50 }, 
 
 // ── Dynamic routes /:id بعدها ───────────────────────────────
 router.get   ('/:id',                  ctrl.get);
+router.get   ('/:id/avatar',           ctrl.avatar);
 router.patch ('/:id',                  ctrl.update);
 router.patch ('/:id/credentials',      ctrl.updateCredentials);
 router.delete('/:id',                  ctrl.remove);

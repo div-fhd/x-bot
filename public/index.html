@@ -4653,6 +4653,21 @@ function compactNumber(value) {
   return new Intl.NumberFormat('ar', { notation:'compact', maximumFractionDigits:1 }).format(number);
 }
 
+const _accountAvatarBlobs = new Map();
+
+async function getStoredAccountAvatar(account) {
+  const version = account.profile?.avatarUpdatedAt || 'stored';
+  const key = `${account._id}:${version}`;
+  if (_accountAvatarBlobs.has(key)) return _accountAvatarBlobs.get(key);
+  const response = await fetch(`/api/v1/accounts/${account._id}/avatar?v=${encodeURIComponent(version)}`, {
+    headers:{ Authorization:`Bearer ${TOKEN}` },
+  });
+  if (!response.ok) throw new Error('تعذر تحميل صورة الحساب المحفوظة');
+  const url = URL.createObjectURL(await response.blob());
+  _accountAvatarBlobs.set(key, url);
+  return url;
+}
+
 function renderSmartAccountCards(containerId, selectId) {
   const host = document.getElementById(`${containerId}-cards`);
   const select = document.getElementById(selectId);
@@ -4665,10 +4680,13 @@ function renderSmartAccountCards(containerId, selectId) {
   host.innerHTML = allActiveAccounts.map(account => {
     const name = escapeProfileText(account.profile?.displayName || account.label || account.username);
     const username = escapeProfileText(account.username);
-    const avatar = account.profile?.avatarUrl
-      ? `<img class="smart-account-avatar" src="${escapeProfileText(account.profile.avatarUrl)}" alt="صورة @${username}" referrerpolicy="no-referrer" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
-      : '';
-    const fallbackDisplay = avatar ? 'none' : 'flex';
+    const storedAvatar = Boolean(account.profile?.avatarStored);
+    const avatar = storedAvatar
+      ? `<img id="smart-avatar-${containerId}-${account._id}" class="smart-account-avatar" style="display:none" alt="صورة @${username}">`
+      : account.profile?.avatarUrl
+        ? `<img class="smart-account-avatar" src="${escapeProfileText(account.profile.avatarUrl)}" alt="صورة @${username}" referrerpolicy="no-referrer" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
+        : '';
+    const fallbackDisplay = storedAvatar || !avatar ? 'flex' : 'none';
     const statusColor = account.status === 'active' ? 'var(--grn)' : 'var(--amb)';
     return `<button type="button" class="smart-account-card ${selected.has(account._id) ? 'selected' : ''}" data-account-id="${account._id}" onclick="toggleSmartAccount('${containerId}','${selectId}','${account._id}')">
       ${avatar}<span class="smart-account-avatar" style="display:${fallbackDisplay};align-items:center;justify-content:center;font-weight:700;color:var(--blu2)">${username.charAt(0).toUpperCase()}</span>
@@ -4676,6 +4694,15 @@ function renderSmartAccountCards(containerId, selectId) {
       <span style="font-size:14px;color:${selected.has(account._id) ? 'var(--blu2)' : 'var(--t3)'}">${selected.has(account._id) ? '✓' : '○'}</span>
     </button>`;
   }).join('');
+  allActiveAccounts.filter(account => account.profile?.avatarStored).forEach(async account => {
+    const image = document.getElementById(`smart-avatar-${containerId}-${account._id}`);
+    if (!image) return;
+    try {
+      image.src = await getStoredAccountAvatar(account);
+      image.style.display = 'block';
+      if (image.nextElementSibling) image.nextElementSibling.style.display = 'none';
+    } catch {}
+  });
 }
 
 function toggleSmartAccount(containerId, selectId, accountId) {

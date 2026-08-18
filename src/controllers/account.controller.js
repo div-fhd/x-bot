@@ -27,7 +27,13 @@ const AccountCtrl = {
         .skip((page-1)*limit).limit(+limit).lean(),
       Account.countDocuments(filter),
     ]);
-    res.json({ accounts, total, page: +page, pages: Math.ceil(total/limit) });
+    const safeAccounts = accounts.map(account => {
+      if (!account.profile) return account;
+      const avatarStored = Boolean(account.profile.avatarLocalPath);
+      const { avatarLocalPath, ...profile } = account.profile;
+      return { ...account, profile:{ ...profile, avatarStored } };
+    });
+    res.json({ accounts:safeAccounts, total, page: +page, pages: Math.ceil(total/limit) });
   },
 
   async get(req, res) {
@@ -43,7 +49,36 @@ const AccountCtrl = {
       a.mail_password = creds.mail_password  || '';
     } catch {}
     delete a.credentials;
+    if (a.profile) {
+      a.profile.avatarStored = Boolean(a.profile.avatarLocalPath);
+      delete a.profile.avatarLocalPath;
+    }
     res.json(a);
+  },
+
+  async avatar(req, res) {
+    const fs = require('fs');
+    const path = require('path');
+    const account = await Account.findById(req.params.id).select('profile.avatarLocalPath').lean();
+    const storedPath = account?.profile?.avatarLocalPath;
+    if (!storedPath) return res.status(404).json({ error:'لا توجد صورة محلية لهذا الحساب' });
+    const uploadsRoot = path.resolve(process.cwd(), 'data', 'uploads');
+    const candidate = path.resolve(storedPath);
+    if (candidate !== uploadsRoot && !candidate.startsWith(`${uploadsRoot}${path.sep}`)) {
+      return res.status(403).json({ error:'مسار الصورة غير صالح' });
+    }
+    let realRoot, realFile;
+    try {
+      realRoot = fs.realpathSync(uploadsRoot);
+      realFile = fs.realpathSync(candidate);
+    } catch {
+      return res.status(404).json({ error:'ملف الصورة غير موجود' });
+    }
+    if (!realFile.startsWith(`${realRoot}${path.sep}`) || !fs.statSync(realFile).isFile()) {
+      return res.status(403).json({ error:'ملف الصورة غير صالح' });
+    }
+    res.set('Cache-Control', 'private, max-age=3600');
+    res.sendFile(realFile);
   },
 
   async create(req, res) {

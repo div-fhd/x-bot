@@ -20,6 +20,16 @@ module.exports = wrapProcessor(async function profileUpdateProcessor(job, { isCa
       if (s?.bio) finalUpdates.bio = s.bio;
     }
     await ActionSvc.updateProfile(account, finalUpdates, { isCancelled });
+    const currentProfile = account.profile?.toObject?.() || account.profile || {};
+    account.profile = {
+      ...currentProfile,
+      ...(finalUpdates.displayName !== undefined ? { displayName:finalUpdates.displayName } : {}),
+      ...(finalUpdates.bio !== undefined ? { bio:finalUpdates.bio } : {}),
+      ...(finalUpdates.location !== undefined ? { location:finalUpdates.location } : {}),
+      ...(finalUpdates.website !== undefined ? { website:finalUpdates.website } : {}),
+      ...(finalUpdates.avatarPath ? { avatarLocalPath:finalUpdates.avatarPath, avatarUpdatedAt:new Date() } : {}),
+    };
+    await account.save();
     const syncedProfile = await ActionSvc.syncProfile(account).catch(error => {
       logger.warn(`[ProfileUpdate] @${account.username}: saved, but profile refresh failed: ${error.message}`);
       return account.profile;

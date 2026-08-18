@@ -51,6 +51,8 @@ const AccountSchema = new mongoose.Schema({
     followingCount: { type: Number, default: 0 },
     tweetsCount:    { type: Number, default: 0 },
     avatarUrl:      String,
+    avatarLocalPath:String,
+    avatarUpdatedAt:Date,
     lastSyncedAt:   Date,
   },
 
