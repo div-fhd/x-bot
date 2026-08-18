@@ -259,6 +259,10 @@ if (redisClient) {
   try {
     await startWorkers(global.io);
     bullMqReady = true;
+    const { getQueue, QUEUE_NAMES } = require('./src/queues/queues');
+    const { resetPreviousProfileJobs } = require('./src/services/profile-queue.service');
+    await resetPreviousProfileJobs(getQueue(QUEUE_NAMES.PROFILE_UPDATE), { reason:'server startup' })
+      .catch(error => logger.warn(`[ProfileQueue] Startup cleanup failed: ${error.message}`));
   } catch (err) {
     logger.warn(`[Workers] Failed to start; legacy scheduler fallback is active: ${err.message}`);
     await require('./src/queues/workers').stopWorkers().catch(() => {});

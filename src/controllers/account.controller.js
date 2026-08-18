@@ -8,6 +8,7 @@ const ActionSvc= require('../services/action.service');
 const AISvc    = require('../services/ai.service');
 const { parseBulkText } = require('../utils/parser');
 const logger   = require('../utils/logger');
+const { resetPreviousProfileJobs } = require('../services/profile-queue.service');
 
 const AccountCtrl = {
 
@@ -299,11 +300,13 @@ const AccountCtrl = {
 
     const queue = getQueue(QUEUE_NAMES.PROFILE_UPDATE);
     let workerCount = null;
+    let clearedPrevious = null;
     try {
       await Promise.race([
         queue.waitUntilReady(),
         new Promise((_, reject) => setTimeout(() => reject(new Error('Queue connection timed out')), 8_000)),
       ]);
+      clearedPrevious = await resetPreviousProfileJobs(queue, { reason:'new profile update' });
       workerCount = await Promise.race([
         queue.getWorkersCount(),
         new Promise(resolve => setTimeout(() => resolve(null), 5_000)),
@@ -372,6 +375,7 @@ const AccountCtrl = {
       started: true,
       total: accounts.length,
       jobId: parentJobId,
+      clearedPrevious,
       operation: registry._snap(registry.get(parentJobId)),
     });
   },
