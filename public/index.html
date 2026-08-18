@@ -2117,7 +2117,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
       <div class="card-b">
         <div class="notice notice-info" style="margin-bottom:12px">
           <span class="notice-ico">ℹ</span>
-          <span>يجلب من X: الاسم، البيو، عدد المتابعين والمتابَعين — يُحدّث قاعدة البيانات</span>
+          <span>يجلب من X: الصورة، الاسم، البيو، المتابعين، المتابَعين وعدد التغريدات — يُحدّث قاعدة البيانات</span>
         </div>
         <div id="prof-sync-container" style="margin-bottom:10px"></div>
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
@@ -2128,7 +2128,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
             <option value="5">5 — متوازي</option>
             <option value="10">10 — متوازي</option>
           </select>
-          <button class="btn btn-p" onclick="doSyncProfiles()">🔄 مزامنة الآن</button>
+          <button id="prof-sync-btn" class="btn btn-p" onclick="doSyncProfiles()">🔄 مزامنة الآن</button>
           <span id="prof-sync-status" style="font-size:12px;color:var(--t2)"></span>
         </div>
         <div id="prof-sync-progress" style="display:none;margin-top:10px;font-size:12px;font-family:var(--m);max-height:140px;overflow:auto;background:var(--s2);border-radius:8px;padding:8px"></div>
@@ -3229,6 +3229,8 @@ function init() {
       if (prog) prog.innerHTML += `<div>${d.error ? '❌' : '✅'} @${d.username} ${d.error || (d.profile?.followersCount !== undefined ? `— ${d.profile.followersCount} متابع` : '')}</div>`;
       if (d.done === d.total) {
         document.getElementById('prof-sync-status').textContent = `✅ اكتملت المزامنة (${d.total})`;
+        const syncButton = document.getElementById('prof-sync-btn');
+        if (syncButton) { syncButton.disabled = false; syncButton.textContent = '🔄 مزامنة الآن'; }
         loadAccounts();
         refreshVisibleAccountSelectors();
       }
@@ -5449,8 +5451,12 @@ async function cancelTweetMultiJob(jobId) {
 
 async function doSyncProfiles() {
   const ids  = getSelectedAccounts('prof-sync-acc');
+  if (!ids.length) return toast('اختر حساباً واحداً على الأقل', 'warn');
   const stat = document.getElementById('prof-sync-status');
   const prog = document.getElementById('prof-sync-progress');
+  const button = document.getElementById('prof-sync-btn');
+  if (button?.disabled) return;
+  if (button) { button.disabled = true; button.textContent = '⏳ المزامنة جارية…'; }
   stat.textContent = 'جارٍ المزامنة…';
   prog.style.display = 'block';
   prog.innerHTML = '';
@@ -5460,7 +5466,11 @@ async function doSyncProfiles() {
       body: JSON.stringify({ accountIds: ids, batchSize: +(document.getElementById('prof-sync-batch')?.value || 3) }),
     });
     stat.textContent = `جارٍ المزامنة لـ ${d.total} حساب في الخلفية…`;
-  } catch(e) { stat.textContent = ''; toast(e.message, 'err'); }
+  } catch(e) {
+    stat.textContent = '';
+    if (button) { button.disabled = false; button.textContent = '🔄 مزامنة الآن'; }
+    toast(e.message, 'err');
+  }
 }
 
 async function doUpdateProfiles() {

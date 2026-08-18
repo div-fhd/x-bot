@@ -1129,10 +1129,21 @@ const ActionSvc = {
   async syncProfile(account) {
     const page = await this._readyPage(account);
     try {
-      await page.goto(`https://x.com/${account.username}`, { waitUntil:'domcontentloaded' });
-      await sleep(1500, 2500);
-      await page.waitForSelector('[data-testid="UserName"]', { state:'visible', timeout:15_000 })
-        .catch(() => { throw new Error(`Profile page did not load for @${account.username}`); });
+      const profileUrl = `https://x.com/${account.username}`;
+      const waitForProfile = () => page.waitForSelector('[data-testid="UserName"]', { timeout:30_000 })
+        .then(() => true).catch(() => false);
+      await page.goto(profileUrl, { waitUntil:'domcontentloaded', timeout:60_000 });
+      await this._checkNotRedirected(page, account);
+      let profileReady = await waitForProfile();
+      if (!profileReady) {
+        logger.warn(`[ProfileSync] @${account.username}: profile DOM slow; reloading once...`);
+        await page.reload({ waitUntil:'domcontentloaded', timeout:60_000 }).catch(() => {});
+        await this._checkNotRedirected(page, account);
+        profileReady = await waitForProfile();
+      }
+      if (!profileReady) {
+        throw new Error(`Profile page did not load for @${account.username} (url=${page.url()})`);
+      }
       const parseCount = s => {
         if (!s) return null;
         const arabicDigits = '٠١٢٣٤٥٦٧٨٩';

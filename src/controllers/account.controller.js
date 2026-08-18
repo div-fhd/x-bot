@@ -254,19 +254,27 @@ const AccountCtrl = {
   },
   async bulkSyncProfiles(req, res) {
     const { accountIds, batchSize = 3 } = req.body;
+    const { registry } = require('../ops/operations.registry');
+    const runningSync = registry.getActive().find(operation => operation.type === 'profile-sync');
+    if (runningSync) {
+      return res.status(409).json({
+        error: `توجد مزامنة بروفايلات جارية بالفعل (${runningSync.done}/${runningSync.total}). انتظر اكتمالها أو أوقفها من وحدة التحكم.`,
+        jobId: runningSync.parentJobId,
+      });
+    }
     const query = accountIds?.length ? { _id: { $in: accountIds }, isActive: true } : { isActive: true, status: 'active' };
     const accounts = await Account.find(query);
     if (!accounts.length) return res.json({ total: 0 });
 
     const queue = getQueue(QUEUE_NAMES.PROFILE_SYNC);
     const parentJobId = `profile-sync-${Date.now()}`;
+    const concurrency = Math.max(1, Math.min(Number.parseInt(batchSize, 10) || 1, 10));
     const added = await queue.addBulk(accounts.map((account, idx) => ({
       name: QUEUE_NAMES.PROFILE_SYNC,
-      data: { accountId: account._id.toString(), meta: { parentJobId, index: idx, total: accounts.length } },
-      opts: { delay: Math.floor(idx / batchSize) * 8000, jobId: `sync-${account._id}-${Date.now()}` },
+      data: { accountId: account._id.toString(), meta: { parentJobId, index: idx, total: accounts.length, maxConcurrency: concurrency } },
+      opts: { delay: Math.min(idx, concurrency - 1) * 800, jobId: `sync-${account._id}-${Date.now()}` },
     })));
-    const { registry } = require('../ops/operations.registry');
-    registry.create({ parentJobId, type: 'profile-sync', total: accounts.length, accountUsernames: accounts.map(a => a.username) });
+    registry.create({ parentJobId, type: 'profile-sync', total: accounts.length, accountUsernames: accounts.map(a => a.username), meta:{ maxConcurrency:concurrency } });
     registry.registerJobs(parentJobId, added.map(j => j.id));
     logger.info(`[bulkSyncProfiles] Queued ${accounts.length} sync jobs → ${parentJobId}`);
     res.json({ started: true, total: accounts.length, jobId: parentJobId });

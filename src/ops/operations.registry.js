@@ -100,7 +100,9 @@ class OperationsRegistry extends EventEmitter {
             const s = await job.getState();
             if (['waiting','delayed'].includes(s)) { await job.remove(); cancelled++; }
             // محاولة إيقاف الـ active jobs أيضاً
-            if (s === 'active') { await job.discard().catch(() => {}); }
+            if (s === 'active') {
+              try { job.discard(); } catch {}
+            }
           }
         }
         logger.info(`[OpsRegistry] Cancelled ${cancelled} queued jobs for ${parentJobId}`);

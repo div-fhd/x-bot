@@ -19,7 +19,7 @@ async function resetPreviousProfileJobs(queue, { reason = 'new profile update' }
     for (const job of activeJobs) {
       const parentJobId = job.data?.meta?.parentJobId;
       if (parentJobId) cancelTokens.add(parentJobId);
-      await job.discard().catch(() => {});
+      try { job.discard(); } catch {}
       if (job.data?.accountId) {
         await Browser.closeContext(job.data.accountId, { force:true }).catch(() => {});
       }
