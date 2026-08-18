@@ -5246,12 +5246,17 @@ async function doUpdateProfiles() {
   if (loc)  updates.location    = loc;
   if (web)  updates.website     = web;
   if (mode === 'same' && biosList[0]) updates.bio = biosList[0];
-  if (['same','list'].includes(mode) && !biosList.length) return toast('أدخل بيو واحدًا على الأقل', 'warn');
   const longBio = biosList.find(bio => bio.length > 160);
   if (longBio) return toast(`يوجد بيو يتجاوز 160 حرفًا (${longBio.length})`, 'warn');
 
   const avatarFiles = getOrderedProfileImages('avatars');
   const bannerFiles = getOrderedProfileImages('banners');
+  const hasProfileChange = Object.keys(updates).length > 0
+    || (mode === 'list' && biosList.length > 0)
+    || mode === 'ai'
+    || avatarFiles.length > 0
+    || bannerFiles.length > 0;
+  if (!hasProfileChange) return toast('أدخل تعديلًا واحدًا على الأقل أو اختر صورة من المكتبة', 'warn');
   const btn = document.getElementById('prof-update-btn');
   const uploadProgress = document.getElementById('prof-upload-progress');
   const uploadBar = document.getElementById('prof-upload-bar');
