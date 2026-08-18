@@ -990,13 +990,12 @@ const ActionSvc = {
           return inputs[1] || null; // الثاني للأفاتار في X.com
         });
         const avatarInput = avatarInputHandle?.asElement?.();
-        if (avatarInput) {
-          await avatarInput.setInputFiles(updates.avatarPath);
-          await applyImageCrop('Avatar');
-          logger.info(`[Action] @${account.username} — ✓ Avatar uploaded`);
-        }
+        if (!avatarInput) throw new Error('Avatar file input was not found in the profile editor');
+        await avatarInput.setInputFiles(updates.avatarPath);
+        await applyImageCrop('Avatar');
+        logger.info(`[Action] @${account.username} — ✓ Avatar uploaded`);
       } else if (updates.avatarPath) {
-        logger.warn(`[Action] @${account.username} — Avatar path not found: ${updates.avatarPath}`);
+        throw new Error(`Avatar path not found: ${updates.avatarPath}`);
       }
 
       // ── رفع البانر ──────────────────────────────────────
@@ -1008,13 +1007,12 @@ const ActionSvc = {
           return inputs[0] || null; // الأول للبانر في X.com
         });
         const bannerInput = bannerInputHandle?.asElement?.();
-        if (bannerInput) {
-          await bannerInput.setInputFiles(updates.bannerPath);
-          await applyImageCrop('Banner');
-          logger.info(`[Action] @${account.username} — ✓ Banner uploaded`);
-        }
+        if (!bannerInput) throw new Error('Banner file input was not found in the profile editor');
+        await bannerInput.setInputFiles(updates.bannerPath);
+        await applyImageCrop('Banner');
+        logger.info(`[Action] @${account.username} — ✓ Banner uploaded`);
       } else if (updates.bannerPath) {
-        logger.warn(`[Action] @${account.username} — Banner path not found: ${updates.bannerPath}`);
+        throw new Error(`Banner path not found: ${updates.bannerPath}`);
       }
 
       // ── تحديث النصوص ────────────────────────────────────

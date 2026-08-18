@@ -277,6 +277,7 @@ const AccountCtrl = {
       avatarPaths = [], bannerPaths = [], imageOrder = 'sequential',
       avatarAssignments = {}, bannerAssignments = {}, batchSize = 1,
     } = req.body;
+    logger.info(`[bulkUpdateProfiles] Request received: accounts=${accountIds?.length || 0}, avatars=${avatarPaths.length}, banners=${bannerPaths.length}`);
     const query = accountIds?.length ? { _id: { $in: accountIds }, isActive: true } : { isActive: true, status: 'active' };
     const foundAccounts = await Account.find(query);
     // MongoDB $in does not preserve the order selected in the UI. Keep that
@@ -297,9 +298,16 @@ const AccountCtrl = {
     const bios = bioOrder === 'random' ? shuffled(normalizedBios) : normalizedBios;
 
     const queue = getQueue(QUEUE_NAMES.PROFILE_UPDATE);
-    let workerCount;
+    let workerCount = null;
     try {
-      workerCount = await queue.getWorkersCount();
+      await Promise.race([
+        queue.waitUntilReady(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Queue connection timed out')), 8_000)),
+      ]);
+      workerCount = await Promise.race([
+        queue.getWorkersCount(),
+        new Promise(resolve => setTimeout(() => resolve(null), 5_000)),
+      ]);
     } catch (error) {
       logger.error(`[bulkUpdateProfiles] Queue health check failed: ${error.message}`);
       return res.status(503).json({
@@ -307,12 +315,17 @@ const AccountCtrl = {
         error: 'تعذر الاتصال بطابور تحديث الملفات الشخصية. أعد تشغيل السيرفر ثم حاول مجددًا.',
       });
     }
-    if (workerCount < 1) {
+    if (workerCount === 0) {
       logger.error('[bulkUpdateProfiles] Rejected request: no profile-update worker is connected');
       return res.status(503).json({
         code: 'PROFILE_WORKER_UNAVAILABLE',
         error: 'عامل تحديث الملفات الشخصية غير متصل. أعد تشغيل السيرفر ثم حاول مجددًا.',
       });
+    }
+    if (workerCount === null) {
+      // Worker startup is awaited before the HTTP server starts. A slow
+      // getWorkersCount command must not leave an otherwise healthy request hanging.
+      logger.warn('[bulkUpdateProfiles] Worker count check timed out; queue is ready, continuing');
     }
     const parentJobId = `profile-update-${Date.now()}`;
     const maxConcurrency = Math.max(1, Math.min(accounts.length, Number.parseInt(batchSize, 10) || 1));
@@ -354,7 +367,7 @@ const AccountCtrl = {
     }
     registry.registerJobs(parentJobId, added.map(j => j.id));
 
-    logger.info(`[bulkUpdateProfiles] Queued ${accounts.length} update jobs → ${parentJobId} (workers: ${workerCount})`);
+    logger.info(`[bulkUpdateProfiles] Queued ${accounts.length} update jobs → ${parentJobId} (workers: ${workerCount ?? 'ready'})`);
     res.json({
       started: true,
       total: accounts.length,
