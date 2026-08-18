@@ -210,6 +210,32 @@ const ActionCtrl = {
     res.json({ paths });
   },
 
+  async listMediaLibrary(req, res) {
+    const MediaLibrary = require('../services/media-library.service');
+    res.json({ items: MediaLibrary.list({ kind: req.query.kind, limit: req.query.limit }) });
+  },
+
+  async getMediaLibraryFile(req, res) {
+    const MediaLibrary = require('../services/media-library.service');
+    const media = MediaLibrary.resolve(req.params.id);
+    if (!media) return res.status(404).json({ error: 'Media file not found' });
+    if (req.query.thumb === '1' && media.mime.startsWith('image/')) {
+      try {
+        const sharp = require('sharp').default || require('sharp');
+        const thumbnail = await sharp(media.fullPath)
+          .resize(240, 150, { fit: 'inside', withoutEnlargement: true })
+          .jpeg({ quality: 68 })
+          .toBuffer();
+        res.type('image/jpeg');
+        res.set('Cache-Control', 'private, max-age=3600');
+        return res.send(thumbnail);
+      } catch {}
+    }
+    res.type(media.mime);
+    res.set('Cache-Control', 'private, max-age=3600');
+    res.sendFile(media.fullPath);
+  },
+
   async tweetMulti(req, res) {
     const {
       accountIds, text, mode = 'ai', varyText = false, manualTexts = [],

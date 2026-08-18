@@ -1529,7 +1529,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
             <div class="field">
               <label>صور <small style="color:var(--t2);font-weight:400">— يمكن اختيار أكثر من صورة</small></label>
               <input id="tm-images" type="file" accept="image/jpeg,image/png,image/gif,image/webp" multiple onchange="previewMedia(this,'tm-img-preview')">
+              <button type="button" class="btn btn-sm" onclick="openMediaLibrary('tweet','all')" style="margin-top:6px">🗂️ اختيار من المكتبة</button>
               <div id="tm-img-preview" style="display:flex;gap:5px;flex-wrap:wrap;margin-top:6px"></div>
+              <div id="tm-library-preview" style="display:flex;gap:5px;flex-wrap:wrap;margin-top:6px"></div>
             </div>
             <div class="field">
               <label>فيديو <small style="color:var(--t2);font-weight:400">— ملف واحد</small></label>
@@ -1782,7 +1784,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
           <div class="field">
             <label>صورة/فيديو <small style="color:var(--t2);font-weight:400">اختياري</small></label>
             <input id="ry-media" type="file" accept="image/*,video/mp4" onchange="previewMedia(this,'ry-media-preview')">
+            <button type="button" class="btn btn-sm" onclick="openMediaLibrary('reply','all')" style="margin-top:6px">🗂️ اختيار من المكتبة</button>
             <div id="ry-media-preview" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px"></div>
+            <div id="ry-library-preview" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px"></div>
           </div>
         </div>
         <div style="display:flex;gap:10px;align-items:center">
@@ -1949,7 +1953,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
               <div style="display:flex;gap:8px;flex-wrap:wrap">
                 <input id="sc-images" type="file" accept="image/jpeg,image/png,image/gif,image/webp" multiple onchange="renderSchedulePreview()" style="font-size:11px">
                 <input id="sc-video" type="file" accept="video/mp4,video/quicktime,video/webm" onchange="renderSchedulePreview()" style="font-size:11px">
+                <button type="button" class="btn btn-sm" onclick="openMediaLibrary('schedule','all')">🗂️ اختيار من المكتبة</button>
               </div>
+              <div id="sc-library-preview" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px"></div>
             </div>
             <div class="field"><label>توزيع الوسائط</label><select id="sc-img-order" onchange="renderSchedulePreview()"><option value="same">نفس الوسائط للجميع</option><option value="sequential">صورة مختلفة بالتسلسل</option><option value="random">صورة مختلفة عشوائيًا</option></select></div>
             <div class="field"><label>نمط النشر عند حلول الموعد</label><select id="sc-batch-size"><option value="1">1 — تسلسلي</option><option value="3">3 — متوازي</option><option value="5">5 — متوازي</option><option value="10">10 — متوازي</option></select></div>
@@ -2139,6 +2145,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
               <small style="color:var(--t2);font-weight:400"> — يمكن رفع أكثر من صورة</small>
             </label>
             <input id="prof-avatars" type="file" accept="image/*" multiple onchange="setProfileImages(this,'avatars')">
+            <button type="button" class="btn btn-sm" onclick="openMediaLibrary('avatars','images')" style="margin-top:6px">🗂️ اختيار من المكتبة</button>
             <div id="prof-avatars-preview" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px"></div>
           </div>
           <div class="field">
@@ -2146,6 +2153,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
               <small style="color:var(--t2);font-weight:400"> — يمكن رفع أكثر من صورة</small>
             </label>
             <input id="prof-banners" type="file" accept="image/*" multiple onchange="setProfileImages(this,'banners')">
+            <button type="button" class="btn btn-sm" onclick="openMediaLibrary('banners','images')" style="margin-top:6px">🗂️ اختيار من المكتبة</button>
             <div id="prof-banners-preview" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px"></div>
           </div>
         </div>
@@ -4458,7 +4466,7 @@ async function doReplyMulti() {
   if (mode === 'manual' && !text) return toast('أدخل نص الرد', 'warn');
 
   // رفع الصور
-  let mediaPaths = [];
+  let mediaPaths = (_mediaLibrarySelections.reply || []).map(item => item.path);
   const mediaFiles = [...(document.getElementById('ry-media')?.files || [])];
   if (mediaFiles.length) {
     const fd = new FormData();
@@ -4466,7 +4474,7 @@ async function doReplyMulti() {
     try {
       const r = await fetch('/api/v1/actions/upload-media', { method:'POST', headers:{Authorization:`Bearer ${TOKEN}`}, body: fd });
       const d = await r.json();
-      mediaPaths = d.paths || [];
+      mediaPaths.push(...(d.paths || []));
     } catch(e) { return toast('فشل رفع الصورة: ' + e.message, 'err'); }
   }
 
@@ -4666,15 +4674,22 @@ async function doTweetMulti() {
   if (mode === 'same'   && !sameText)                   return toast('أدخل نص التغريدة', 'warn');
 
   // رفع الصور والفيديو
-  let mediaPaths = [];
+  const savedTweetMedia = _mediaLibrarySelections.tweet || [];
+  let mediaPaths = savedTweetMedia.map(item => item.path);
   const formData = new FormData();
   let hasFiles = false;
+  const localImages = [...(document.getElementById('tm-images')?.files || [])];
+  const localVideo = document.getElementById('tm-video')?.files?.[0];
+  const combinedCount = savedTweetMedia.length + localImages.length + (localVideo ? 1 : 0);
+  const includesVideo = Boolean(localVideo || savedTweetMedia.some(item => item.mime.startsWith('video/')));
+  if (includesVideo && combinedCount > 1) return toast('لا يمكن دمج الفيديو مع صور أو ملفات أخرى', 'warn');
+  if (document.getElementById('tm-img-order').value === 'same' && combinedCount > 4) return toast('يمكن نشر 4 صور كحد أقصى للحساب الواحد', 'warn');
   // صور متعددة
-  [...(document.getElementById('tm-images')?.files || [])].forEach(f => {
+  localImages.forEach(f => {
     formData.append('images', f); hasFiles = true;
   });
   // فيديو
-  const videoFile = document.getElementById('tm-video')?.files?.[0];
+  const videoFile = localVideo;
   if (videoFile) { formData.append('images', videoFile); hasFiles = true; }
   if (hasFiles) {
     try {
@@ -4682,7 +4697,7 @@ async function doTweetMulti() {
         method: 'POST', headers: { 'Authorization': `Bearer ${TOKEN}` }, body: formData,
       });
       const d = await r.json();
-      mediaPaths = d.paths || [];
+      mediaPaths.push(...(d.paths || []));
     } catch(e) { return toast('فشل رفع الملفات: ' + e.message, 'err'); }
   }
 
@@ -4737,6 +4752,135 @@ async function doTweetMulti() {
     s.textContent = '';
     toast(e.message, 'err');
   }
+}
+
+const _mediaLibrarySelections = { tweet: [], reply: [], schedule: [] };
+const _mediaLibraryThumbs = new Map();
+let _mediaLibraryPicker = { target: '', selected: new Set(), items: [] };
+
+async function getMediaLibraryThumb(item) {
+  if (_mediaLibraryThumbs.has(item.id)) return _mediaLibraryThumbs.get(item.id);
+  const response = await fetch(`/api/v1/actions/media-library/${encodeURIComponent(item.id)}/file?thumb=1`, {
+    headers: { Authorization: `Bearer ${TOKEN}` },
+  });
+  if (!response.ok) throw new Error('تعذر تحميل معاينة الملف');
+  const url = URL.createObjectURL(await response.blob());
+  _mediaLibraryThumbs.set(item.id, url);
+  return url;
+}
+
+function ensureMediaLibraryModal() {
+  let modal = document.getElementById('media-library-modal');
+  if (modal) return modal;
+  modal = document.createElement('div');
+  modal.id = 'media-library-modal';
+  modal.style.cssText = 'display:none;position:fixed;inset:0;z-index:9999;background:rgba(2,4,10,.78);align-items:center;justify-content:center;padding:20px';
+  modal.innerHTML = `<div style="width:min(900px,96vw);max-height:88vh;display:flex;flex-direction:column;background:var(--s1);border:1px solid var(--bd2);border-radius:14px;box-shadow:0 24px 80px #000;padding:16px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px"><strong style="font-size:15px">🗂️ مكتبة الميديا</strong><span id="media-library-count" style="color:var(--t2);font-size:11px"></span><button type="button" class="btn btn-sm" onclick="closeMediaLibrary()" style="margin-right:auto">إغلاق</button></div>
+    <div id="media-library-loading" style="padding:35px;text-align:center;color:var(--t2)">⏳ جارٍ تحميل الملفات المحفوظة…</div>
+    <div id="media-library-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(125px,1fr));gap:9px;overflow:auto;min-height:180px;padding:2px"></div>
+    <div style="display:flex;align-items:center;gap:10px;margin-top:12px;border-top:1px solid var(--bd);padding-top:12px"><span id="media-library-selected" style="font-size:12px;color:var(--t2)">0 محدد</span><button type="button" class="btn btn-p" onclick="confirmMediaLibrary()" style="margin-right:auto">استخدام المحدد</button></div>
+  </div>`;
+  modal.addEventListener('click', event => { if (event.target === modal) closeMediaLibrary(); });
+  document.body.appendChild(modal);
+  return modal;
+}
+
+async function openMediaLibrary(target, kind = 'all') {
+  const modal = ensureMediaLibraryModal();
+  modal.style.display = 'flex';
+  document.getElementById('media-library-loading').style.display = 'block';
+  document.getElementById('media-library-grid').innerHTML = '';
+  const existing = ['avatars','banners'].includes(target)
+    ? _profileImages[target].filter(item => item.libraryPath).map(item => item.libraryId)
+    : (_mediaLibrarySelections[target] || []).map(item => item.id);
+  _mediaLibraryPicker = { target, selected: new Set(existing), items: [] };
+  try {
+    const data = await api(`/api/v1/actions/media-library?kind=${encodeURIComponent(kind)}&limit=300`);
+    _mediaLibraryPicker.items = data.items || [];
+    renderMediaLibraryGrid();
+  } catch (error) {
+    document.getElementById('media-library-loading').textContent = `❌ ${error.message}`;
+  }
+}
+
+function closeMediaLibrary() {
+  const modal = document.getElementById('media-library-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+function toggleMediaLibraryItem(id) {
+  if (_mediaLibraryPicker.selected.has(id)) _mediaLibraryPicker.selected.delete(id);
+  else _mediaLibraryPicker.selected.add(id);
+  renderMediaLibraryGrid();
+}
+
+function renderMediaLibraryGrid() {
+  const loading = document.getElementById('media-library-loading');
+  const grid = document.getElementById('media-library-grid');
+  if (!grid) return;
+  loading.style.display = 'none';
+  const items = _mediaLibraryPicker.items;
+  document.getElementById('media-library-count').textContent = `${items.length} ملف محفوظ`;
+  document.getElementById('media-library-selected').textContent = `${_mediaLibraryPicker.selected.size} محدد`;
+  if (!items.length) {
+    grid.innerHTML = '<div style="grid-column:1/-1;padding:40px;text-align:center;color:var(--t2)">لا توجد ملفات محفوظة بعد. ارفع ملفًا وسيظهر هنا تلقائيًا.</div>';
+    return;
+  }
+  grid.innerHTML = items.map(item => {
+    const selected = _mediaLibraryPicker.selected.has(item.id);
+    return `<button type="button" onclick="toggleMediaLibraryItem('${item.id}')" style="position:relative;padding:5px;background:${selected ? 'rgba(91,141,249,.18)' : 'var(--s3)'};border:2px solid ${selected ? 'var(--blu)' : 'var(--bd)'};border-radius:9px;color:var(--t1);cursor:pointer;text-align:right">
+      <div id="media-thumb-${item.id}" style="height:88px;border-radius:6px;background:var(--s4);display:flex;align-items:center;justify-content:center;overflow:hidden">${item.mime.startsWith('video/') ? '🎬 فيديو' : '⏳'}</div>
+      <div title="${escapeProfileText(item.name)}" style="font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:5px">${selected ? '✅ ' : ''}${escapeProfileText(item.name)}</div>
+    </button>`;
+  }).join('');
+  items.filter(item => item.mime.startsWith('image/')).forEach(async item => {
+    const host = document.getElementById(`media-thumb-${item.id}`);
+    if (!host) return;
+    try { host.innerHTML = `<img src="${await getMediaLibraryThumb(item)}" style="width:100%;height:100%;object-fit:cover">`; } catch { host.textContent = 'تعذر العرض'; }
+  });
+}
+
+async function confirmMediaLibrary() {
+  const chosen = _mediaLibraryPicker.items.filter(item => _mediaLibraryPicker.selected.has(item.id));
+  const target = _mediaLibraryPicker.target;
+  if (['avatars','banners'].includes(target)) {
+    const existing = new Set(_profileImages[target].filter(item => item.libraryPath).map(item => item.libraryId));
+    for (const item of chosen) {
+      if (existing.has(item.id)) continue;
+      let previewUrl = '';
+      try { previewUrl = await getMediaLibraryThumb(item); } catch {}
+      _profileImages[target].push({
+        name: item.name, size: item.size, lastModified: Date.parse(item.createdAt), type: item.mime,
+        libraryId: item.id, libraryPath: item.path, previewUrl,
+      });
+    }
+    const chosenIds = new Set(chosen.map(item => item.id));
+    _profileImages[target] = _profileImages[target].filter(item => !item.libraryPath || chosenIds.has(item.libraryId));
+    _profileImageSignature[target] = '';
+    _profileManualAssignments[target] = {};
+    renderProfileImages(target);
+    renderProfileDistributionPreview();
+  } else {
+    _mediaLibrarySelections[target] = chosen;
+    renderSavedMediaSelection(target);
+    if (target === 'schedule') renderSchedulePreview();
+  }
+  closeMediaLibrary();
+}
+
+function removeSavedMedia(target, id) {
+  _mediaLibrarySelections[target] = (_mediaLibrarySelections[target] || []).filter(item => item.id !== id);
+  renderSavedMediaSelection(target);
+  if (target === 'schedule') renderSchedulePreview();
+}
+
+function renderSavedMediaSelection(target) {
+  const hostIds = { tweet:'tm-library-preview', reply:'ry-library-preview', schedule:'sc-library-preview' };
+  const host = document.getElementById(hostIds[target]);
+  if (!host) return;
+  const items = _mediaLibrarySelections[target] || [];
+  host.innerHTML = items.map(item => `<div style="display:flex;gap:5px;align-items:center;background:var(--s4);border:1px solid var(--bd);border-radius:6px;padding:4px 6px;font-size:10px"><span>${item.mime.startsWith('video/') ? '🎬' : '🖼️'} ${escapeProfileText(item.name)}</span><button type="button" onclick="removeSavedMedia('${target}','${item.id}')" style="border:0;background:none;color:var(--red);cursor:pointer">×</button></div>`).join('');
 }
 
 function parseSeparatedBlocks(raw) {
@@ -4873,7 +5017,9 @@ function renderProfileImages(kind) {
   const preview = document.getElementById(`prof-${kind}-preview`);
   if (!preview) return;
   preview.innerHTML = _profileImages[kind].map((file, index) => {
-    if (!_profileImageUrls.has(file)) _profileImageUrls.set(file, URL.createObjectURL(file));
+    if (!_profileImageUrls.has(file)) {
+      _profileImageUrls.set(file, file.previewUrl || (file instanceof Blob ? URL.createObjectURL(file) : ''));
+    }
     return `<div draggable="true" ondragstart="dragProfileImage('${kind}',${index})" ondragover="event.preventDefault()" ondrop="dropProfileImage('${kind}',${index})" style="width:92px;background:var(--s3);border:1px solid var(--bd);border-radius:7px;padding:4px;text-align:center">
       <img src="${_profileImageUrls.get(file)}" style="width:82px;height:${kind === 'banners' ? '42px' : '62px'};object-fit:cover;border-radius:5px">
       <div title="${escapeProfileText(file.name)}" style="font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:3px 0">${index + 1}. ${escapeProfileText(file.name)}</div>
@@ -5069,23 +5215,32 @@ async function doUpdateProfiles() {
   // رفع الملفات أولاً عبر FormData
   let avatarPaths = [], bannerPaths = [];
   if (avatarFiles.length || bannerFiles.length) {
+    const newAvatarFiles = avatarFiles.filter(file => !file.libraryPath);
+    const newBannerFiles = bannerFiles.filter(file => !file.libraryPath);
     const formData = new FormData();
-    avatarFiles.forEach(file => formData.append('avatars', file));
-    bannerFiles.forEach(file => formData.append('banners', file));
-    uploadProgress.style.display = 'block';
-    uploadLabel.textContent = `رفع ${avatarFiles.length + bannerFiles.length} صورة…`;
-    uploadBar.style.width = '0%';
-    uploadPercent.textContent = '0%';
+    newAvatarFiles.forEach(file => formData.append('avatars', file));
+    newBannerFiles.forEach(file => formData.append('banners', file));
     try {
-      const uploadData = await uploadWithProgress('/api/v1/accounts/upload-images', formData, percent => {
-        uploadBar.style.width = `${percent}%`;
-        uploadPercent.textContent = `${percent}%`;
-      });
-      avatarPaths = uploadData.avatarPaths || [];
-      bannerPaths = uploadData.bannerPaths || [];
-      uploadBar.style.width = '100%';
-      uploadPercent.textContent = '100%';
-      uploadLabel.textContent = '✅ اكتمل رفع الصور — بدء التحديث';
+      let uploadData = { avatarPaths: [], bannerPaths: [] };
+      if (newAvatarFiles.length || newBannerFiles.length) {
+        uploadProgress.style.display = 'block';
+        uploadLabel.textContent = `رفع ${newAvatarFiles.length + newBannerFiles.length} صورة جديدة…`;
+        uploadBar.style.width = '0%';
+        uploadPercent.textContent = '0%';
+        uploadData = await uploadWithProgress('/api/v1/accounts/upload-images', formData, percent => {
+          uploadBar.style.width = `${percent}%`;
+          uploadPercent.textContent = `${percent}%`;
+        });
+      }
+      const uploadedAvatars = [...(uploadData.avatarPaths || [])];
+      const uploadedBanners = [...(uploadData.bannerPaths || [])];
+      avatarPaths = avatarFiles.map(file => file.libraryPath || uploadedAvatars.shift()).filter(Boolean);
+      bannerPaths = bannerFiles.map(file => file.libraryPath || uploadedBanners.shift()).filter(Boolean);
+      if (newAvatarFiles.length || newBannerFiles.length) {
+        uploadBar.style.width = '100%';
+        uploadPercent.textContent = '100%';
+        uploadLabel.textContent = '✅ اكتمل رفع الصور — بدء التحديث';
+      }
     } catch(e) {
       btn.disabled = false;
       btn.textContent = '💾 تحديث الآن';
@@ -5296,9 +5451,13 @@ function getOrderedScheduleTexts() {
 function getOrderedScheduleMediaFiles() {
   const images = [...(document.getElementById('sc-images')?.files || [])];
   const video = document.getElementById('sc-video')?.files?.[0];
-  const files = video ? [video] : images;
+  const uploaded = (video ? [video] : images).map(file => ({
+    name: file.name, size: file.size, lastModified: file.lastModified, mime: file.type, file,
+  }));
+  const saved = (_mediaLibrarySelections.schedule || []).map(item => ({ ...item, libraryPath: item.path }));
+  const files = [...saved, ...uploaded];
   if (document.getElementById('sc-img-order')?.value !== 'random') return files;
-  const signature = files.map(file => `${file.name}:${file.size}:${file.lastModified}`).join('|');
+  const signature = files.map(file => `${file.name}:${file.size}:${file.lastModified || file.createdAt}`).join('|');
   if (_scheduleMediaSignature !== signature) {
     _scheduleMediaSignature = signature;
     _scheduleMediaShuffle = [...files].sort(() => Math.random() - 0.5);
@@ -5340,9 +5499,13 @@ async function doSchedule() {
   const scheduledAt = when.toISOString();
   const images = [...(document.getElementById('sc-images')?.files || [])];
   const video = document.getElementById('sc-video')?.files?.[0];
-  if (images.length && video) return toast('اختر صورًا أو فيديو، وليس الاثنين معًا', 'warn');
+  const savedMedia = _mediaLibrarySelections.schedule || [];
+  const hasSavedVideo = savedMedia.some(item => item.mime.startsWith('video/'));
+  const hasAnyVideo = Boolean(video || hasSavedVideo);
+  const totalMedia = images.length + (video ? 1 : 0) + savedMedia.length;
+  if (hasAnyVideo && totalMedia > 1) return toast('لا يمكن دمج الفيديو مع صور أو ملفات أخرى', 'warn');
   const imageOrder = document.getElementById('sc-img-order')?.value || 'same';
-  if (imageOrder === 'same' && images.length > 4) return toast('يمكن نشر 4 صور كحد أقصى للحساب الواحد', 'warn');
+  if (imageOrder === 'same' && totalMedia > 4) return toast('يمكن نشر 4 صور كحد أقصى للحساب الواحد', 'warn');
   const btn = document.getElementById('sc-submit-btn');
   btn.disabled = true;
   btn.textContent = '⏳ جارٍ الجدولة…';
@@ -5352,7 +5515,9 @@ async function doSchedule() {
     let mediaLocalPaths = [];
     const orderedMedia = getOrderedScheduleMediaFiles();
     const fd = new FormData(); let hasFiles = false;
-    orderedMedia.forEach(file => { fd.append('images', file); hasFiles = true; });
+    orderedMedia.forEach(item => {
+      if (item.file) { fd.append('images', item.file); hasFiles = true; }
+    });
     if (hasFiles) {
       const progress = document.getElementById('sc-upload-progress');
       const bar = document.getElementById('sc-upload-bar');
@@ -5361,8 +5526,11 @@ async function doSchedule() {
       const d = await uploadWithProgress('/api/v1/actions/upload-media', fd, value => {
         bar.style.width = `${value}%`; percent.textContent = `${value}%`;
       });
-      mediaLocalPaths = d.paths || [];
+      const uploadedPaths = [...(d.paths || [])];
+      mediaLocalPaths = orderedMedia.map(item => item.libraryPath || uploadedPaths.shift()).filter(Boolean);
       document.getElementById('sc-upload-label').textContent = '✅ اكتمل رفع الوسائط';
+    } else {
+      mediaLocalPaths = orderedMedia.map(item => item.libraryPath).filter(Boolean);
     }
 
     // ٢) إعداد التفاعل التلقائي
@@ -5391,6 +5559,8 @@ async function doSchedule() {
     document.getElementById('sc-text').value = '';
     if (document.getElementById('sc-images')) document.getElementById('sc-images').value = '';
     if (document.getElementById('sc-video'))  document.getElementById('sc-video').value = '';
+    _mediaLibrarySelections.schedule = [];
+    renderSavedMediaSelection('schedule');
     document.getElementById('sc-distribution-preview').style.display = 'none';
     loadSchedules();
   } catch(e) { toast(e.message,'err'); }

@@ -13,6 +13,8 @@ actionRouter.get ('/jobs',              actCtrl.listJobs);
 actionRouter.post('/jobs/cancel-all',    actCtrl.cancelAllJobs);
 actionRouter.post('/jobs/:jobId/cancel', actCtrl.cancelJob);
 actionRouter.post('/upload-media',     multerAction.fields([{ name:'images', maxCount:100 }, { name:'video', maxCount:1 }]), actCtrl.uploadMedia);
+actionRouter.get ('/media-library',          actCtrl.listMediaLibrary);
+actionRouter.get ('/media-library/:id/file', actCtrl.getMediaLibraryFile);
 actionRouter.post('/tweet',            actCtrl.tweet);
 actionRouter.post('/tweet-multi',      actCtrl.tweetMulti);
 actionRouter.post('/report-account', requireFeature('report'),   actCtrl.reportAccount);
