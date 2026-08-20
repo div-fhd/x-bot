@@ -1655,7 +1655,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
             <option value="5">5 — متوازي</option>
             <option value="10">10 — متوازي</option>
           </select>
-          <button class="btn btn-p" onclick="doTweetMulti()">🚀 نشر الآن</button>
+          <button id="tm-publish-btn" class="btn btn-p" onclick="doTweetMulti()">🚀 نشر الآن</button>
           <span id="tm-status" style="font-size:12px;color:var(--t2)"></span>
         </div>
         <div id="tm-progress" style="display:none;margin-top:12px;padding:10px;background:var(--s3);border-radius:8px;font-size:12px;font-family:var(--m)"></div>
@@ -4943,6 +4943,9 @@ async function doTweetMulti() {
   const imgOrder = document.getElementById('tm-img-order').value;
   const s    = document.getElementById('tm-status');
   const prog = document.getElementById('tm-progress');
+  const publishButton = document.getElementById('tm-publish-btn');
+  if (publishButton?.disabled) return;
+  if (publishButton) { publishButton.disabled = true; publishButton.textContent = '⏳ النشر جارٍ…'; }
   s.textContent = `جارٍ النشر على ${ids.length} حساب…`;
   prog.style.display = 'block';
   prog.innerHTML = '';
@@ -4989,6 +4992,7 @@ async function doTweetMulti() {
     </div>`;
   } catch(e) {
     s.textContent = '';
+    if (publishButton) { publishButton.disabled = false; publishButton.textContent = '🚀 نشر الآن'; }
     toast(e.message, 'err');
   }
 }
@@ -6557,6 +6561,14 @@ function initOpsSocketEvents(socket) {
         const status = document.getElementById('prof-upd-status');
         if (status) status.textContent = '⏹ تم إيقاف عملية التحديث';
       }
+    }
+    if (data.type === 'tweet-multi' && ['completed','cancelled','failed'].includes(data.state)) {
+      const publishButton = document.getElementById('tm-publish-btn');
+      if (publishButton) { publishButton.disabled = false; publishButton.textContent = '🚀 نشر الآن'; }
+      const status = document.getElementById('tm-status');
+      if (status) status.textContent = data.state === 'cancelled'
+        ? '⏹ تم إيقاف النشر'
+        : `اكتمل: ${data.success || 0} نجح · ${data.failed || 0} فشل`;
     }
     if (currentPanel==='ops-console') { renderOpsList(); updateOpsKPIs(); }
     // update nb-jobs indicator

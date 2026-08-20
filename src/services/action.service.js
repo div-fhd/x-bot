@@ -105,12 +105,13 @@ const ActionSvc = {
 
     let navStatus = 'n/a';
     try {
-      // navigate يصنّف فشل البروكسي/الشبكة + status بوضوح
-      const navResp = await this._navigate(page, 'https://x.com/compose/post', account);
+      // الصفحة الرئيسية أخف وأكثر ثباتاً من فتح /compose/post مباشرة.
+      // كما أنها تحتوي محرر inline؛ وإذا لم يظهر نفتح نافذة compose من الشريط.
+      const navResp = await this._openTweetComposer(page, account);
       navStatus = navResp ? navResp.status() : 'no-resp';
 
       // انتظر مُحرّر الكتابة — وإلا خطأ صريح (auth/splash/فارغ) بدل timeout غامض
-      const ready = await dom.present(page, Sel.compose.editor, { timeout: 30_000, state: 'visible' });
+      const ready = await dom.present(page, Sel.compose.editor, { timeout: 5_000, state: 'visible' });
       if (!ready) {
         if (await dom.present(page, Sel.page.loginWall, { timeout: 1500 }))
           throw new Error(`SKIP:@${account.username} — auth_required (جدار دخول على صفحة الكتابة)`);
@@ -335,6 +336,39 @@ const ActionSvc = {
       if (/^(ProxyError|RateLimited|NavError)/.test(e.message)) ProxyBreaker.record(account._id, false);
       throw e;
     }
+  },
+
+  async _openTweetComposer(page, account) {
+    let navResp = null;
+    try {
+      navResp = await this._navigate(page, 'https://x.com/home', account);
+    } catch (error) {
+      // Chromium قد يبلغ عن انتهاء مهلة DOMContentLoaded بينما React بدأ
+      // فعلياً بالرسم. نكمل فحص DOM فقط لهذه الحالة، ولا نبتلع أخطاء الشبكة.
+      if (!/Timeout.*(?:goto|navigation)|Timeout \d+ms exceeded/i.test(error.message)) throw error;
+      logger.warn(`[Action] @${account.username} — home navigation timed out; checking rendered DOM...`);
+    }
+
+    if (await dom.present(page, Sel.compose.editor, { timeout:30_000, state:'visible' })) return navResp;
+    await this._checkNotRedirected(page, account);
+
+    const composeLink = page.locator('a[href="/compose/post"]');
+    if (await composeLink.count().catch(() => 0)) {
+      await composeLink.first().evaluate(element => element.click()).catch(() => {});
+      if (await dom.present(page, Sel.compose.editor, { timeout:25_000, state:'visible' })) return navResp;
+    }
+
+    logger.warn(`[Action] @${account.username} — compose DOM slow; reloading home once...`);
+    await page.goto('https://x.com/home', { waitUntil:'domcontentloaded', timeout:60_000 }).catch(() => {});
+    await this._checkNotRedirected(page, account);
+    if (await dom.present(page, Sel.compose.editor, { timeout:40_000, state:'visible' })) return navResp;
+
+    const retryLink = page.locator('a[href="/compose/post"]');
+    if (await retryLink.count().catch(() => 0)) {
+      await retryLink.first().evaluate(element => element.click()).catch(() => {});
+      if (await dom.present(page, Sel.compose.editor, { timeout:25_000, state:'visible' })) return navResp;
+    }
+    return navResp;
   },
 
   // ── النموذج المرجعي للعقد المتين ─────────────────────────────

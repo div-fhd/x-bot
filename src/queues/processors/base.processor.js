@@ -52,8 +52,11 @@ function wrapProcessor(processorFn, opts = {}) {
       return { skipped: true, reason: 'cancelled' };
     }
 
-    if (parentJobId && meta?.maxConcurrency) {
-      releaseOperationSlot = await acquireOperationSlot(parentJobId, meta.maxConcurrency);
+    // المهام القديمة التي دخلت طابور النشر قبل إضافة maxConcurrency يجب ألا
+    // تنطلق كلها معاً بعد إعادة التشغيل؛ نعالجها كتسلسلية افتراضياً.
+    const operationLimit = meta?.maxConcurrency || (/tweet-multi/.test(job.name || '') ? 1 : null);
+    if (parentJobId && operationLimit) {
+      releaseOperationSlot = await acquireOperationSlot(parentJobId, operationLimit);
       // The operation may have been cancelled while this job waited for a slot.
       if (cancelTokens.has(parentJobId)) {
         releaseOperationSlot();

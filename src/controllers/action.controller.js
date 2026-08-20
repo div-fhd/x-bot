@@ -64,9 +64,10 @@ function getActiveJobs() {
 
 
 // ── BullMQ helper ─────────────────────────────────────────────
-async function queueBulkOp(queueName, accounts, jobDataFn, delayMinMs = 0, delayMaxMs = 0) {
+async function queueBulkOp(queueName, accounts, jobDataFn, delayMinMs = 0, delayMaxMs = 0, maxConcurrency = 1) {
   const queue = getQueue(queueName);
   const parentJobId = `${queueName}-${Date.now()}`;
+  const concurrency = Math.max(1, Math.min(Number.parseInt(maxConcurrency, 10) || 1, 10));
   const jobs = await queue.addBulk(
     accounts.map((account, idx) => {
       const delayMs = idx === 0 ? 0 : Math.round(
@@ -74,7 +75,7 @@ async function queueBulkOp(queueName, accounts, jobDataFn, delayMinMs = 0, delay
       ) * idx;
       return {
         name: queueName,
-        data: { ...jobDataFn(account, idx), meta: { parentJobId, index: idx, total: accounts.length } },
+        data: { ...jobDataFn(account, idx), meta: { parentJobId, index: idx, total: accounts.length, maxConcurrency: concurrency } },
         opts: { delay: delayMs, jobId: `${queueName}-${account._id}-${Date.now()}` },
       };
     })
@@ -295,13 +296,22 @@ const ActionCtrl = {
       autoEngage = false, engageAccountIds = [], engageActions = ['like'], engageActionGroups = {},
       engageReplyTexts = [], engageDelayMinMs = 8000, engageDelayMaxMs = 25000,
     } = req.body;
+    const runningTweet = registry.getActive().find(operation => operation.type === 'tweet-multi');
+    if (runningTweet) {
+      return res.status(409).json({
+        error: `توجد عملية نشر جارية بالفعل (${runningTweet.done}/${runningTweet.total}). انتظر اكتمالها أو أوقفها من وحدة التحكم.`,
+        jobId: runningTweet.parentJobId,
+      });
+    }
     const actualTopic = topic || text;
     if (!accountIds?.length) return res.status(400).json({ error: 'accountIds[] required' });
     if (mode === 'ai' && !actualTopic) return res.status(400).json({ error: 'topic required for AI mode' });
     if (mode === 'manual' && !manualTexts.length) return res.status(400).json({ error: 'manualTexts required for manual mode' });
     if (mode === 'same' && !text) return res.status(400).json({ error: 'text required for same mode' });
 
-    const accounts = await Account.find({ _id: { $in: accountIds }, isActive: true, status: 'active' });
+    const foundAccounts = await Account.find({ _id: { $in: accountIds }, isActive: true, status: 'active' });
+    const accountMap = new Map(foundAccounts.map(account => [account._id.toString(), account]));
+    const accounts = accountIds.map(id => accountMap.get(String(id))).filter(Boolean);
     if (!accounts.length) return res.status(400).json({ error: 'No active accounts found' });
 
     // Queue via BullMQ
@@ -316,12 +326,12 @@ const ActionCtrl = {
         autoEngage, engageAccountIds, engageActions, engageActionGroups,
         engageReplyTexts, engageDelayMinMs, engageDelayMaxMs,
       }),
-      delayMinMs, delayMaxMs
+      delayMinMs, delayMaxMs, batchSize
     );
     const op = registry.create({
       parentJobId, type: 'tweet-multi', total: accounts.length,
       accountUsernames: accounts.map(a => a.username),
-      meta: { mode, topic: topic || text },
+      meta: { mode, topic: topic || text, maxConcurrency:Math.max(1, Math.min(Number.parseInt(batchSize, 10) || 1, 10)) },
     });
     registry.registerJobs(parentJobId, jobIds);
     logger.info(`[tweetMulti] Queued ${jobCount} jobs → ${parentJobId}`);
@@ -662,7 +672,7 @@ const ActionCtrl = {
     const { parentJobId, jobCount, jobIds } = await queueBulkOp(
       QUEUE_NAMES.FOLLOW, accounts,
       (account) => ({ accountId: account._id.toString(), targetHandle }),
-      delayMinMs, delayMaxMs
+      delayMinMs, delayMaxMs, batchSize
     );
     const op = registry.create({ parentJobId, type: 'follow', total: accounts.length, accountUsernames: accounts.map(a => a.username), meta: { targetHandle } });
     registry.registerJobs(parentJobId, jobIds);
@@ -679,7 +689,7 @@ const ActionCtrl = {
     const { parentJobId, jobCount, jobIds } = await queueBulkOp(
       QUEUE_NAMES.LIKE, accounts,
       (account) => ({ accountId: account._id.toString(), tweetId }),
-      delayMinMs, delayMaxMs
+      delayMinMs, delayMaxMs, batchSize
     );
     const op = registry.create({ parentJobId, type: 'like', total: accounts.length, accountUsernames: accounts.map(a => a.username) });
     registry.registerJobs(parentJobId, jobIds);
@@ -689,14 +699,14 @@ const ActionCtrl = {
 
     // ── Retweet Multi ───────────────────────────────────────────
   async retweetMulti(req, res) {
-    const { accountIds, tweetId, delayMinMs = 15000, delayMaxMs = 30000 } = req.body;
+    const { accountIds, tweetId, delayMinMs = 15000, delayMaxMs = 30000, batchSize = 1 } = req.body;
     if (!accountIds?.length || !tweetId) return res.status(400).json({ error: 'accountIds[] and tweetId required' });
     const accounts = await Account.find({ _id: { $in: accountIds }, isActive: true });
     if (!accounts.length) return res.status(400).json({ error: 'No active accounts' });
     const { parentJobId, jobCount, jobIds } = await queueBulkOp(
       QUEUE_NAMES.RETWEET, accounts,
       (account) => ({ accountId: account._id.toString(), tweetId }),
-      delayMinMs, delayMaxMs
+      delayMinMs, delayMaxMs, batchSize
     );
     const op = registry.create({ parentJobId, type: 'retweet', total: accounts.length, accountUsernames: accounts.map(a => a.username) });
     registry.registerJobs(parentJobId, jobIds);
