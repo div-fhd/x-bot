@@ -10,12 +10,13 @@ const rateLimit   = require('express-rate-limit');
 const { Server }  = require('socket.io');
 const path        = require('path');
 const cron        = require('node-cron');
+const mongoose    = require('mongoose');
 
 const cfg        = require('./src/config');
 const LicenseSvc = require('./src/services/license.service');
 const logger     = require('./src/utils/logger');
 const { connectMongo } = require('./src/db/mongo');
-const { connectRedis } = require('./src/db/redis');
+const { connectRedis, getRedis, disconnectRedis } = require('./src/db/redis');
 const { errorHandler, authMiddleware } = require('./src/middleware/index');
 
 const authRoutes    = require('./src/routes/auth.routes');
@@ -26,6 +27,8 @@ const app    = express();
 const server = http.createServer(app);
 const io     = new Server(server, { cors: { origin: '*' } });
 global.io    = io;
+let bullMqReady = false;
+let shuttingDown = false;
 
 // ── Core middleware ──────────────────────────────────────────
 app.use(helmet({ contentSecurityPolicy: false }));
@@ -42,7 +45,19 @@ app.use(express.static(path.join(__dirname, 'public')));
 // ── Health (no auth) ─────────────────────────────────────────
 app.get('/health', (req, res) => {
   const Browser = require('./src/services/browser.service');
-  res.json({ ok: true, uptime: Math.round(process.uptime()), browser: Browser.stats() });
+  const redis = getRedis();
+  const mongoConnected = mongoose.connection.readyState === 1;
+  const redisConnected = redis?.status === 'ready';
+  const healthy = mongoConnected && redisConnected && bullMqReady;
+  res.status(healthy ? 200 : 503).json({
+    ok: healthy,
+    status: healthy ? 'healthy' : 'degraded',
+    uptime: Math.round(process.uptime()),
+    mongo: { connected: mongoConnected },
+    redis: { connected: redisConnected },
+    workers: { ready: bullMqReady },
+    browser: Browser.stats(),
+  });
 });
 
 // ── API ───────────────────────────────────────────────────────
@@ -118,7 +133,6 @@ cron.schedule('0 0 * * *', async () => {
 // ── Legacy scheduler fallback ─────────────────────────────────
 // This direct publisher is only a fallback. `bullMqReady` is based on the
 // actual Redis/worker connection, not merely on REDIS_* being present in .env.
-let bullMqReady = false;
 cron.schedule('*/2 * * * *', async () => {
   if (bullMqReady) return;
   const { Content, Schedule } = require('./src/models/index');
@@ -161,28 +175,34 @@ cron.schedule('*/2 * * * *', async () => {
 cron.schedule('*/30 * * * *', async () => {
   const Account    = require('./src/models/Account');
   const { RiskEvent } = require('./src/models/index');
+  const pendingRisks = [];
+  let openRiskKeys = new Set();
 
   const createRisk = async (account, type, level, description, details = {}) => {
-    // تجنب تكرار نفس المخاطرة لنفس الحساب
-    const exists = await RiskEvent.findOne({ account: account._id, type, resolved: false });
-    if (exists) return;
-    await RiskEvent.create({ account: account._id, type, level, description, details });
-    logger.info(`[Risk] ${level} — @${account.username}: ${description}`);
-    if (global.io) global.io.emit('risk:new', { username: account.username, type, level, description });
+    const key = `${account._id}:${type}`;
+    if (openRiskKeys.has(key)) return;
+    openRiskKeys.add(key);
+    pendingRisks.push({ account:account._id, username:account.username, type, level, description, details });
   };
 
   try {
     const accounts = await Account.find({ isActive: true });
+    const existingRisks = await RiskEvent.find({
+      account:{ $in:accounts.map(account => account._id) },
+      resolved:false,
+    }).select('account type').lean();
+    openRiskKeys = new Set(existingRisks.map(risk => `${risk.account}:${risk.type}`));
+    const activeAccountIds = [];
 
     for (const account of accounts) {
-      // 1. حساب موقوف أو محظور
-      if (['موقوف','محظور'].includes(account.status)) {
+      // 1. حساب موقوف أو مغلق
+      if (['suspended','locked','dead'].includes(account.status)) {
         await createRisk(account, 'account_suspended', 'critical',
           `الحساب @${account.username} موقوف أو محظور`, { status: account.status });
       }
 
       // 2. حساب يحتاج مصادقة
-      if (account.status === 'يحتاج_مصادقة') {
+      if (account.status === 'auth_required') {
         await createRisk(account, 'auth_required', 'high',
           `الحساب @${account.username} يحتاج إعادة مصادقة`);
       }
@@ -199,7 +219,7 @@ cron.schedule('*/30 * * * *', async () => {
       // 4. حساب غير نشط أكثر من 3 أيام
       if (account.lastActiveAt) {
         const daysSince = (Date.now() - new Date(account.lastActiveAt)) / 86_400_000;
-        if (daysSince > 3 && account.status === 'نشط') {
+        if (daysSince > 3 && account.status === 'active') {
           await createRisk(account, 'inactive_account', 'low',
             `@${account.username} لم ينشط منذ ${Math.floor(daysSince)} أيام`,
             { daysSince: Math.floor(daysSince) });
@@ -207,12 +227,27 @@ cron.schedule('*/30 * * * *', async () => {
       }
 
       // 5. حل المخاطر التي انتهت (الحساب عاد نشطاً)
-      if (account.status === 'نشط') {
-        await RiskEvent.updateMany(
-          { account: account._id, type: { $in: ['auth_required','account_suspended'] }, resolved: false },
-          { $set: { resolved: true, resolvedAt: new Date(), resolution: 'تلقائي — الحساب عاد نشطاً' } }
-        );
+      if (account.status === 'active') {
+        activeAccountIds.push(account._id);
       }
+    }
+
+    await Promise.all([
+      pendingRisks.length
+        ? RiskEvent.insertMany(pendingRisks.map(({ username, ...risk }) => risk), { ordered:false })
+        : Promise.resolve(),
+      activeAccountIds.length
+        ? RiskEvent.updateMany(
+            { account:{ $in:activeAccountIds }, type:{ $in:['auth_required','account_suspended'] }, resolved:false },
+            { $set:{ resolved:true, resolvedAt:new Date(), resolution:'تلقائي — الحساب عاد نشطاً' } },
+          )
+        : Promise.resolve(),
+    ]);
+    for (const risk of pendingRisks) {
+      logger.info(`[Risk] ${risk.level} — @${risk.username}: ${risk.description}`);
+      if (global.io) global.io.emit('risk:new', {
+        username:risk.username, type:risk.type, level:risk.level, description:risk.description,
+      });
     }
   } catch (e) {
     logger.error(`[Cron] Risk monitor error: ${e.message}`);
@@ -229,14 +264,27 @@ cron.schedule('0 4 * * 0', async () => {
 
 // ── Graceful shutdown ─────────────────────────────────────────
 async function shutdown(sig) {
+  if (shuttingDown) return;
+  shuttingDown = true;
   logger.info(`[Shutdown] ${sig} received — shutting down cleanly...`);
-  server.close();
-  await require('./src/services/browser.service').shutdown();
-  await require('mongoose').disconnect();
+
+  require('./src/scheduler/post-scheduler').stopScheduler();
+  await require('./src/queues/workers').stopWorkers().catch(e => logger.warn(`[Shutdown] Workers: ${e.message}`));
+  await require('./src/queues/queues').closeAllQueues().catch(e => logger.warn(`[Shutdown] Queues: ${e.message}`));
+  await require('./src/queues/connection').closeRedis().catch(e => logger.warn(`[Shutdown] BullMQ Redis: ${e.message}`));
+
+  await new Promise(resolve => {
+    if (!server.listening) return resolve();
+    const timeout = setTimeout(resolve, 5000);
+    server.close(() => { clearTimeout(timeout); resolve(); });
+  });
+  await require('./src/services/browser.service').shutdown().catch(e => logger.warn(`[Shutdown] Browser: ${e.message}`));
+  await disconnectRedis().catch(e => logger.warn(`[Shutdown] Redis: ${e.message}`));
+  await mongoose.disconnect().catch(e => logger.warn(`[Shutdown] MongoDB: ${e.message}`));
   process.exit(0);
 }
-process.on('SIGTERM', () => shutdown('SIGTERM'));
-process.on('SIGINT',  () => shutdown('SIGINT'));
+process.once('SIGTERM', () => shutdown('SIGTERM'));
+process.once('SIGINT',  () => shutdown('SIGINT'));
 process.on('uncaughtException',  e => logger.error('[UncaughtException]', e));
 process.on('unhandledRejection', e => logger.error('[UnhandledRejection]', e));
 
@@ -253,8 +301,6 @@ async function start() {
   // ── BullMQ Workers ───────────────────────────────────────────
 if (redisClient) {
   const { startWorkers } = require('./src/queues/workers');
-  const { closeAllQueues } = require('./src/queues/queues');
-  const { closeRedis }     = require('./src/queues/connection');
 
   try {
     await startWorkers(global.io);
@@ -274,17 +320,6 @@ if (redisClient) {
     startScheduler();
   }
 
-  const graceful = async (sig) => {
-    require('./src/utils/logger').info(`[Server] ${sig} — shutting down workers...`);
-    const { stopWorkers } = require('./src/queues/workers');
-    require('./src/scheduler/post-scheduler').stopScheduler();
-    await stopWorkers();
-    await closeAllQueues();
-    await closeRedis();
-    process.exit(0);
-  };
-  process.once('SIGTERM', () => graceful('SIGTERM'));
-  process.once('SIGINT',  () => graceful('SIGINT'));
 } else {
   logger.warn('[Workers] Redis unavailable; queued operations are disabled and will return HTTP 503');
 }

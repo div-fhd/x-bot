@@ -32,4 +32,16 @@ async function connectRedis() {
 }
 
 const getRedis = () => client;
-module.exports = { connectRedis, getRedis };
+
+async function disconnectRedis() {
+  if (!client) return;
+  const current = client;
+  client = null;
+  try {
+    await current.quit();
+  } catch (_) {
+    current.disconnect();
+  }
+}
+
+module.exports = { connectRedis, getRedis, disconnectRedis };

@@ -14,9 +14,6 @@ module.exports = wrapProcessor(async function healthCheckProcessor(job, { isCanc
     await AuthSvc.checkHealth(account);
     await job.updateProgress(100);
     jobEvents.checkProg({ username: account.username, done: meta.index + 1, total: meta.total, status: account.status });
-    if (meta.index + 1 === meta.total) {
-      jobEvents.checkDone({ total: meta.total });
-    }
     return { success: true, status: account.status };
   } catch(e) {
     logger.warn(`[HealthCheck] @${account.username}: ${e.message}`);

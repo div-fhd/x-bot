@@ -64,22 +64,35 @@ function getActiveJobs() {
 
 
 // ── BullMQ helper ─────────────────────────────────────────────
-async function queueBulkOp(queueName, accounts, jobDataFn, delayMinMs = 0, delayMaxMs = 0, maxConcurrency = 1) {
+async function queueBulkOp(queueName, operationType, accounts, jobDataFn, maxConcurrency = 1, operationMeta = {}, timing = {}) {
   const queue = getQueue(queueName);
   const parentJobId = `${queueName}-${Date.now()}`;
   const concurrency = Math.max(1, Math.min(Number.parseInt(maxConcurrency, 10) || 1, 10));
-  const jobs = await queue.addBulk(
-    accounts.map((account, idx) => {
-      const delayMs = idx === 0 ? 0 : Math.round(
-        delayMinMs + Math.random() * Math.max(0, delayMaxMs - delayMinMs)
-      ) * idx;
-      return {
-        name: queueName,
-        data: { ...jobDataFn(account, idx), meta: { parentJobId, index: idx, total: accounts.length, maxConcurrency: concurrency } },
-        opts: { delay: delayMs, jobId: `${queueName}-${account._id}-${Date.now()}` },
-      };
-    })
-  );
+  registry.create({
+    parentJobId, type:operationType, total:accounts.length,
+    accountUsernames:accounts.map(account => account.username),
+    meta:{ ...operationMeta, maxConcurrency:concurrency },
+  });
+  let jobs;
+  try {
+    jobs = await queue.addBulk(
+      accounts.map((account, idx) => {
+        const minDelay = Math.max(0, Number(timing.delayMinMs) || 0);
+        const maxDelay = Math.max(minDelay, Number(timing.delayMaxMs) || minDelay);
+        const wave = Math.floor(idx / concurrency);
+        const delay = wave > 0 ? Math.round(wave * (minDelay + Math.random() * (maxDelay - minDelay))) : 0;
+        return {
+          name: queueName,
+          data: { ...jobDataFn(account, idx), meta: { parentJobId, index: idx, total: accounts.length, maxConcurrency: concurrency } },
+          opts: { ...(delay ? { delay } : {}), jobId: `${queueName}-${account._id}-${Date.now()}` },
+        };
+      })
+    );
+  } catch (error) {
+    registry.fail(parentJobId, error);
+    throw error;
+  }
+  registry.registerJobs(parentJobId, jobs.map(job => job.id));
   return { parentJobId, jobCount: jobs.length, jobIds: jobs.map(j => j.id) };
 }
 
@@ -290,11 +303,11 @@ const ActionCtrl = {
   async tweetMulti(req, res) {
     const {
       accountIds, text, mode = 'ai', varyText = false, manualTexts = [],
-      delayMinMs = 8000, delayMaxMs = 25000, topic, hashtags,
+      delayMinMs = 0, delayMaxMs = 0, topic, hashtags,
       mediaPaths = [], imageOrder = 'same', batchSize = 1,
       // Auto-engage options
       autoEngage = false, engageAccountIds = [], engageActions = ['like'], engageActionGroups = {},
-      engageReplyTexts = [], engageDelayMinMs = 8000, engageDelayMaxMs = 25000,
+      engageReplyTexts = [], engageDelayMinMs = 0, engageDelayMaxMs = 0,
     } = req.body;
     const runningTweet = registry.getActive().find(operation => operation.type === 'tweet-multi');
     if (runningTweet) {
@@ -315,7 +328,7 @@ const ActionCtrl = {
     if (!accounts.length) return res.status(400).json({ error: 'No active accounts found' });
 
     // Queue via BullMQ
-    const { parentJobId, jobCount, jobIds } = await queueBulkOp(
+    const { parentJobId, jobCount } = await queueBulkOp(
       QUEUE_NAMES.TWEET_MULTI, accounts,
       (account, idx) => ({
         accountId: account._id.toString(),
@@ -665,58 +678,52 @@ const ActionCtrl = {
 
   // ── Follow Multi ──────────────────────────────────────────────
   async followMulti(req, res) {
-    const { accountIds, targetHandle, delayMinMs = 20000, delayMaxMs = 40000, batchSize = 1 } = req.body;
+    const { accountIds, targetHandle, delayMinMs = 0, delayMaxMs = 0, batchSize = 1 } = req.body;
     if (!accountIds?.length || !targetHandle) return res.status(400).json({ error: 'accountIds[] and targetHandle required' });
     const accounts = await Account.find({ _id: { $in: accountIds }, isActive: true });
     if (!accounts.length) return res.status(400).json({ error: 'No active accounts' });
-    const { parentJobId, jobCount, jobIds } = await queueBulkOp(
-      QUEUE_NAMES.FOLLOW, accounts,
+    const { parentJobId, jobCount } = await queueBulkOp(
+      QUEUE_NAMES.FOLLOW, 'follow', accounts,
       (account) => ({ accountId: account._id.toString(), targetHandle }),
-      delayMinMs, delayMaxMs, batchSize
+      batchSize, { targetHandle }, { delayMinMs, delayMaxMs }
     );
-    const op = registry.create({ parentJobId, type: 'follow', total: accounts.length, accountUsernames: accounts.map(a => a.username), meta: { targetHandle } });
-    registry.registerJobs(parentJobId, jobIds);
     logger.info(`[followMulti] Queued ${jobCount} jobs → ${parentJobId}`);
     res.json({ started: true, jobId: parentJobId, total: accounts.length });
   },
 
     // ── Like Multi ────────────────────────────────────────────
   async likeMulti(req, res) {
-    const { accountIds, tweetId, delayMinMs = 15000, delayMaxMs = 30000, batchSize = 1 } = req.body;
+    const { accountIds, tweetId, delayMinMs = 0, delayMaxMs = 0, batchSize = 1 } = req.body;
     if (!accountIds?.length || !tweetId) return res.status(400).json({ error: 'accountIds[] and tweetId required' });
     const accounts = await Account.find({ _id: { $in: accountIds }, isActive: true });
     if (!accounts.length) return res.status(400).json({ error: 'No active accounts' });
-    const { parentJobId, jobCount, jobIds } = await queueBulkOp(
-      QUEUE_NAMES.LIKE, accounts,
+    const { parentJobId, jobCount } = await queueBulkOp(
+      QUEUE_NAMES.LIKE, 'like', accounts,
       (account) => ({ accountId: account._id.toString(), tweetId }),
-      delayMinMs, delayMaxMs, batchSize
+      batchSize, {}, { delayMinMs, delayMaxMs }
     );
-    const op = registry.create({ parentJobId, type: 'like', total: accounts.length, accountUsernames: accounts.map(a => a.username) });
-    registry.registerJobs(parentJobId, jobIds);
     logger.info(`[likeMulti] Queued ${jobCount} jobs → ${parentJobId}`);
     res.json({ started: true, jobId: parentJobId, total: accounts.length });
   },
 
     // ── Retweet Multi ───────────────────────────────────────────
   async retweetMulti(req, res) {
-    const { accountIds, tweetId, delayMinMs = 15000, delayMaxMs = 30000, batchSize = 1 } = req.body;
+    const { accountIds, tweetId, delayMinMs = 0, delayMaxMs = 0, batchSize = 1 } = req.body;
     if (!accountIds?.length || !tweetId) return res.status(400).json({ error: 'accountIds[] and tweetId required' });
     const accounts = await Account.find({ _id: { $in: accountIds }, isActive: true });
     if (!accounts.length) return res.status(400).json({ error: 'No active accounts' });
     const { parentJobId, jobCount, jobIds } = await queueBulkOp(
-      QUEUE_NAMES.RETWEET, accounts,
+      QUEUE_NAMES.RETWEET, 'retweet', accounts,
       (account) => ({ accountId: account._id.toString(), tweetId }),
-      delayMinMs, delayMaxMs, batchSize
+      batchSize, {}, { delayMinMs, delayMaxMs }
     );
-    const op = registry.create({ parentJobId, type: 'retweet', total: accounts.length, accountUsernames: accounts.map(a => a.username) });
-    registry.registerJobs(parentJobId, jobIds);
     logger.info(`[retweetMulti] Queued ${jobCount} jobs → ${parentJobId}`);
     res.json({ started: true, jobId: parentJobId, total: accounts.length });
   },
 
     // ── متابعة تبادلية ───────────────────────────────────────────
   async mutualFollow(req, res) {
-    const { accountIds, delayMinMs = 10000, delayMaxMs = 25000, batchSize = 1 } = req.body;
+    const { accountIds, delayMinMs = 0, delayMaxMs = 0, batchSize = 1 } = req.body;
     if (!accountIds?.length || accountIds.length < 2)
       return res.status(400).json({ error: 'يلزم حسابان على الأقل' });
 
@@ -788,10 +795,6 @@ const ActionCtrl = {
         const MFBrowser = require('../services/browser.service');
         await Promise.all(batch.map(({ follower }) => MFBrowser.closeContext(follower._id.toString()).catch(() => {})));
 
-        // تأخير بين مجموعات الـ batchSize (ما عدا الأخيرة)
-        if (bi + batchSize < rows.length && !isCancelled(jobId)) {
-          await new Promise(r => setTimeout(r, 2000));
-        }
       }
 
       // safety net

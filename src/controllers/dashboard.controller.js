@@ -20,9 +20,9 @@ const DashCtrl = {
     const rm = byRole.reduce((a,r)=>{ a[r._id]=r.count; return a; }, {});
     res.json({
       accounts: {
-        total, active: sm['نشط']||0, needAuth: sm['يحتاج_مصادقة']||0,
-        checkpoint: sm['نقطة_تحقق']||0, restricted: sm['محظور']||0,
-        inactive: sm['غير_نشط']||0, suspended: sm['موقوف']||0,
+        total, active:sm.active||0, needAuth:sm.auth_required||0,
+        checkpoint:(sm.checkpoint||0) + (sm.locked||0), restricted:sm.limited||0,
+        inactive:(sm.inactive||0) + (sm.dead||0), suspended:sm.suspended||0,
         byRole: rm,
       },
       today: {

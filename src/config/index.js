@@ -12,6 +12,7 @@ if (missing.length) {
 module.exports = {
   port:         parseInt(process.env.PORT    || '3000', 10),
   mongoUri:     process.env.MONGODB_URI      || 'mongodb://localhost:27017/xops',
+  mongoPoolSize: parseInt(process.env.MONGO_POOL_SIZE || '30', 10),
   redisUrl:     process.env.REDIS_URL        || 'redis://localhost:6379',
   appSecret:    process.env.APP_SECRET,
   vaultKey:     process.env.VAULT_KEY,
@@ -26,6 +27,13 @@ module.exports = {
     headless:    process.env.PLAYWRIGHT_HEADLESS !== 'false',
     limit:       parseInt(process.env.BROWSER_LIMIT || '5', 10),
     sessionDir:  process.env.SESSION_DIR || './data/sessions',
+  },
+  workers: {
+    concurrency: parseInt(process.env.WORKER_CONCURRENCY || process.env.BROWSER_LIMIT || '5', 10),
+  },
+  bulkImport: {
+    dbConcurrency:     parseInt(process.env.IMPORT_DB_CONCURRENCY || '20', 10),
+    healthConcurrency: parseInt(process.env.IMPORT_HEALTH_CONCURRENCY || process.env.BROWSER_LIMIT || '5', 10),
   },
   caps: {
     follow:  parseInt(process.env.CAP_FOLLOW || '50',  10),

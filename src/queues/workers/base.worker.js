@@ -2,14 +2,14 @@
 const { Worker }       = require('bullmq');
 const { createConnection } = require('../connection');
 const logger           = require('../../utils/logger');
-const BROWSER_LIMIT    = parseInt(process.env.BROWSER_LIMIT || '5');
+const cfg              = require('../../config');
 
 class BaseWorker {
   constructor(queueName, processor, opts = {}) {
     this.queueName = queueName;
     this.worker = new Worker(queueName, processor, {
       connection:      createConnection(),
-      concurrency:     opts.concurrency || BROWSER_LIMIT,
+      concurrency:     opts.concurrency || cfg.workers.concurrency,
       stalledInterval: 30_000,
       lockDuration:    180_000, // 3 min — covers any single action
     });

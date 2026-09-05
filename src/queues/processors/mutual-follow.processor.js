@@ -13,7 +13,7 @@ module.exports = wrapProcessor(async function mutualFollowProcessor(job, { isCan
   if (['suspended','locked','dead','auth_required','checkpoint'].includes(account.status))
     throw new Error(`SKIP: @${account.username} — ${account.status}`);
   if (!account.canDo('follow'))
-    throw new Error(`SKIP: @{account.username} — daily follow cap reached`);
+    throw new Error(`SKIP: @${account.username} — daily follow cap reached`);
   await job.updateProgress(10);
   try {
     await ActionSvc.follow(account, targetUsername);

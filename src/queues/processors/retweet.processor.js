@@ -12,8 +12,8 @@ module.exports = wrapProcessor(async function retweetProcessor(job, { isCancelle
     throw new Error(`SKIP: @${account.username} — inactive`);
   if (['suspended','locked','dead','auth_required','checkpoint'].includes(account.status))
     throw new Error(`SKIP: @${account.username} — ${account.status}`);
-  if (!account.canDo('retweet'))
-    throw new Error(`SKIP: @{account.username} — daily retweet cap reached`);
+  if (!account.canDo('repost'))
+    throw new Error(`SKIP: @${account.username} — daily retweet cap reached`);
   await job.updateProgress(10);
   try {
     await ActionSvc.retweet(account, tweetId);

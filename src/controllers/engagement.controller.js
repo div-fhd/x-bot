@@ -37,7 +37,7 @@ module.exports = {
 
   // POST /api/v1/engagement
   async create(req, res) {
-    const { name, tweetUrl, accountIds, accountRole, accountTags = [], actions, actionGroups = {}, replyTexts = [], quoteMode = 'manual', quoteTexts = [], quotePrompt = '', delayMinMs = 8000, delayMaxMs = 25000, scheduleAt, authorHandle, runMode = 'sequential', parallelCount = 1, targets } = req.body;
+    const { name, tweetUrl, accountIds, accountRole, accountTags = [], actions, actionGroups = {}, replyTexts = [], quoteMode = 'manual', quoteTexts = [], quotePrompt = '', delayMinMs = 0, delayMaxMs = 0, scheduleAt, authorHandle, runMode = 'sequential', parallelCount = 1, targets } = req.body;
 
     // أفعال الحملة: إمّا قائمة عامة (actions) أو مستنبطة من actionGroups
     const groupActions = Object.entries(actionGroups || {}).filter(([, ids]) => Array.isArray(ids) && ids.length).map(([a]) => a);

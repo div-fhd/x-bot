@@ -12,6 +12,7 @@ router.post  ('/bulk-import',          ctrl.bulkImport);
 router.post  ('/bulk-check',           ctrl.bulkCheck);
 router.post  ('/bulk-sync-profiles',   ctrl.bulkSyncProfiles);
 router.post  ('/bulk-update-profiles', ctrl.bulkUpdateProfiles);
+router.delete('/bulk',                 ctrl.bulkRemove);
 
 const multer = require('multer');
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });

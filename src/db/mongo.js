@@ -6,7 +6,7 @@ const cfg      = require('../config');
 async function connectMongo() {
   mongoose.connection.on('error',        e => logger.error('[DB] خطأ:', e.message));
   mongoose.connection.on('disconnected', () => logger.warn('[DB] انقطع الاتصال'));
-  await mongoose.connect(cfg.mongoUri, { maxPoolSize: 20, serverSelectionTimeoutMS: 10_000 });
+  await mongoose.connect(cfg.mongoUri, { maxPoolSize: cfg.mongoPoolSize, serverSelectionTimeoutMS: 10_000 });
   logger.info('[DB] MongoDB متصل ✓');
 }
 

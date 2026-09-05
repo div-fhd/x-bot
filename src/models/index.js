@@ -49,6 +49,7 @@ const ContentSchema = new mongoose.Schema({
   },
 }, { timestamps: true });
 ContentSchema.index({ account:1, status:1, scheduledAt:1 });
+ContentSchema.index({ status:1, scheduledAt:1 });
 const Content = mongoose.model('Content', ContentSchema);
 
 // ── ActivityLog ───────────────────────────────────────────────
@@ -78,6 +79,7 @@ const RiskSchema = new mongoose.Schema({
   resolvedBy:  { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   resolution:  String,
 }, { timestamps: true });
+RiskSchema.index({ account:1, type:1, resolved:1 });
 const RiskEvent = mongoose.model('RiskEvent', RiskSchema);
 
 // ── Schedule ──────────────────────────────────────────────────
@@ -96,6 +98,8 @@ ScheduleSchema.index(
   { requestId:1, account:1 },
   { unique:true, partialFilterExpression:{ requestId:{ $type:'string' } } },
 );
+ScheduleSchema.index({ content:1, status:1 });
+ScheduleSchema.index({ status:1, scheduledAt:1 });
 const Schedule = mongoose.model('Schedule', ScheduleSchema);
 
 // ── EngageCampaign ────────────────────────────────────────────
@@ -145,8 +149,8 @@ const EngageCampaignSchema = new mongoose.Schema({
   },
 
   // Timing
-  delayMinMs:  { type: Number, default: 5000 },
-  delayMaxMs:  { type: Number, default: 15000 },
+  delayMinMs:  { type: Number, default: 0 },
+  delayMaxMs:  { type: Number, default: 0 },
   scheduleAt:  Date,  // optional — run at specific time
 
   status:      { type: String, enum: ['draft','running','done','failed','cancelled'], default: 'draft' },

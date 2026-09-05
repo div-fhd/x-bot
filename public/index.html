@@ -1429,7 +1429,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 
     <div class="notice notice-warn">
       <span class="notice-ico">⚠</span>
-      <span>الجلسات لن تُفتح فوراً — كل حساب يُفحص بتأخير متدرج (30 ثانية بين كل حساب) لمنع فتح عشرات المتصفحات دفعة واحدة.</span>
+      <span>الاستيراد فوري، والفحص التلقائي يدخل الطابور مباشرة ضمن حد التشغيل المتوازي.</span>
     </div>
 
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:14px">
@@ -1450,10 +1450,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
         <label>الفحص عند الاستيراد</label>
         <select id="bulk-stagger">
           <option value="manual" selected>بلا فحص — موصى به</option>
-          <option value="staggered">فحص تلقائي — 30 ثانية بين كل حساب</option>
-          <option value="safe">فحص تلقائي آمن — دقيقتين بين كل حساب</option>
+          <option value="staggered">فحص تلقائي عبر الطابور</option>
         </select>
-        <div style="font-size:11px;color:var(--amb);margin-top:5px">⚠️ الفحص التلقائي يطيل وقت الاستيراد — موصى باليدوي بعد الاستيراد</div>
+        <div style="font-size:11px;color:var(--t2);margin-top:5px">الفحص يعمل بالخلفية ولا يؤخر حفظ الحسابات.</div>
       </div>
       <div class="field" style="grid-column:1/-1">
         <label style="display:flex;align-items:center;gap:8px;cursor:pointer;text-transform:none;letter-spacing:0;font-size:12.5px;font-weight:500">
@@ -1638,8 +1637,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
             <div class="field">
               <label>التأخير بين حسابات التفاعل</label>
               <select id="tm-eng-delay">
+                <option value="0,0" selected>بدون تأخير</option>
                 <option value="5000,15000">5-15 ثانية (سريع)</option>
-                <option value="10000,25000" selected>10-25 ثانية (موصى)</option>
+                <option value="10000,25000">10-25 ثانية</option>
                 <option value="20000,45000">20-45 ثانية (آمن)</option>
               </select>
             </div>
@@ -1674,9 +1674,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
           <div class="field">
             <label>التأخير بين الحسابات</label>
             <select id="fl-delay">
-              <option value="0,0">بدون تأخير</option>
+              <option value="0,0" selected>بدون تأخير</option>
               <option value="10000,20000">10-20 ثانية</option>
-              <option value="20000,40000" selected>20-40 ثانية (موصى)</option>
+              <option value="20000,40000">20-40 ثانية</option>
               <option value="60000,120000">1-2 دقيقة (محافظ)</option>
             </select>
           </div>
@@ -1713,9 +1713,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
           <div class="field">
             <label>التأخير بين الحسابات</label>
             <select id="lk-delay">
-              <option value="0,0">بدون تأخير</option>
+              <option value="0,0" selected>بدون تأخير</option>
               <option value="5000,10000">5-10 ثانية</option>
-              <option value="15000,30000" selected>15-30 ثانية (موصى به)</option>
+              <option value="15000,30000">15-30 ثانية</option>
               <option value="30000,60000">30-60 ثانية (آمن)</option>
             </select>
           </div>
@@ -1750,9 +1750,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
           <div class="field">
             <label>التأخير بين الحسابات</label>
             <select id="rp-delay">
-              <option value="0,0">بدون تأخير</option>
+              <option value="0,0" selected>بدون تأخير</option>
               <option value="5000,10000">5-10 ثانية</option>
-              <option value="15000,30000" selected>15-30 ثانية (موصى به)</option>
+              <option value="15000,30000">15-30 ثانية</option>
               <option value="30000,60000">30-60 ثانية (آمن)</option>
             </select>
           </div>
@@ -1804,9 +1804,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
           <div class="field">
             <label>التأخير بين الحسابات</label>
             <select id="ry-delay">
-              <option value="0,0">بدون تأخير</option>
+              <option value="0,0" selected>بدون تأخير</option>
               <option value="5000,10000">5-10 ثانية</option>
-              <option value="15000,30000" selected>15-30 ثانية (موصى به)</option>
+              <option value="15000,30000">15-30 ثانية</option>
               <option value="30000,60000">30-60 ثانية (آمن)</option>
             </select>
           </div>
@@ -1851,9 +1851,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
           <div class="field">
             <label>التأخير بين كل متابعة</label>
             <select id="mutual-delay">
-              <option value="0,0">بدون تأخير</option>
+              <option value="0,0" selected>بدون تأخير</option>
               <option value="5000,10000">5-10 ثانية</option>
-              <option value="10000,25000" selected>10-25 ثانية (موصى به)</option>
+              <option value="10000,25000">10-25 ثانية</option>
               <option value="30000,60000">30-60 ثانية (آمن)</option>
             </select>
           </div>
@@ -2048,8 +2048,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
               <div class="field">
                 <label>التأخير بين حسابات التفاعل</label>
                 <select id="sc-eng-delay">
+                  <option value="0,0" selected>بدون تأخير</option>
                   <option value="5000,15000">5-15 ثانية</option>
-                  <option value="10000,25000" selected>10-25 ثانية</option>
+                  <option value="10000,25000">10-25 ثانية</option>
                   <option value="20000,45000">20-45 ثانية</option>
                 </select>
               </div>
@@ -2663,8 +2664,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
           <div class="field" style="margin:0">
             <label>التأخير بين الحسابات</label>
             <select id="eng-delay">
+              <option value="0,0" selected>بدون تأخير</option>
               <option value="5000,15000">5-15 ث — سريع</option>
-              <option value="10000,25000" selected>10-25 ث — موصى</option>
+              <option value="10000,25000">10-25 ث</option>
               <option value="20000,45000">20-45 ث — آمن</option>
               <option value="30000,90000">30-90 ث — محافظ</option>
             </select>
@@ -4258,14 +4260,10 @@ async function deleteSelectedHard() {
   const ids = [...document.querySelectorAll('.acc-cb:checked')].map(c => c.dataset.id);
   if (!ids.length) return toast('لم تحدد أي حساب', 'warn');
   if (!confirm(`⚠️ حذف ${ids.length} حساب نهائياً من قاعدة البيانات؟\nلا يمكن التراجع عن هذا الإجراء.`)) return;
-  let done = 0;
-  for (const id of ids) {
-    try {
-      await api(`/api/v1/accounts/${id}?hard=true`, { method:'DELETE' });
-      done++;
-    } catch(e) {}
-  }
-  toast(`🗑 حُذف ${done} حساب نهائياً`, 'ok');
+  const result = await api('/api/v1/accounts/bulk', {
+    method:'DELETE', body:JSON.stringify({ accountIds:ids }),
+  });
+  toast(`🗑 حُذف ${result.deleted} حساب نهائياً`, 'ok');
   loadAccounts(); loadActiveAccounts();
 }
 
@@ -4324,14 +4322,11 @@ async function deleteSelectedAccounts() {
   const ids = getSelectedAccountIds();
   if (!ids.length) return toast('اختر حسابات أولاً', 'warn');
   if (!confirm(`⚠️ حذف ${ids.length} حساب نهائياً من قاعدة البيانات؟\nلا يمكن التراجع عن هذا الإجراء.`)) return;
-  let deleted = 0, failed = 0;
-  for (const id of ids) {
-    try {
-      await api(`/api/v1/accounts/${id}?hard=true`, { method:'DELETE' });
-      deleted++;
-    } catch { failed++; }
-  }
-  toast(`🗑 حُذف ${deleted} حساب${failed ? ' — فشل ' + failed : ''}`, deleted ? 'ok' : 'err');
+  const result = await api('/api/v1/accounts/bulk', {
+    method:'DELETE', body:JSON.stringify({ accountIds:ids }),
+  });
+  const failed = result.requested - result.deleted;
+  toast(`🗑 حُذف ${result.deleted} حساب${failed ? ' — غير موجود ' + failed : ''}`, result.deleted ? 'ok' : 'err');
   loadAccounts(); loadActiveAccounts();
 }
 /* ═══════════════════════════════════════════════════════════════
@@ -4427,26 +4422,21 @@ async function doImport() {
 
     // تحديث شريط التقدم
     handles.forEach((h, i) => {
-      setTimeout(() => {
-        const bar  = document.getElementById(`pb-${h}`);
-        const stat = document.getElementById(`ps-${h}`);
-        const created = d.results.created.includes(h);
-        const skipped = d.results.skipped.includes(h);
-        const errored = d.results.errors.find(e => e.username === h);
+      const bar  = document.getElementById(`pb-${h}`);
+      const stat = document.getElementById(`ps-${h}`);
+      const created = d.results.created.includes(h);
+      const skipped = d.results.skipped.includes(h);
 
-        if (bar) { bar.style.width='100%'; bar.style.background = created?'var(--grn)':skipped?'var(--amb)':'var(--red)'; }
-        if (stat) {
-          stat.textContent  = created?'تمّ':skipped?'موجود':'خطأ';
-          stat.className    = 'pill '+(created?'p-g':skipped?'p-a':'p-r');
-        }
-        document.getElementById('imp-count').textContent = `${i+1} / ${handles.length}`;
-      }, i * 100);
+      if (bar) { bar.style.width='100%'; bar.style.background = created?'var(--grn)':skipped?'var(--amb)':'var(--red)'; }
+      if (stat) {
+        stat.textContent  = created?'تمّ':skipped?'موجود':'خطأ';
+        stat.className    = 'pill '+(created?'p-g':skipped?'p-a':'p-r');
+      }
+      document.getElementById('imp-count').textContent = `${i+1} / ${handles.length}`;
     });
 
-    setTimeout(() => {
-      toast(`✅ أنشئ: ${d.summary.created} | تخطي: ${d.summary.skipped} | أخطاء: ${d.summary.errors}`, 'ok');
-      loadActiveAccounts();
-    }, handles.length * 100 + 200);
+    toast(`✅ أنشئ: ${d.summary.created} | تخطي: ${d.summary.skipped} | أخطاء: ${d.summary.errors}`, 'ok');
+    loadActiveAccounts();
 
   } catch(e) { toast(e.message, 'err'); }
 }
@@ -4577,7 +4567,7 @@ async function doRepostMulti() {
   const match = rpInput.match(/status\/(\d+)/);
   const tweetId = match ? match[1] : rpInput.replace(/\D/g,'');
   if (!tweetId) return toast('رابط أو ID غير صحيح', 'warn');
-  const delayParts = document.getElementById('rp-delay')?.value.split(',') || ['15000','30000'];
+  const delayParts = document.getElementById('rp-delay')?.value.split(',') || ['0','0'];
   const [minD, maxD] = [+delayParts[0], +delayParts[1]];
   const ids = getSelectedAccounts('rp-acc');
   if (!ids.length) return toast('اختر حساباً على الأقل', 'warn');
@@ -4609,7 +4599,7 @@ async function doReplyMulti() {
   const mode  = document.getElementById('ry-mode').value;
   const text  = document.getElementById('ry-text').value.trim();
   const hint  = document.getElementById('ry-ai-hint').value.trim();
-  const delayParts = document.getElementById('ry-delay')?.value.split(',') || ['15000','30000'];
+  const delayParts = document.getElementById('ry-delay')?.value.split(',') || ['0','0'];
   const [minD, maxD] = [+delayParts[0], +delayParts[1]];
   const ids   = getSelectedAccounts('ry-acc');
   if (!ids.length) return toast('اختر حساباً على الأقل', 'warn');
@@ -4959,7 +4949,7 @@ async function doTweetMulti() {
     const engageReplyTexts = autoEngage
       ? (document.getElementById('tm-eng-reply-texts')?.value.trim().split('\n').filter(Boolean) || [])
       : [];
-    const engDelayParts = document.getElementById('tm-eng-delay')?.value.split(',') || ['10000','25000'];
+    const engDelayParts = document.getElementById('tm-eng-delay')?.value.split(',') || ['0','0'];
 
     const d = await api('/api/v1/actions/tweet-multi', {
       method: 'POST',
@@ -5960,7 +5950,7 @@ async function doSchedule() {
       const actionGroups = apGroups('sched');
       const total = new Set(Object.values(actionGroups).flat()).size;
       if (!total) return toast('أشّر حسابات للتفاعل أو ألغِ التفاعل التلقائي', 'warn');
-      const dParts = (document.getElementById('sc-eng-delay')?.value || '10000,25000').split(',');
+      const dParts = (document.getElementById('sc-eng-delay')?.value || '0,0').split(',');
       engage = {
         enabled: true,
         actionGroups,

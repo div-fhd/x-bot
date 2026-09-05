@@ -1,7 +1,8 @@
 'use strict';
+const mongoose = require('mongoose');
 const Account  = require('../models/Account');
 const { getQueue, QUEUE_NAMES } = require('../queues/queues');
-const { User, log } = require('../models/index');
+const { Content, ActivityLog, RiskEvent, Schedule, EngageCampaign } = require('../models/index');
 const Vault    = require('../services/vault.service');
 const AuthSvc  = require('../services/auth.service');
 const ActionSvc= require('../services/action.service');
@@ -9,11 +10,51 @@ const AISvc    = require('../services/ai.service');
 const { parseBulkText } = require('../utils/parser');
 const logger   = require('../utils/logger');
 const { resetPreviousProfileJobs } = require('../services/profile-queue.service');
+const cfg      = require('../config');
+
+async function runPool(items, concurrency, handler) {
+  let cursor = 0;
+  const size = Math.max(1, Math.min(items.length, Number.parseInt(concurrency, 10) || 1));
+  await Promise.all(Array.from({ length:size }, async () => {
+    while (cursor < items.length) {
+      const index = cursor++;
+      await handler(items[index], index);
+    }
+  }));
+}
+
+async function deleteAccountsPermanently(rawIds) {
+  const ids = [...new Set(rawIds.map(String))].filter(id => mongoose.isValidObjectId(id));
+  if (!ids.length) return { deleted:0, requested:0 };
+
+  const accounts = await Account.find({ _id:{ $in:ids } }).select('_id username').lean();
+  if (!accounts.length) return { deleted:0, requested:ids.length };
+  const accountIds = accounts.map(account => account._id);
+
+  const Browser = require('../services/browser.service');
+  await Promise.allSettled(accounts.map(account => Browser.closeContext(String(account._id), { force:true })));
+  await Promise.allSettled(accounts.map(account => Vault.deleteSession(String(account._id))));
+
+  await Promise.all([
+    Content.deleteMany({ account:{ $in:accountIds } }),
+    ActivityLog.deleteMany({ account:{ $in:accountIds } }),
+    RiskEvent.deleteMany({ account:{ $in:accountIds } }),
+    Schedule.deleteMany({ account:{ $in:accountIds } }),
+    EngageCampaign.updateMany(
+      { accountIds:{ $in:accountIds } },
+      { $pull:{ accountIds:{ $in:accountIds } } },
+    ),
+  ]);
+  const result = await Account.deleteMany({ _id:{ $in:accountIds } });
+  return { deleted:result.deletedCount, requested:ids.length, usernames:accounts.map(account => account.username) };
+}
 
 const AccountCtrl = {
 
   async list(req, res) {
     const { status, role, page = 1, limit = 50, q, isPrimary } = req.query;
+    const pageNumber = Math.max(1, Number.parseInt(page, 10) || 1);
+    const requestedLimit = Math.max(1, Math.min(500, Number.parseInt(limit, 10) || 50));
     const filter = { isActive: true };
     if (status)    filter.status    = status;
     if (role)      filter.role      = role;
@@ -21,10 +62,10 @@ const AccountCtrl = {
     if (isPrimary) filter.isPrimary = true;
     // تطبيق حد عدد الحسابات للمشترك
     const maxAcc = req.user?.permissions?.maxAccounts;
-    const effectiveLimit = maxAcc ? Math.min(+limit, maxAcc) : +limit;
+    const effectiveLimit = maxAcc ? Math.min(requestedLimit, maxAcc) : requestedLimit;
     const [accounts, total] = await Promise.all([
       Account.find(filter).select('-credentials').sort({ createdAt: -1 })
-        .skip((page-1)*limit).limit(+limit).lean(),
+        .skip((pageNumber-1)*effectiveLimit).limit(effectiveLimit).lean(),
       Account.countDocuments(filter),
     ]);
     const safeAccounts = accounts.map(account => {
@@ -33,7 +74,7 @@ const AccountCtrl = {
       const { avatarLocalPath, ...profile } = account.profile;
       return { ...account, profile:{ ...profile, avatarStored } };
     });
-    res.json({ accounts:safeAccounts, total, page: +page, pages: Math.ceil(total/limit) });
+    res.json({ accounts:safeAccounts, total, page:pageNumber, limit:effectiveLimit, pages:Math.ceil(total/effectiveLimit) });
   },
 
   async get(req, res) {
@@ -86,7 +127,10 @@ const AccountCtrl = {
             proxy_url, niche, label, tags, timezone, dailyCaps, role } = req.body;
     if (!username || !password) return res.status(400).json({ error: 'username and password required' });
     const handle = username.replace('@','').trim();
-    if (await Account.exists({ username: handle })) {
+    const existing = await Account.findOne({ username:handle }).select('_id isActive').lean();
+    if (existing?.isActive === false) {
+      await deleteAccountsPermanently([existing._id]);
+    } else if (existing) {
       return res.status(409).json({ error: `@${handle} already exists` });
     }
     const creds = Vault.encryptAccount({ password, email, session_token, auth_token, totp_secret });
@@ -110,61 +154,100 @@ const AccountCtrl = {
 
     const results = { created: [], updated: [], skipped: [], errors: [] };
 
-    for (let i = 0; i < valid.length; i++) {
-      const row = valid[i];
+    // Deduplicate the payload before touching Mongo. For large imports this
+    // prevents duplicate writes and unique-index races inside the same request.
+    const uniqueByUsername = new Map();
+    for (const row of valid) {
+      const key = row.username.toLowerCase();
+      if (uniqueByUsername.has(key)) results.skipped.push(row.username);
+      uniqueByUsername.set(key, row);
+    }
+    const rows = [...uniqueByUsername.values()];
+    let existingAccounts = await Account.find({ username: { $in: rows.map(row => row.username) } });
+    const previouslyDeleted = existingAccounts.filter(account => account.isActive === false);
+    if (previouslyDeleted.length) {
+      await deleteAccountsPermanently(previouslyDeleted.map(account => account._id));
+      existingAccounts = existingAccounts.filter(account => account.isActive !== false);
+    }
+    const existingByUsername = new Map(existingAccounts.map(account => [account.username.toLowerCase(), account]));
+    const healthTargets = [];
+
+    // The old implementation slept for 30-120 seconds inside the HTTP request.
+    // A bounded DB pool imports 500 accounts quickly; browser checks are queued below.
+    await runPool(rows, cfg.bulkImport.dbConcurrency, async row => {
       try {
-        const existing = await Account.findOne({ username: row.username });
+        const existing = existingByUsername.get(row.username.toLowerCase());
         if (existing) {
-          if (!updateExisting) { results.skipped.push(row.username); continue; }
-          // تحديث بيانات الحساب الموجود
-          const creds = Vault.encryptAccount(row);
-          existing.credentials = creds;
-          if (row.proxy_url)    existing.network = { ...existing.network, proxyUrl: row.proxy_url };
-          if (defaultRole)      existing.role    = defaultRole;
-          if (defaultNiche)     existing.niche   = defaultNiche;
+          if (!updateExisting) { results.skipped.push(row.username); return; }
+          existing.credentials = Vault.encryptAccount(row);
+          if (row.proxy_url) existing.network = { ...existing.network, proxyUrl:row.proxy_url };
+          if (defaultRole)  existing.role = defaultRole;
+          if (defaultNiche) existing.niche = defaultNiche;
           await existing.save();
           results.updated.push(row.username);
-          logger.info(`[Import] Updated: @${row.username}`);
-          continue;
+          healthTargets.push({ _id:existing._id, username:existing.username });
+          return;
         }
-        const creds = Vault.encryptAccount(row);
+
         const account = await Account.create({
           username: row.username,
           label:    `@${row.username}`,
           niche:    defaultNiche || '',
           role:     defaultRole  || 'mixed',
-          credentials: creds,
+          credentials: Vault.encryptAccount(row),
           ownedBy: req.user._id,
-          network: { proxyUrl: row.proxy_url || null, timezone: defaultTimezone || 'Asia/Riyadh' },
+          network: { proxyUrl:row.proxy_url || null, timezone:defaultTimezone || 'Asia/Riyadh' },
         });
-
         results.created.push(row.username);
-
-        // الفحص التلقائي
-        if (stagger !== 'manual') {
-          const delayMs = stagger === 'safe' ? 120_000 : 30_000;
-          setImmediate(async () => {
-            try {
-              const acc = await Account.findOne({ username: row.username });
-              if (!acc) return;
-              const AuthSvc = require('../services/auth.service');
-              await AuthSvc.checkHealth(acc);
-              logger.info(`[Import] فحص @${row.username} ✓`);
-            } catch(e) {
-              logger.warn(`[Import] فحص @${row.username}: ${e.message}`);
-            }
-          });
-          if (i < valid.length - 1) await new Promise(r => setTimeout(r, delayMs));
-        }
+        healthTargets.push({ _id:account._id, username:account.username });
       } catch (e) {
-        results.errors.push({ username: row.username, error: e.message });
+        results.errors.push({ username:row.username, error:e.message });
+      }
+    });
+
+    let healthCheck = { queued:false, total:0, jobId:null };
+    if (stagger !== 'manual' && healthTargets.length) {
+      const queue = getQueue(QUEUE_NAMES.HEALTH_CHECK);
+      const parentJobId = `health-check-import-${Date.now()}`;
+      const concurrency = Math.max(1, Math.min(healthTargets.length, cfg.browser.limit, cfg.bulkImport.healthConcurrency));
+      const { registry } = require('../ops/operations.registry');
+      registry.create({
+        parentJobId, type:'health-check', total:healthTargets.length,
+        accountUsernames:healthTargets.map(account => account.username),
+        meta:{ source:'bulk-import', maxConcurrency:concurrency },
+      });
+      try {
+        await Promise.race([
+          queue.waitUntilReady(),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Queue connection timed out')), 8_000)),
+        ]);
+        const added = await queue.addBulk(healthTargets.map((account, index) => ({
+          name: QUEUE_NAMES.HEALTH_CHECK,
+          data: {
+            accountId:String(account._id), username:account.username,
+            meta:{ parentJobId, index, total:healthTargets.length, maxConcurrency:concurrency },
+          },
+          opts: {
+            jobId:`import-hc-${parentJobId}-${account._id}`,
+          },
+        })));
+        registry.registerJobs(parentJobId, added.map(job => job.id));
+        healthCheck = {
+          queued:true, total:healthTargets.length, jobId:parentJobId,
+          concurrency, waves:Math.ceil(healthTargets.length / concurrency),
+        };
+      } catch (error) {
+        registry.fail(parentJobId, error);
+        healthCheck = { queued:false, total:healthTargets.length, jobId:parentJobId, error:error.message };
+        logger.warn(`[Import] Accounts saved but health checks were not queued: ${error.message}`);
       }
     }
 
     logger.info(`[Import] created:${results.created.length} skipped:${results.skipped.length} errors:${results.errors.length}`);
     res.json({
       results,
-      summary: { total, created: results.created.length, skipped: results.skipped.length, errors: results.errors.length },
+      summary: { total, unique:rows.length, created:results.created.length, updated:results.updated.length, skipped:results.skipped.length, errors:results.errors.length },
+      healthCheck,
       invalid,
     });
   },
@@ -202,17 +285,18 @@ const AccountCtrl = {
   },
 
   async remove(req, res) {
-    const hard = req.query.hard === 'true';
-    if (hard) {
-      await Account.findByIdAndDelete(req.params.id);
-      await Vault.deleteSession(req.params.id);
-      logger.info(`[Account] Deleted permanently: ${req.params.id}`);
-    } else {
-      await Account.findByIdAndUpdate(req.params.id, { isActive: false });
-      await Vault.deleteSession(req.params.id);
-      logger.info(`[Account] Hidden: ${req.params.id}`);
-    }
-    res.json({ success: true });
+    const result = await deleteAccountsPermanently([req.params.id]);
+    if (!result.deleted) return res.status(404).json({ error:'Account not found' });
+    logger.info(`[Account] Deleted permanently: @${result.usernames[0]}`);
+    res.json({ success:true, deleted:result.deleted });
+  },
+
+  async bulkRemove(req, res) {
+    const accountIds = Array.isArray(req.body.accountIds) ? req.body.accountIds.slice(0, 500) : [];
+    if (!accountIds.length) return res.status(400).json({ error:'accountIds[] required' });
+    const result = await deleteAccountsPermanently(accountIds);
+    logger.info(`[Account] Permanently deleted ${result.deleted}/${result.requested} accounts`);
+    res.json({ success:true, ...result });
   },
 
   async checkSession(req, res) {
@@ -269,20 +353,27 @@ const AccountCtrl = {
 
   // ── رفع الصور ──────────────────────────────────────────────────
   async bulkCheck(req, res) {
-    const { accountIds, batchSize = 1 } = req.body;
+    const { accountIds, batchSize = cfg.bulkImport.healthConcurrency } = req.body;
     const query = accountIds?.length ? { _id: { $in: accountIds }, isActive: true } : { isActive: true };
     const accounts = await Account.find(query);
     if (!accounts.length) return res.json({ total: 0 });
 
     const queue = getQueue(QUEUE_NAMES.HEALTH_CHECK);
     const parentJobId = `health-check-${Date.now()}`;
-    const added = await queue.addBulk(accounts.map((account, idx) => ({
-      name: QUEUE_NAMES.HEALTH_CHECK,
-      data: { accountId: account._id.toString(), meta: { parentJobId, index: idx, total: accounts.length } },
-      opts: { delay: idx * 8000, jobId: `hc-${account._id}-${Date.now()}` },
-    })));
+    const concurrency = Math.max(1, Math.min(accounts.length, cfg.browser.limit, Number.parseInt(batchSize, 10) || 1));
     const { registry } = require('../ops/operations.registry');
-    registry.create({ parentJobId, type: 'health-check', total: accounts.length, accountUsernames: accounts.map(a => a.username) });
+    registry.create({ parentJobId, type: 'health-check', total: accounts.length, accountUsernames: accounts.map(a => a.username), meta:{ maxConcurrency:concurrency } });
+    let added;
+    try {
+      added = await queue.addBulk(accounts.map((account, idx) => ({
+        name: QUEUE_NAMES.HEALTH_CHECK,
+        data: { accountId: account._id.toString(), username:account.username, meta: { parentJobId, index: idx, total: accounts.length, maxConcurrency:concurrency } },
+        opts: { jobId: `hc-${account._id}-${Date.now()}` },
+      })));
+    } catch (error) {
+      registry.fail(parentJobId, error);
+      throw error;
+    }
     registry.registerJobs(parentJobId, added.map(j => j.id));
     logger.info(`[bulkCheck] Queued ${accounts.length} health checks → ${parentJobId}`);
     res.json({ started: true, total: accounts.length, jobId: parentJobId });
@@ -303,13 +394,19 @@ const AccountCtrl = {
 
     const queue = getQueue(QUEUE_NAMES.PROFILE_SYNC);
     const parentJobId = `profile-sync-${Date.now()}`;
-    const concurrency = Math.max(1, Math.min(Number.parseInt(batchSize, 10) || 1, 10));
-    const added = await queue.addBulk(accounts.map((account, idx) => ({
-      name: QUEUE_NAMES.PROFILE_SYNC,
-      data: { accountId: account._id.toString(), meta: { parentJobId, index: idx, total: accounts.length, maxConcurrency: concurrency } },
-      opts: { delay: Math.min(idx, concurrency - 1) * 800, jobId: `sync-${account._id}-${Date.now()}` },
-    })));
+    const concurrency = Math.max(1, Math.min(Number.parseInt(batchSize, 10) || 1, cfg.browser.limit));
     registry.create({ parentJobId, type: 'profile-sync', total: accounts.length, accountUsernames: accounts.map(a => a.username), meta:{ maxConcurrency:concurrency } });
+    let added;
+    try {
+      added = await queue.addBulk(accounts.map((account, idx) => ({
+        name: QUEUE_NAMES.PROFILE_SYNC,
+        data: { accountId: account._id.toString(), meta: { parentJobId, index: idx, total: accounts.length, maxConcurrency: concurrency } },
+        opts: { jobId: `sync-${account._id}-${Date.now()}` },
+      })));
+    } catch (error) {
+      registry.fail(parentJobId, error);
+      throw error;
+    }
     registry.registerJobs(parentJobId, added.map(j => j.id));
     logger.info(`[bulkSyncProfiles] Queued ${accounts.length} sync jobs → ${parentJobId}`);
     res.json({ started: true, total: accounts.length, jobId: parentJobId });

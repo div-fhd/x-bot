@@ -13,7 +13,7 @@ module.exports = wrapProcessor(async function likeProcessor(job, { isCancelled }
   if (['suspended','locked','dead','auth_required','checkpoint'].includes(account.status))
     throw new Error(`SKIP: @${account.username} — ${account.status}`);
   if (!account.canDo('like'))
-    throw new Error(`SKIP: @{account.username} — daily like cap reached`);
+    throw new Error(`SKIP: @${account.username} — daily like cap reached`);
   await job.updateProgress(10);
   try {
     await ActionSvc.like(account, tweetId);

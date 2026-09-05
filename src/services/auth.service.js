@@ -109,8 +109,6 @@ const AuthSvc = {
 
   // ── Health check ─────────────────────────────────────────────
   async checkHealth(account) {
-    // تأخير عشوائي لتفادي فتح متصفحات متعددة في نفس الوقت
-    await sleep(randInt(0, 2000));
     try {
       const creds = Vault.decryptAccount(account.credentials);
       const statusMap = {

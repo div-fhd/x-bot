@@ -4,7 +4,8 @@ const { createConnection } = require('../connection');
 const { QUEUE_NAMES }  = require('../queues');
 const { setIO, attachQueueEvents } = require('../events/job.events');
 const logger           = require('../../utils/logger');
-const BROWSER_LIMIT    = parseInt(process.env.BROWSER_LIMIT || '5');
+const cfg              = require('../../config');
+const WORKER_CONCURRENCY = Math.max(1, cfg.workers.concurrency);
 
 const PROCESSOR_MAP = {
   [QUEUE_NAMES.FOLLOW]:         require('../processors/follow.processor'),
@@ -33,7 +34,12 @@ async function startWorkers(io) {
   const { getQueueHealth }  = require('../../ops/queue.monitor');
 
   ['op:created','op:progress','op:completed','op:cancelled','op:paused','op:resumed','op:retrying','op:cancelling']
-    .forEach(ev => registry.on(ev, data => io.emit(ev, data)));
+    .forEach(ev => registry.on(ev, data => {
+      io.emit(ev, data);
+      if (ev === 'op:completed' && data.type === 'health-check') {
+        io.emit('account:check:done', { total:data.total, success:data.success, failed:data.failed, skipped:data.skipped });
+      }
+    }));
 
   // Browser context pulse every 3s
   setInterval(() => io.emit('browsers:snapshot', browserRegistry.snapshot()), 3000).unref();
@@ -47,7 +53,7 @@ async function startWorkers(io) {
   for (const [queueName, processor] of Object.entries(PROCESSOR_MAP)) {
     const worker = new Worker(queueName, processor, {
       connection:      createConnection(),
-      concurrency:     BROWSER_LIMIT,
+      concurrency:     WORKER_CONCURRENCY,
       stalledInterval: 30_000,
       lockDuration:    180_000,
     });
@@ -66,7 +72,7 @@ async function startWorkers(io) {
   // Only announce readiness after the workers have actually registered in
   // Redis. Otherwise producers can queue jobs that nobody is consuming.
   await Promise.all(_workers.map(worker => worker.waitUntilReady()));
-  logger.info(`[Workers] Started ${_workers.length} workers (concurrency: ${BROWSER_LIMIT})`);
+  logger.info(`[Workers] Started ${_workers.length} workers (per-queue concurrency: ${WORKER_CONCURRENCY}, browser limit: ${cfg.browser.limit})`);
 }
 
 async function stopWorkers() {
