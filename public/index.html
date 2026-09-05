@@ -5508,6 +5508,31 @@ function uploadWithProgress(url, formData, onProgress) {
   });
 }
 
+// Keep large profile updates reliable on small servers. The user can choose all
+// files at once, but the browser uploads no more than 50 files per request.
+async function uploadProfileImagesInBatches(avatarFiles, bannerFiles, onProgress) {
+  const batchSize = 50;
+  const tasks = [
+    ...avatarFiles.map(file => ({ field:'avatars', file })),
+    ...bannerFiles.map(file => ({ field:'banners', file })),
+  ];
+  const avatarPaths = [];
+  const bannerPaths = [];
+
+  for (let start = 0; start < tasks.length; start += batchSize) {
+    const batch = tasks.slice(start, start + batchSize);
+    const formData = new FormData();
+    batch.forEach(({ field, file }) => formData.append(field, file));
+    const response = await uploadWithProgress('/api/v1/accounts/upload-images', formData, percent => {
+      const overall = Math.round(((start + (batch.length * percent / 100)) / tasks.length) * 100);
+      onProgress?.(overall, Math.floor(start / batchSize) + 1, Math.ceil(tasks.length / batchSize));
+    });
+    avatarPaths.push(...(response.avatarPaths || []));
+    bannerPaths.push(...(response.bannerPaths || []));
+  }
+  return { avatarPaths, bannerPaths };
+}
+
 // ── الإبلاغ ──────────────────────────────────────────────────
 function onReportTypeChange(val) {
   const label = document.getElementById('report-target-label');
@@ -5647,9 +5672,6 @@ async function doUpdateProfiles() {
   if (avatarFiles.length || bannerFiles.length) {
     const newAvatarFiles = avatarFiles.filter(file => !file.libraryPath);
     const newBannerFiles = bannerFiles.filter(file => !file.libraryPath);
-    const formData = new FormData();
-    newAvatarFiles.forEach(file => formData.append('avatars', file));
-    newBannerFiles.forEach(file => formData.append('banners', file));
     try {
       let uploadData = { avatarPaths: [], bannerPaths: [] };
       if (newAvatarFiles.length || newBannerFiles.length) {
@@ -5657,9 +5679,12 @@ async function doUpdateProfiles() {
         uploadLabel.textContent = `رفع ${newAvatarFiles.length + newBannerFiles.length} صورة جديدة…`;
         uploadBar.style.width = '0%';
         uploadPercent.textContent = '0%';
-        uploadData = await uploadWithProgress('/api/v1/accounts/upload-images', formData, percent => {
+        uploadData = await uploadProfileImagesInBatches(newAvatarFiles, newBannerFiles, (percent, currentBatch, totalBatches) => {
           uploadBar.style.width = `${percent}%`;
           uploadPercent.textContent = `${percent}%`;
+          uploadLabel.textContent = totalBatches > 1
+            ? `رفع الدفعة ${currentBatch} من ${totalBatches}…`
+            : `رفع ${newAvatarFiles.length + newBannerFiles.length} صورة جديدة…`;
         });
         invalidateMediaLibraryCache();
       }
