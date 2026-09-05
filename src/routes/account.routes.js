@@ -15,8 +15,13 @@ router.post  ('/bulk-update-profiles', ctrl.bulkUpdateProfiles);
 router.delete('/bulk',                 ctrl.bulkRemove);
 
 const multer = require('multer');
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
-router.post  ('/upload-images', upload.fields([{ name:'avatars', maxCount:50 }, { name:'banners', maxCount:50 }]), ctrl.uploadImages);
+// Profile batches can target hundreds of accounts. Keep the upload limit aligned
+// with that workflow instead of rejecting the request at Multer's old 50-file cap.
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024, files: 500 },
+});
+router.post  ('/upload-images', upload.fields([{ name:'avatars', maxCount:250 }, { name:'banners', maxCount:250 }]), ctrl.uploadImages);
 
 // ── Dynamic routes /:id بعدها ───────────────────────────────
 router.get   ('/:id',                  ctrl.get);

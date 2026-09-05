@@ -1126,16 +1126,20 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   <!-- ════════════ الحسابات ════════════ -->
   <div class="panel" id="p-accounts">
     <div style="display:flex;gap:10px;margin-bottom:12px;align-items:center;flex-wrap:wrap">
-      <input id="acc-q" type="text" placeholder="ابحث باسم المستخدم…" style="width:190px" oninput="loadAccounts()">
-      <select id="acc-status" onchange="loadAccounts()" style="width:145px">
+      <input id="acc-q" type="text" placeholder="ابحث باسم المستخدم…" style="width:190px" oninput="resetAccountsPage()">
+      <select id="acc-status" onchange="resetAccountsPage()" style="width:145px">
         <option value="">كل الحالات</option>
         <option value="active">نشط</option>
         <option value="auth_required">يحتاج مصادقة</option>
-        <option value="locked">نقطة تحقق</option>
+        <option value="locked">مقفل</option>
         <option value="suspended">محظور</option>
         <option value="dead">غير نشط</option>
+        <option value="checkpoint">نقطة تحقق</option>
+        <option value="limited">مقيّد</option>
+        <option value="warmup">إحماء</option>
+        <option value="inactive">خامل</option>
       </select>
-      <select id="acc-role" onchange="loadAccounts()" style="width:125px">
+      <select id="acc-role" onchange="resetAccountsPage()" style="width:125px">
         <option value="">كل الأدوار</option>
         <option value="post">نشر</option>
         <option value="engage">تفاعل</option>
@@ -3924,14 +3928,15 @@ async function loadAccounts() {
     if (!d) return;
 
     const statusBadge = s => {
-      const m = { 'active':'p-g', 'auth_required':'p-a', 'locked':'p-p', 'suspended':'p-r', 'dead':'p-n', 'suspended':'p-r' };
-      const dot = s === 'active' ? '<span class="dot dg"></span>' : s === 'auth_required' ? '<span class="dot da"></span>' : s === 'suspended' ? '<span class="dot dr"></span>' : '';
-      return `<span class="pill ${m[s]||'p-n'}">${dot}${s.replace(/_/g,' ')}</span>`;
+      const labels = { active:'نشط', auth_required:'يحتاج مصادقة', locked:'مقفل', checkpoint:'نقطة تحقق', suspended:'محظور', dead:'غير نشط', inactive:'خامل', warmup:'إحماء', limited:'مقيّد' };
+      const m = { active:'p-g', auth_required:'p-a', locked:'p-p', checkpoint:'p-p', suspended:'p-r', dead:'p-n', inactive:'p-n', warmup:'p-b', limited:'p-a' };
+      const dot = s === 'active' ? '<span class="dot dg"></span>' : ['auth_required','limited'].includes(s) ? '<span class="dot da"></span>' : ['suspended','dead'].includes(s) ? '<span class="dot dr"></span>' : '';
+      return `<span class="pill ${m[s]||'p-n'}">${dot}${labels[s] || String(s || '').replace(/_/g,' ')}</span>`;
     };
 
     document.getElementById('acc-tbody').innerHTML = d.accounts.length
       ? d.accounts.map(a => {
-          const isBad = ['محظور','موقوف'].includes(a.status);
+          const isBad = ['suspended','dead'].includes(a.status);
           const needsAuth = a.status === 'auth_required';
           const rowStyle = isBad ? 'background:rgba(242,86,104,.03);border-right:2px solid rgba(242,86,104,.2)' : needsAuth ? 'background:rgba(248,179,64,.03);border-right:2px solid rgba(248,179,64,.15)' : '';
           return `
@@ -3970,6 +3975,13 @@ async function loadAccounts() {
   } catch(e) { toast(e.message, 'err'); }
 }
 
+// Filtering while the user was on a later page used to request that same page
+// from a much smaller result set, appearing as if the status filter was broken.
+function resetAccountsPage() {
+  accPage = 1;
+  loadAccounts();
+}
+
 function setAccountsPageView(view) {
   localStorage.setItem('xops_accounts_page_view', view);
   const cards = document.getElementById('accounts-card-view');
@@ -3986,7 +3998,7 @@ function renderAccountPageCards(accounts) {
     return;
   }
   const roleLabel = role => ({ post:'نشر', engage:'تفاعل', support:'دعم', mixed:'مختلط' }[role] || 'مختلط');
-  const statusLabel = status => ({ active:'نشط', auth_required:'يحتاج مصادقة', locked:'نقطة تحقق', suspended:'محظور', dead:'غير نشط' }[status] || status);
+  const statusLabel = status => ({ active:'نشط', auth_required:'يحتاج مصادقة', locked:'مقفل', checkpoint:'نقطة تحقق', suspended:'محظور', dead:'غير نشط', inactive:'خامل', warmup:'إحماء', limited:'مقيّد' }[status] || status);
   host.innerHTML = accounts.map(account => {
     const username = escapeProfileText(account.username);
     const name = escapeProfileText(account.profile?.displayName || account.label || account.username);
@@ -4038,10 +4050,29 @@ function syncAccountPageCardSelection() {
   });
 }
 
+async function fetchAllAccounts(filters = {}) {
+  const accounts = [];
+  const seen = new Set();
+  let page = 1;
+  let pages = 1;
+  do {
+    const params = new URLSearchParams({ ...filters, page, limit:500 });
+    const response = await api(`/api/v1/accounts?${params}`);
+    for (const account of (response.accounts || [])) {
+      if (!seen.has(account._id)) {
+        seen.add(account._id);
+        accounts.push(account);
+      }
+    }
+    pages = Math.max(1, Number(response.pages) || 1);
+    page += 1;
+  } while (page <= pages);
+  return accounts;
+}
+
 async function loadActiveAccounts() {
   try {
-    const d = await api('/api/v1/accounts?status=active&limit=200');
-    if (d) allActiveAccounts = d.accounts;
+    allActiveAccounts = await fetchAllAccounts({ status:'active' });
     document.getElementById('nb-content').textContent = allActiveAccounts.length;
     fillAllActionSelects();
     // تملأ selects البروفايل إذا الصفحة مفتوحة
@@ -4305,7 +4336,7 @@ function selectPrimaryAccounts() {
 function togglePrimaryFilter(btn) {
   _showPrimaryOnly = !_showPrimaryOnly;
   btn.style.background = _showPrimaryOnly ? 'rgba(245,166,35,.15)' : '';
-  loadAccounts();
+  resetAccountsPage();
 }
 
 async function deleteAccount(id, username) {

@@ -57,6 +57,14 @@ function authMiddleware(req, res, next) {
 // ── معالج الأخطاء العام ───────────────────────────────────────
 function errorHandler(err, req, res, next) {
   logger.error(`[خطأ] ${req.method} ${req.path}: ${err.message}`);
+  if (err?.name === 'MulterError') {
+    const messages = {
+      LIMIT_FILE_SIZE: 'حجم الصورة يتجاوز 10 ميغابايت.',
+      LIMIT_FILE_COUNT: 'عدد الصور في الطلب يتجاوز الحد المسموح.',
+      LIMIT_UNEXPECTED_FILE: 'عدد الصور المختارة أكبر من الحد المسموح لكل نوع.',
+    };
+    return res.status(400).json({ error: messages[err.code] || `تعذر رفع الصور: ${err.message}` });
+  }
   if (err.name === 'ValidationError') {
     return res.status(400).json({ error: 'خطأ في البيانات', details: Object.values(err.errors).map(e => e.message) });
   }

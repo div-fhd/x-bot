@@ -558,14 +558,16 @@ const AccountCtrl = {
         const buffer = await sharp(file.buffer).resize(400, 400, { fit: 'cover' }).jpeg({ quality: 85 }).toBuffer();
         const saved = MediaLibrary.saveUniqueBuffer({ bucket:'profiles', buffer, filename:fname, index:contentIndex });
         if (saved.reused) reused += 1;
-        if (!avatarPaths.includes(saved.path)) avatarPaths.push(saved.path);
+        // Return one entry per selected file.  The same library file may be
+        // deliberately assigned to more than one account after de-duplication.
+        avatarPaths.push(saved.path);
       }
       for (const file of (req.files?.banners || [])) {
         const fname = `banner_${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
         const buffer = await sharp(file.buffer).resize(1500, 500, { fit: 'cover' }).jpeg({ quality: 85 }).toBuffer();
         const saved = MediaLibrary.saveUniqueBuffer({ bucket:'profiles', buffer, filename:fname, index:contentIndex });
         if (saved.reused) reused += 1;
-        if (!bannerPaths.includes(saved.path)) bannerPaths.push(saved.path);
+        bannerPaths.push(saved.path);
       }
       res.json({ avatarPaths, bannerPaths, reused });
     } catch(e) {
@@ -577,12 +579,12 @@ const AccountCtrl = {
       for (const file of (req.files?.avatars || [])) {
         const saved = MediaLibrary.saveUniqueBuffer({ bucket:'profiles', buffer:file.buffer, filename:`avatar_${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`, index:contentIndex });
         if (saved.reused) reused += 1;
-        if (!avatarPaths.includes(saved.path)) avatarPaths.push(saved.path);
+        avatarPaths.push(saved.path);
       }
       for (const file of (req.files?.banners || [])) {
         const saved = MediaLibrary.saveUniqueBuffer({ bucket:'profiles', buffer:file.buffer, filename:`banner_${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`, index:contentIndex });
         if (saved.reused) reused += 1;
-        if (!bannerPaths.includes(saved.path)) bannerPaths.push(saved.path);
+        bannerPaths.push(saved.path);
       }
       res.json({ avatarPaths, bannerPaths, reused });
     }
